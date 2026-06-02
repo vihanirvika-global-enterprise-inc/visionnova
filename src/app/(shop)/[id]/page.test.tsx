@@ -15,8 +15,9 @@ describe('ProductPage', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
+    const { CartProvider } = await import('@/components/cart/CartContext')
     const ProductPage = (await import('./page')).default
-    render(await ProductPage({ params: { id: 'prod-001' } }))
+    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
 
     expect(screen.getByText('Classic Frame')).toBeInTheDocument()
     expect(screen.getByText('$89.99')).toBeInTheDocument()
@@ -26,8 +27,9 @@ describe('ProductPage', () => {
     const { getProductById } = await import('@/lib/products')
     vi.mocked(getProductById).mockResolvedValueOnce(null)
 
+    const { CartProvider } = await import('@/components/cart/CartContext')
     const ProductPage = (await import('./page')).default
-    render(await ProductPage({ params: { id: 'nonexistent' } }))
+    render(<CartProvider>{await ProductPage({ params: { id: 'nonexistent' } })}</CartProvider>)
 
     expect(screen.getByText('Product not found')).toBeInTheDocument()
   })
@@ -41,8 +43,9 @@ describe('ProductPage', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
+    const { CartProvider } = await import('@/components/cart/CartContext')
     const ProductPage = (await import('./page')).default
-    render(await ProductPage({ params: { id: 'prod-001' } }))
+    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
 
     expect(screen.getByText('Timeless design')).toBeInTheDocument()
   })
@@ -56,8 +59,9 @@ describe('ProductPage', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
+    const { CartProvider } = await import('@/components/cart/CartContext')
     const ProductPage = (await import('./page')).default
-    render(await ProductPage({ params: { id: 'prod-001' } }))
+    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
 
     expect(screen.queryByTestId('product-description')).not.toBeInTheDocument()
   })

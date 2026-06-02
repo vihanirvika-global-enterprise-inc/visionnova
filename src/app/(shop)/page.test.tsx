@@ -17,8 +17,9 @@ describe('CatalogPage', () => {
       },
     ])
 
+    const { CartProvider } = await import('@/components/cart/CartContext')
     const CatalogPage = (await import('./page')).default
-    render(await CatalogPage())
+    render(<CartProvider>{await CatalogPage()}</CartProvider>)
 
     expect(screen.getByText('Classic Frame')).toBeInTheDocument()
     expect(screen.getByText('$89.99')).toBeInTheDocument()
@@ -28,8 +29,9 @@ describe('CatalogPage', () => {
     const { getProducts } = await import('@/lib/products')
     vi.mocked(getProducts).mockResolvedValueOnce([])
 
+    const { CartProvider } = await import('@/components/cart/CartContext')
     const CatalogPage = (await import('./page')).default
-    render(await CatalogPage())
+    render(<CartProvider>{await CatalogPage()}</CartProvider>)
 
     expect(screen.getByText('No products available')).toBeInTheDocument()
   })

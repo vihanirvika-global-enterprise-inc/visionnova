@@ -1,4 +1,5 @@
 import { getProductById } from '@/lib/products'
+import { AddToCartButton } from '@/components/ui/AddToCartButton'
 
 interface ProductPageProps {
   params: { id: string }
@@ -18,6 +19,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       {product.description && (
         <p data-testid="product-description">{product.description}</p>
       )}
+      <AddToCartButton product={product} />
     </main>
   )
 }
