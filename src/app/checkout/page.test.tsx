@@ -26,4 +26,17 @@ describe('CheckoutPage', () => {
     expect(screen.getByText('Total: $89.99')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /place order/i })).toBeInTheDocument()
   })
+
+  it('renders shipping address fields', () => {
+    render(<CartProvider><CheckoutPage /></CartProvider>)
+    expect(screen.getByLabelText(/street address/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/city/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/postal code/i)).toBeInTheDocument()
+  })
+
+  it('renders state and country fields', () => {
+    render(<CartProvider><CheckoutPage /></CartProvider>)
+    expect(screen.getByLabelText(/^state$/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^country$/i)).toBeInTheDocument()
+  })
 })
