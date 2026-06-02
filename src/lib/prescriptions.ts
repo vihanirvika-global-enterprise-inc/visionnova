@@ -47,3 +47,10 @@ export async function updatePrescriptionStatus(
   `
   return mapPrescription(rows[0])
 }
+
+export async function getPrescriptionsByCustomer(customerId: string): Promise<Prescription[]> {
+  const rows = await sql`
+    SELECT * FROM prescriptions WHERE customer_id = ${customerId} ORDER BY created_at DESC
+  `
+  return rows.map(mapPrescription)
+}

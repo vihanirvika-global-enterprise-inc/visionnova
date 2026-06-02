@@ -61,3 +61,28 @@ describe('updatePrescriptionStatus', () => {
     expect(result.status).toBe('approved')
   })
 })
+
+describe('getPrescriptionsByCustomer', () => {
+  beforeEach(() => { vi.resetModules(); vi.clearAllMocks() })
+
+  it('returns all prescriptions for a customer', async () => {
+    const { sql } = await import('./db')
+    const now = new Date()
+    vi.mocked(sql).mockResolvedValueOnce([{
+      id: 'rx-001', customer_id: 'cust-001',
+      file_url: 'https://storage.example.com/rx-001.pdf',
+      status: 'pending',
+      right_sphere: null, right_cylinder: null, right_axis: null, right_add: null,
+      left_sphere: null, left_cylinder: null, left_axis: null, left_add: null,
+      pupillary_distance: null, expires_at: null,
+      created_at: now, updated_at: now,
+    }])
+
+    const { getPrescriptionsByCustomer } = await import('./prescriptions')
+    const result = await getPrescriptionsByCustomer('cust-001')
+
+    expect(result).toHaveLength(1)
+    expect(result[0].customerId).toBe('cust-001')
+    expect(result[0].status).toBe('pending')
+  })
+})
