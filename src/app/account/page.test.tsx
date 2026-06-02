@@ -2,13 +2,16 @@ import { render, screen } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 vi.mock('@/lib/orders', () => ({ getOrdersByCustomer: vi.fn() }))
+vi.mock('@/lib/prescriptions', () => ({ getPrescriptionsByCustomer: vi.fn() }))
 
 describe('AccountPage', () => {
   beforeEach(() => { vi.resetModules(); vi.clearAllMocks() })
 
   it('shows an empty state when there are no orders', async () => {
     const { getOrdersByCustomer } = await import('@/lib/orders')
+    const { getPrescriptionsByCustomer } = await import('@/lib/prescriptions')
     vi.mocked(getOrdersByCustomer).mockResolvedValueOnce([])
+    vi.mocked(getPrescriptionsByCustomer).mockResolvedValueOnce([])
 
     const AccountPage = (await import('./page')).default
     render(await AccountPage())
@@ -18,6 +21,8 @@ describe('AccountPage', () => {
 
   it('renders a list of orders for the customer', async () => {
     const { getOrdersByCustomer } = await import('@/lib/orders')
+    const { getPrescriptionsByCustomer } = await import('@/lib/prescriptions')
+    vi.mocked(getPrescriptionsByCustomer).mockResolvedValueOnce([])
     const now = new Date()
     vi.mocked(getOrdersByCustomer).mockResolvedValueOnce([
       {
@@ -40,7 +45,9 @@ describe('AccountPage', () => {
 
   it('renders a link to upload a prescription', async () => {
     const { getOrdersByCustomer } = await import('@/lib/orders')
+    const { getPrescriptionsByCustomer } = await import('@/lib/prescriptions')
     vi.mocked(getOrdersByCustomer).mockResolvedValueOnce([])
+    vi.mocked(getPrescriptionsByCustomer).mockResolvedValueOnce([])
 
     const AccountPage = (await import('./page')).default
     render(await AccountPage())
@@ -48,5 +55,25 @@ describe('AccountPage', () => {
     const link = screen.getByRole('link', { name: /upload prescription/i })
     expect(link).toBeInTheDocument()
     expect(link).toHaveAttribute('href', '/prescription-upload')
+  })
+
+  it('renders the customer prescription status', async () => {
+    const { getOrdersByCustomer } = await import('@/lib/orders')
+    const { getPrescriptionsByCustomer } = await import('@/lib/prescriptions')
+    vi.mocked(getOrdersByCustomer).mockResolvedValueOnce([])
+    vi.mocked(getPrescriptionsByCustomer).mockResolvedValueOnce([{
+      id: 'rx-001', customerId: 'cust-001',
+      fileUrl: 'https://storage.example.com/rx-001.pdf',
+      status: 'approved' as const,
+      rightSphere: null, rightCylinder: null, rightAxis: null, rightAdd: null,
+      leftSphere: null, leftCylinder: null, leftAxis: null, leftAdd: null,
+      pupillaryDistance: null, expiresAt: null,
+      createdAt: new Date(), updatedAt: new Date(),
+    }])
+
+    const AccountPage = (await import('./page')).default
+    render(await AccountPage())
+
+    expect(screen.getByText(/approved/i)).toBeInTheDocument()
   })
 })
