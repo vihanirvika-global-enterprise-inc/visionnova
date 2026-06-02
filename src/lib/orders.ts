@@ -39,3 +39,12 @@ export async function getOrderById(id: string): Promise<Order | null> {
   const rows = await sql`SELECT * FROM orders WHERE id = ${id} LIMIT 1`
   return rows.length > 0 ? mapOrder(rows[0]) : null
 }
+
+export async function updateOrderStatus(id: string, status: Order['status']): Promise<Order> {
+  const rows = await sql`
+    UPDATE orders SET status = ${status}, updated_at = NOW()
+    WHERE id = ${id}
+    RETURNING *
+  `
+  return mapOrder(rows[0])
+}

@@ -28,3 +28,8 @@ export async function addOrderItem(input: AddOrderItemInput): Promise<OrderItem>
   `
   return mapOrderItem(rows[0])
 }
+
+export async function getOrderItems(orderId: string): Promise<OrderItem[]> {
+  const rows = await sql`SELECT * FROM order_items WHERE order_id = ${orderId}`
+  return rows.map(mapOrderItem)
+}

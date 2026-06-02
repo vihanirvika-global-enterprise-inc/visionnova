@@ -19,7 +19,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
       {product.description && (
         <p data-testid="product-description">{product.description}</p>
       )}
-      <AddToCartButton product={product} />
+      {product.stockQuantity === 0 ? (
+        <p>Out of Stock</p>
+      ) : (
+        <AddToCartButton product={product} />
+      )}
     </main>
   )
 }

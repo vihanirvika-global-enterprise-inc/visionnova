@@ -65,4 +65,21 @@ describe('ProductPage', () => {
 
     expect(screen.queryByTestId('product-description')).not.toBeInTheDocument()
   })
+
+  it('shows out of stock message when product has no stock', async () => {
+    const { getProductById } = await import('@/lib/products')
+    vi.mocked(getProductById).mockResolvedValueOnce({
+      id: 'prod-001', name: 'Classic Frame', description: null,
+      price: 89.99, category: 'frames' as const, sku: 'CF-001',
+      stockQuantity: 0, imageUrl: null, requiresPrescription: false,
+      createdAt: new Date(), updatedAt: new Date(),
+    })
+
+    const { CartProvider } = await import('@/components/cart/CartContext')
+    const ProductPage = (await import('./page')).default
+    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+
+    expect(screen.getByText('Out of Stock')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add to cart/i })).not.toBeInTheDocument()
+  })
 })
