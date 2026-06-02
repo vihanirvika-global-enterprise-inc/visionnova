@@ -2,8 +2,13 @@
 
 import Link from 'next/link'
 import { useCart } from '@/components/cart/CartContext'
+import { logoutAction } from '@/app/actions/logout'
 
-export function Navbar() {
+interface NavbarProps {
+  isLoggedIn?: boolean
+}
+
+export function Navbar({ isLoggedIn = false }: NavbarProps) {
   const { items } = useCart()
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0)
 
@@ -13,7 +18,13 @@ export function Navbar() {
       <Link href="/shop">Shop</Link>
       <Link href="/cart">Cart {itemCount > 0 && `(${itemCount})`}</Link>
       <Link href="/account">Account</Link>
-      <Link href="/login">Login</Link>
+      {isLoggedIn ? (
+        <form action={logoutAction}>
+          <button type="submit">Logout</button>
+        </form>
+      ) : (
+        <Link href="/login">Login</Link>
+      )}
     </nav>
   )
 }

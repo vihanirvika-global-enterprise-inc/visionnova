@@ -37,6 +37,16 @@ describe('Navbar', () => {
     expect(loginLink).toHaveAttribute('href', '/login')
   })
 
+  it('shows a logout button when logged in', () => {
+    render(<CartProvider><Navbar isLoggedIn /></CartProvider>)
+    expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument()
+  })
+
+  it('hides the login link when logged in', () => {
+    render(<CartProvider><Navbar isLoggedIn /></CartProvider>)
+    expect(screen.queryByRole('link', { name: /login/i })).not.toBeInTheDocument()
+  })
+
   it('shows item count on the cart link when cart has items', () => {
     let addToCart: (p: Product) => void
 
