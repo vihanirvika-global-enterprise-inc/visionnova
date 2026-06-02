@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 export default function LoginPage() {
   return (
     <main>
@@ -10,6 +12,7 @@ export default function LoginPage() {
 
         <button type="submit">Sign In</button>
       </form>
+      <Link href="/register">Register</Link>
     </main>
   )
 }

@@ -37,6 +37,22 @@ describe('CartPage', () => {
     expect(screen.getByText('Total: $89.99')).toBeInTheDocument()
   })
 
+  it('renders a proceed to checkout link when cart has items', () => {
+    let addToCart: (p: Product) => void
+
+    function Harness() {
+      addToCart = useCart().addToCart
+      return <CartPage />
+    }
+
+    render(<CartProvider><Harness /></CartProvider>)
+    act(() => addToCart(mockProduct))
+
+    const link = screen.getByRole('link', { name: /proceed to checkout/i })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute('href', '/checkout')
+  })
+
   it('removes an item when the remove button is clicked', async () => {
     let addToCart: (p: Product) => void
 

@@ -23,6 +23,20 @@ describe('Navbar', () => {
     expect(screen.getByRole('link', { name: /account/i })).toBeInTheDocument()
   })
 
+  it('renders a link to the shop catalog', () => {
+    render(<CartProvider><Navbar /></CartProvider>)
+    const shopLink = screen.getByRole('link', { name: /^shop$/i })
+    expect(shopLink).toBeInTheDocument()
+    expect(shopLink).toHaveAttribute('href', '/shop')
+  })
+
+  it('renders a link to login', () => {
+    render(<CartProvider><Navbar /></CartProvider>)
+    const loginLink = screen.getByRole('link', { name: /login/i })
+    expect(loginLink).toBeInTheDocument()
+    expect(loginLink).toHaveAttribute('href', '/login')
+  })
+
   it('shows item count on the cart link when cart has items', () => {
     let addToCart: (p: Product) => void
 

@@ -37,4 +37,16 @@ describe('AccountPage', () => {
     expect(screen.getByText(/order-001/)).toBeInTheDocument()
     expect(screen.getByText(/delivered/)).toBeInTheDocument()
   })
+
+  it('renders a link to upload a prescription', async () => {
+    const { getOrdersByCustomer } = await import('@/lib/orders')
+    vi.mocked(getOrdersByCustomer).mockResolvedValueOnce([])
+
+    const AccountPage = (await import('./page')).default
+    render(await AccountPage())
+
+    const link = screen.getByRole('link', { name: /upload prescription/i })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute('href', '/prescription-upload')
+  })
 })

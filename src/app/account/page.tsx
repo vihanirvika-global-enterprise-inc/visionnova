@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { getOrdersByCustomer } from '@/lib/orders'
 
 export default async function AccountPage() {
@@ -16,6 +17,7 @@ export default async function AccountPage() {
           ))}
         </ul>
       )}
+      <Link href="/prescription-upload">Upload Prescription</Link>
     </main>
   )
 }

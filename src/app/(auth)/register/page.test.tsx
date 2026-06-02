@@ -19,4 +19,9 @@ describe('RegisterPage', () => {
     render(<RegisterPage />)
     expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument()
   })
+
+  it('renders a link to the login page', () => {
+    render(<RegisterPage />)
+    expect(screen.getByRole('link', { name: /login/i })).toBeInTheDocument()
+  })
 })

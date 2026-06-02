@@ -10,8 +10,10 @@ export function Navbar() {
   return (
     <nav>
       <Link href="/">Home</Link>
+      <Link href="/shop">Shop</Link>
       <Link href="/cart">Cart {itemCount > 0 && `(${itemCount})`}</Link>
       <Link href="/account">Account</Link>
+      <Link href="/login">Login</Link>
     </nav>
   )
 }

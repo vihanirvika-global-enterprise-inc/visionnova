@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 export default function RegisterPage() {
   return (
     <main>
@@ -16,6 +18,7 @@ export default function RegisterPage() {
 
         <button type="submit">Create Account</button>
       </form>
+      <Link href="/login">Login</Link>
     </main>
   )
 }

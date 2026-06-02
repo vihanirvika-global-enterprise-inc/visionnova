@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCart } from '@/components/cart/CartContext'
 
 export default function CartPage() {
@@ -20,6 +21,7 @@ export default function CartPage() {
         ))}
       </ul>
       <p>Total: ${total.toFixed(2)}</p>
+      <Link href="/checkout">Proceed to Checkout</Link>
     </main>
   )
 }
