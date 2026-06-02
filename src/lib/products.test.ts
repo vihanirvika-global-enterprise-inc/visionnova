@@ -98,3 +98,24 @@ describe('getProductsByCategory', () => {
     expect(result[0].category).toBe('frames')
   })
 })
+
+describe('getInStockProducts', () => {
+  beforeEach(() => { vi.resetModules(); vi.clearAllMocks() })
+
+  it('returns only products with stock quantity greater than zero', async () => {
+    const { sql } = await import('./db')
+    vi.mocked(sql).mockResolvedValueOnce([{
+      id: 'prod-001', name: 'Classic Frame', description: null,
+      price: '89.99', category: 'frames', sku: 'CF-001',
+      stock_quantity: 5, image_url: null, requires_prescription: false,
+      created_at: new Date(), updated_at: new Date(),
+    }])
+
+    const { getInStockProducts } = await import('./products')
+    const result = await getInStockProducts()
+
+    expect(sql).toHaveBeenCalledOnce()
+    expect(result).toHaveLength(1)
+    expect(result[0].stockQuantity).toBe(5)
+  })
+})

@@ -1,14 +1,14 @@
 import { render, screen } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
-vi.mock('@/lib/products', () => ({ getProducts: vi.fn() }))
+vi.mock('@/lib/products', () => ({ getInStockProducts: vi.fn() }))
 
 describe('CatalogPage', () => {
   beforeEach(() => { vi.resetModules(); vi.clearAllMocks() })
 
   it('renders a ProductCard for each product', async () => {
-    const { getProducts } = await import('@/lib/products')
-    vi.mocked(getProducts).mockResolvedValueOnce([
+    const { getInStockProducts } = await import('@/lib/products')
+    vi.mocked(getInStockProducts).mockResolvedValueOnce([
       {
         id: 'prod-001', name: 'Classic Frame', description: null,
         price: 89.99, category: 'frames' as const, sku: 'CF-001',
@@ -26,8 +26,8 @@ describe('CatalogPage', () => {
   })
 
   it('shows an empty state when there are no products', async () => {
-    const { getProducts } = await import('@/lib/products')
-    vi.mocked(getProducts).mockResolvedValueOnce([])
+    const { getInStockProducts } = await import('@/lib/products')
+    vi.mocked(getInStockProducts).mockResolvedValueOnce([])
 
     const { CartProvider } = await import('@/components/cart/CartContext')
     const CatalogPage = (await import('./page')).default

@@ -31,3 +31,8 @@ export async function getProductsByCategory(category: Product['category']): Prom
   const rows = await sql`SELECT * FROM products WHERE category = ${category} ORDER BY created_at DESC`
   return rows.map(mapProduct)
 }
+
+export async function getInStockProducts(): Promise<Product[]> {
+  const rows = await sql`SELECT * FROM products WHERE stock_quantity > 0 ORDER BY created_at DESC`
+  return rows.map(mapProduct)
+}

@@ -1,8 +1,8 @@
-import { getProducts } from '@/lib/products'
+import { getInStockProducts } from '@/lib/products'
 import { ProductGrid } from '@/components/ui/ProductGrid'
 
 export default async function CatalogPage() {
-  const products = await getProducts()
+  const products = await getInStockProducts()
 
   return (
     <main>
