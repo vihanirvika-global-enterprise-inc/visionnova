@@ -59,3 +59,32 @@ describe('getOrdersByCustomer', () => {
     expect(result[0].status).toBe('delivered')
   })
 })
+
+describe('getOrderById', () => {
+  beforeEach(() => { vi.resetModules(); vi.clearAllMocks() })
+
+  it('returns an order when found', async () => {
+    const { sql } = await import('./db')
+    const now = new Date()
+    vi.mocked(sql).mockResolvedValueOnce([{
+      id: 'order-001', customer_id: 'cust-001', status: 'pending',
+      total_amount: '89.99',
+      shipping_address: { line1: '1 Main St', city: 'Austin', state: 'TX', postalCode: '78701', country: 'US' },
+      created_at: now, updated_at: now,
+    }])
+
+    const { getOrderById } = await import('./orders')
+    const result = await getOrderById('order-001')
+
+    expect(result?.id).toBe('order-001')
+    expect(result?.totalAmount).toBe(89.99)
+  })
+
+  it('returns null when order is not found', async () => {
+    const { sql } = await import('./db')
+    vi.mocked(sql).mockResolvedValueOnce([])
+
+    const { getOrderById } = await import('./orders')
+    expect(await getOrderById('nonexistent')).toBeNull()
+  })
+})

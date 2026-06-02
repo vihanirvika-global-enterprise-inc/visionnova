@@ -34,3 +34,8 @@ export async function getOrdersByCustomer(customerId: string): Promise<Order[]> 
   `
   return rows.map(mapOrder)
 }
+
+export async function getOrderById(id: string): Promise<Order | null> {
+  const rows = await sql`SELECT * FROM orders WHERE id = ${id} LIMIT 1`
+  return rows.length > 0 ? mapOrder(rows[0]) : null
+}
