@@ -7,6 +7,6 @@ describe('HomePage', () => {
     render(<HomePage />)
     const link = screen.getByRole('link', { name: /shop now/i })
     expect(link).toBeInTheDocument()
-    expect(link).toHaveAttribute('href', '/')
+    expect(link).toHaveAttribute('href', '/shop')
   })
 })

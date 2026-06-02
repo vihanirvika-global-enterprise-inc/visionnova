@@ -5,7 +5,7 @@ export default function HomePage() {
     <main>
       <h1>Welcome to VisionNova</h1>
       <p>Premium eyewear, delivered to your door.</p>
-      <Link href="/">Shop Now</Link>
+      <Link href="/shop">Shop Now</Link>
     </main>
   )
 }
