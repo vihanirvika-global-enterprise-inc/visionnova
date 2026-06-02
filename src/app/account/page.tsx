@@ -1,11 +1,15 @@
 import Link from 'next/link'
 import { getOrdersByCustomer } from '@/lib/orders'
 import { getPrescriptionsByCustomer } from '@/lib/prescriptions'
+import { getSession } from '@/lib/session'
 
 export default async function AccountPage() {
+  const session = getSession()
+  const customerId = session?.customerId ?? ''
+
   const [orders, prescriptions] = await Promise.all([
-    getOrdersByCustomer('placeholder'),
-    getPrescriptionsByCustomer('placeholder'),
+    getOrdersByCustomer(customerId),
+    getPrescriptionsByCustomer(customerId),
   ])
 
   return (

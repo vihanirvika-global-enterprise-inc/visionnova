@@ -1,8 +1,12 @@
-import { render, screen, act } from '@testing-library/react'
-import { describe, it, expect } from 'vitest'
+import { render, screen, act, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, it, expect, vi } from 'vitest'
 import { CartProvider, useCart } from '@/components/cart/CartContext'
 import CheckoutPage from './page'
 import type { Product } from '@/types'
+
+vi.mock('./actions', () => ({ checkoutAction: vi.fn() }))
+import { checkoutAction } from './actions'
 
 const mockProduct: Product = {
   id: 'prod-001', name: 'Classic Frame', description: null,
@@ -38,5 +42,16 @@ describe('CheckoutPage', () => {
     render(<CartProvider><CheckoutPage /></CartProvider>)
     expect(screen.getByLabelText(/^state$/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/^country$/i)).toBeInTheDocument()
+  })
+
+  it('displays an error message returned by the action', async () => {
+    vi.mocked(checkoutAction).mockResolvedValue({ error: 'Street address is required' })
+
+    render(<CartProvider><CheckoutPage /></CartProvider>)
+    await userEvent.click(screen.getByRole('button', { name: /place order/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Street address is required')
+    })
   })
 })
