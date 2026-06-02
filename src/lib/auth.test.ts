@@ -3,6 +3,7 @@ import { hashPassword, verifyPassword } from './auth'
 
 vi.mock('./customers', () => ({
   createCustomer: vi.fn(),
+  getCustomerByEmail: vi.fn(),
 }))
 
 describe('auth utilities', () => {
@@ -42,5 +43,40 @@ describe('registerUser', () => {
 
     expect(vi.mocked(createCustomer).mock.calls[0][0].passwordHash).not.toBe('secret123')
     expect(result.email).toBe('jane@example.com')
+  })
+})
+
+describe('loginUser', () => {
+  beforeEach(() => { vi.resetModules(); vi.clearAllMocks() })
+
+  it('returns the customer when credentials are correct', async () => {
+    const hash = await hashPassword('secret123')
+    const { getCustomerByEmail } = await import('./customers')
+    vi.mocked(getCustomerByEmail).mockResolvedValueOnce({
+      id: 'cust-001', email: 'jane@example.com', passwordHash: hash,
+      firstName: 'Jane', lastName: 'Doe', phone: null,
+      createdAt: new Date(), updatedAt: new Date(),
+    })
+    const { loginUser } = await import('./auth')
+    expect((await loginUser('jane@example.com', 'secret123'))?.email).toBe('jane@example.com')
+  })
+
+  it('returns null when the password is wrong', async () => {
+    const hash = await hashPassword('secret123')
+    const { getCustomerByEmail } = await import('./customers')
+    vi.mocked(getCustomerByEmail).mockResolvedValueOnce({
+      id: 'cust-001', email: 'jane@example.com', passwordHash: hash,
+      firstName: 'Jane', lastName: 'Doe', phone: null,
+      createdAt: new Date(), updatedAt: new Date(),
+    })
+    const { loginUser } = await import('./auth')
+    expect(await loginUser('jane@example.com', 'wrongpassword')).toBeNull()
+  })
+
+  it('returns null when no customer exists for the email', async () => {
+    const { getCustomerByEmail } = await import('./customers')
+    vi.mocked(getCustomerByEmail).mockResolvedValueOnce(null)
+    const { loginUser } = await import('./auth')
+    expect(await loginUser('unknown@example.com', 'password')).toBeNull()
   })
 })

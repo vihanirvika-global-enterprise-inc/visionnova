@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { createCustomer } from './customers'
+import { createCustomer, getCustomerByEmail } from './customers'
 import type { Customer } from '@/types'
 
 const SALT_ROUNDS = 10
@@ -27,4 +27,11 @@ export async function registerUser(input: RegisterInput): Promise<Customer> {
     firstName: input.firstName,
     lastName: input.lastName,
   })
+}
+
+export async function loginUser(email: string, password: string): Promise<Customer | null> {
+  const customer = await getCustomerByEmail(email)
+  if (!customer) return null
+  const valid = await verifyPassword(password, customer.passwordHash)
+  return valid ? customer : null
 }
