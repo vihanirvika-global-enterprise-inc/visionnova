@@ -1,6 +1,6 @@
 -- VisionNova MVP Schema
 
-CREATE TABLE customers (
+CREATE TABLE IF NOT EXISTS customers (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email         TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE customers (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE products (
+CREATE TABLE IF NOT EXISTS products (
   id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name                 TEXT NOT NULL,
   description          TEXT,
@@ -25,7 +25,7 @@ CREATE TABLE products (
   updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE orders (
+CREATE TABLE IF NOT EXISTS orders (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id      UUID NOT NULL REFERENCES customers(id),
   status           TEXT NOT NULL DEFAULT 'pending'
@@ -36,7 +36,7 @@ CREATE TABLE orders (
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE prescriptions (
+CREATE TABLE IF NOT EXISTS prescriptions (
   id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id        UUID NOT NULL REFERENCES customers(id),
   file_url           TEXT NOT NULL,
@@ -56,7 +56,7 @@ CREATE TABLE prescriptions (
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE order_items (
+CREATE TABLE IF NOT EXISTS order_items (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id        UUID NOT NULL REFERENCES orders(id),
   product_id      UUID NOT NULL REFERENCES products(id),
@@ -65,7 +65,7 @@ CREATE TABLE order_items (
   unit_price      NUMERIC(10, 2) NOT NULL CHECK (unit_price >= 0)
 );
 
-CREATE TABLE optometrist_reviews (
+CREATE TABLE IF NOT EXISTS optometrist_reviews (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   prescription_id UUID NOT NULL REFERENCES prescriptions(id),
   reviewer_name   TEXT NOT NULL,
@@ -76,9 +76,9 @@ CREATE TABLE optometrist_reviews (
 );
 
 -- Indexes for common query patterns
-CREATE INDEX idx_orders_customer_id        ON orders(customer_id);
-CREATE INDEX idx_order_items_order_id      ON order_items(order_id);
-CREATE INDEX idx_order_items_product_id    ON order_items(product_id);
-CREATE INDEX idx_prescriptions_customer_id ON prescriptions(customer_id);
-CREATE INDEX idx_prescriptions_status      ON prescriptions(status);
-CREATE INDEX idx_optometrist_reviews_prescription_id ON optometrist_reviews(prescription_id);
+CREATE INDEX IF NOT EXISTS idx_orders_customer_id        ON orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_order_id      ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_product_id    ON order_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_customer_id ON prescriptions(customer_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_status      ON prescriptions(status);
+CREATE INDEX IF NOT EXISTS idx_optometrist_reviews_prescription_id ON optometrist_reviews(prescription_id);

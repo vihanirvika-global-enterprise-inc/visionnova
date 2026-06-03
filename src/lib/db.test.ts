@@ -15,11 +15,14 @@ describe('db', () => {
     process.env = originalEnv
   })
 
-  it('exports a sql client built from DATABASE_URL', async () => {
+  it('exports a sql client built from DATABASE_URL with serverless options', async () => {
     const postgres = (await import('postgres')).default as ReturnType<typeof vi.fn>
     const { sql } = await import('./db')
 
-    expect(postgres).toHaveBeenCalledWith('postgres://test:test@localhost/testdb')
+    expect(postgres).toHaveBeenCalledWith('postgres://test:test@localhost/testdb', {
+      prepare: false,
+      max: 1,
+    })
     expect(sql).toBeDefined()
   })
 
