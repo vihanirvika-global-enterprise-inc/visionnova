@@ -1,29 +1,47 @@
+// SERVER ONLY — never import client-side
+// To enforce at build time: npm install server-only && add import 'server-only' here
+
 import { loadStripe } from '@stripe/stripe-js'
 import type Stripe from 'stripe'
 
-// ── Client-side ───────────────────────────────────────────────────────────────
-// Safe to import in any component. Pass to <Elements stripe={stripePromise}>.
-export const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
-)
-
 // ── Server-side ───────────────────────────────────────────────────────────────
-// Lazy singleton — only initialised in Node.js environment.
-// The type guard (typeof window check) ensures STRIPE_SECRET_KEY is never
-// read in a browser context. require() inside the function body prevents the
-// stripe Node SDK from entering Next.js client bundles via static analysis.
-let _stripe: Stripe | undefined
+let stripeInstance: Stripe | null = null
 
 export function getServerStripe(): Stripe {
-  if (typeof window !== 'undefined') {
+  if (!process.env.STRIPE_SECRET_KEY) {
     throw new Error(
-      'getServerStripe() is server-only. Use stripePromise for client-side Stripe.'
+      'STRIPE_SECRET_KEY is not set. ' +
+      'Add it to .env.local for development or ' +
+      'environment variables for production.'
     )
   }
-  if (!_stripe) {
+  if (!stripeInstance) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const StripeConstructor = require('stripe') as new (key: string) => Stripe
-    _stripe = new StripeConstructor(process.env.STRIPE_SECRET_KEY!)
+    const StripeConstructor = require('stripe') as new (
+      key: string,
+      options?: Record<string, unknown>
+    ) => Stripe
+    stripeInstance = new StripeConstructor(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: '2024-06-20',
+      typescript: true,
+    })
   }
-  return _stripe
+  return stripeInstance
+}
+
+// Exported for test teardown only — resets the lazy singleton so tests don't leak state
+export function _resetStripeInstance(): void {
+  stripeInstance = null
+}
+
+// ── Client-side ───────────────────────────────────────────────────────────────
+let _stripePromise: ReturnType<typeof loadStripe> | null = null
+
+export function getClientStripe() {
+  if (!_stripePromise) {
+    _stripePromise = loadStripe(
+      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
+    )
+  }
+  return _stripePromise
 }

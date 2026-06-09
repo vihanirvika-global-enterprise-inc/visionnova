@@ -1,4 +1,11 @@
-export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
+export type OrderStatus =
+  | 'pending'
+  | 'paid'
+  | 'payment_failed'
+  | 'processing'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled'
 
 export type ProductCategory = 'frames' | 'lenses' | 'contacts' | 'sunglasses'
 
