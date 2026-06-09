@@ -13,11 +13,14 @@
     "db:seed": "node --env-file=.env.local scripts/seed-db.js"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^6.6.0",
+    "@stripe/stripe-js": "^9.8.0",
     "bcryptjs": "^3.0.3",
     "next": "14.2.35",
     "postgres": "^3.4.9",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "stripe": "^22.2.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

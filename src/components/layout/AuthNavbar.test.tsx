@@ -14,7 +14,7 @@ describe('AuthNavbar', () => {
 
     render(<CartProvider>{await AuthNavbar()}</CartProvider>)
 
-    expect(screen.getByRole('link', { name: /login/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /sign in/i })).toBeInTheDocument()
   })
 
   it('renders logout button when a session exists', async () => {
@@ -22,6 +22,6 @@ describe('AuthNavbar', () => {
 
     render(<CartProvider>{await AuthNavbar()}</CartProvider>)
 
-    expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument()
   })
 })

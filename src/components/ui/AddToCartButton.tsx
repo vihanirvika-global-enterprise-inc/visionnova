@@ -10,6 +10,11 @@ interface AddToCartButtonProps {
 export function AddToCartButton({ product }: AddToCartButtonProps) {
   const { addToCart } = useCart()
   return (
-    <button onClick={() => addToCart(product)}>Add to Cart</button>
+    <button
+      className="btn-primary w-full"
+      onClick={() => addToCart(product)}
+    >
+      Add to Cart
+    </button>
   )
 }

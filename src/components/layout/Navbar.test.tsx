@@ -32,19 +32,19 @@ describe('Navbar', () => {
 
   it('renders a link to login', () => {
     render(<CartProvider><Navbar /></CartProvider>)
-    const loginLink = screen.getByRole('link', { name: /login/i })
+    const loginLink = screen.getByRole('link', { name: /sign in/i })
     expect(loginLink).toBeInTheDocument()
     expect(loginLink).toHaveAttribute('href', '/login')
   })
 
   it('shows a logout button when logged in', () => {
     render(<CartProvider><Navbar isLoggedIn /></CartProvider>)
-    expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument()
   })
 
   it('hides the login link when logged in', () => {
     render(<CartProvider><Navbar isLoggedIn /></CartProvider>)
-    expect(screen.queryByRole('link', { name: /login/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /sign in/i })).not.toBeInTheDocument()
   })
 
   it('shows item count on the cart link when cart has items', () => {

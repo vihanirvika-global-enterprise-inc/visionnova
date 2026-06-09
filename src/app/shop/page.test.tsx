@@ -33,6 +33,6 @@ describe('CatalogPage', () => {
     const CatalogPage = (await import('./page')).default
     render(<CartProvider>{await CatalogPage()}</CartProvider>)
 
-    expect(screen.getByText('No products available')).toBeInTheDocument()
+    expect(screen.getByText('No products found')).toBeInTheDocument()
   })
 })
