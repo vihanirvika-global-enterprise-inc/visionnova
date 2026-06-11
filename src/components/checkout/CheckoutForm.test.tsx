@@ -10,10 +10,13 @@ vi.mock('@stripe/react-stripe-js', () => ({
   useElements: vi.fn(),
 }))
 
-// Keep real formatAmountForStripe so paise conversion is tested; mock createPaymentIntent
 vi.mock('@/app/checkout/stripe-actions', () => ({
   createPaymentIntent: vi.fn(),
+}))
+
+vi.mock('@/lib/formatters', () => ({
   formatAmountForStripe: (amount: number) => Math.round(amount * 100),
+  formatPrice: (amount: number) => `₹${amount}`,
 }))
 
 vi.mock('@/components/cart/CartContext', () => ({

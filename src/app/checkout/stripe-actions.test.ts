@@ -45,12 +45,12 @@ describe('createPaymentIntent', () => {
 
 describe('formatAmountForStripe', () => {
   it('converts whole rupees to paise', async () => {
-    const { formatAmountForStripe } = await import('./stripe-actions')
+    const { formatAmountForStripe } = await import('@/lib/formatters')
     expect(formatAmountForStripe(499)).toBe(49900)
   })
 
   it('rounds fractional rupees to integer paise (no decimal paise)', async () => {
-    const { formatAmountForStripe } = await import('./stripe-actions')
+    const { formatAmountForStripe } = await import('@/lib/formatters')
     expect(formatAmountForStripe(499.99)).toBe(49999)
   })
 })

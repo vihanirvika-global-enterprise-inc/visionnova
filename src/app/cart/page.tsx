@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useCart } from '@/components/cart/CartContext'
 
@@ -45,9 +46,11 @@ export default function CartPage() {
                 {/* Thumbnail */}
                 <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100">
                   {item.product.imageUrl ? (
-                    <img
+                    <Image
                       src={item.product.imageUrl}
                       alt={item.product.name}
+                      width={80}
+                      height={80}
                       className="h-full w-full object-cover"
                     />
                   ) : (

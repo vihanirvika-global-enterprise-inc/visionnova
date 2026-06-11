@@ -63,7 +63,7 @@ export default function HelpPage() {
                 <span className="text-primary text-xl">+</span>
               </summary>
               <p className="text-muted text-sm mt-3 leading-relaxed">
-                Our licensed optometrists review every prescription within 12 hours. You'll receive
+                Our licensed optometrists review every prescription within 12 hours. You&apos;ll receive
                 an email as soon as your prescription is verified.
               </p>
             </details>
@@ -74,7 +74,7 @@ export default function HelpPage() {
                 <span className="text-primary text-xl">+</span>
               </summary>
               <p className="text-muted text-sm mt-3 leading-relaxed">
-                We'll email you the exact reason. Common issues are illegible photos or expired
+                We&apos;ll email you the exact reason. Common issues are illegible photos or expired
                 prescriptions. Simply re-upload a clearer image from your account dashboard.
               </p>
             </details>
@@ -106,7 +106,7 @@ export default function HelpPage() {
                 <span className="text-primary text-xl">+</span>
               </summary>
               <p className="text-muted text-sm mt-3 leading-relaxed">
-                Yes. Once your order ships, you'll receive a tracking link by email. You can also
+                Yes. Once your order ships, you&apos;ll receive a tracking link by email. You can also
                 track under My Account → Orders.
               </p>
             </details>
@@ -138,7 +138,7 @@ export default function HelpPage() {
                 <span className="text-primary text-xl">+</span>
               </summary>
               <p className="text-muted text-sm mt-3 leading-relaxed">
-                Go to My Account → Orders, find your order, and click 'Request Return'. We'll email
+                Go to My Account → Orders, find your order, and click &apos;Request Return&apos;. We&apos;ll email
                 you a prepaid return label within 24 hours.
               </p>
             </details>
