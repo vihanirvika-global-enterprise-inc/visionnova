@@ -19,6 +19,9 @@ describe('db', () => {
     const postgres = (await import('postgres')).default as ReturnType<typeof vi.fn>
     const { sql } = await import('./db')
 
+    // Trigger lazy initialization by accessing a property on the proxy
+    void (sql as unknown as Record<string, unknown>).end
+
     expect(postgres).toHaveBeenCalledWith('postgres://test:test@localhost/testdb', {
       prepare: false,
       max: 1,
@@ -28,6 +31,10 @@ describe('db', () => {
 
   it('throws if DATABASE_URL is not set', async () => {
     delete process.env.DATABASE_URL
-    await expect(import('./db')).rejects.toThrow('DATABASE_URL is not set')
+    const { sql } = await import('./db')
+    // Pool is created lazily — error surfaces on first use, not on import
+    expect(() => void (sql as unknown as Record<string, unknown>).end).toThrow(
+      'DATABASE_URL is not set'
+    )
   })
 })
