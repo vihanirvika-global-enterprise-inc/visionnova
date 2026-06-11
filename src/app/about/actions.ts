@@ -2,8 +2,6 @@
 
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 export async function sendContactEmail(
   formData: FormData
 ): Promise<{ success: true } | { error: string }> {
@@ -12,6 +10,7 @@ export async function sendContactEmail(
   const subject = formData.get('subject') as string
   const message = formData.get('message') as string
 
+  const resend = new Resend(process.env.RESEND_API_KEY)
   try {
     await resend.emails.send({
       from: 'VisionNova <noreply@visionnova.com>',

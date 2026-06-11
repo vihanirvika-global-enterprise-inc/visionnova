@@ -4,8 +4,6 @@ import { OrderConfirmationEmail } from '../emails/OrderConfirmationEmail'
 import { PrescriptionStatusEmail } from '../emails/PrescriptionStatusEmail'
 import { OrderShippedEmail } from '../emails/OrderShippedEmail'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 export interface SendEmailOptions {
   to: string
   subject: string
@@ -13,6 +11,7 @@ export interface SendEmailOptions {
 }
 
 export async function sendEmail(options: SendEmailOptions) {
+  const resend = new Resend(process.env.RESEND_API_KEY)
   return resend.emails.send({
     from: 'VisionNova <noreply@visionnova.com>',
     to: options.to,
