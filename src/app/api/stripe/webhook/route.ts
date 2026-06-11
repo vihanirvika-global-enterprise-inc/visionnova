@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 import { getServerStripe } from '@/lib/stripe'
 import { updateOrderStatus } from '@/lib/orders'
+import { getCustomerById } from '@/lib/customers'
+import { sendOrderConfirmationEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,7 +44,18 @@ export async function POST(request: NextRequest) {
       case 'payment_intent.succeeded': {
         const pi = event.data.object as Stripe.PaymentIntent
         const orderId = pi.metadata?.orderId
-        if (orderId) await updateOrderStatus(orderId, 'paid')
+        if (orderId) {
+          const order = await updateOrderStatus(orderId, 'paid')
+          const customer = await getCustomerById(order.customerId)
+          if (customer) {
+            await sendOrderConfirmationEmail({
+              to: customer.email,
+              orderId: order.id,
+              firstName: customer.firstName,
+              totalAmount: order.totalAmount,
+            })
+          }
+        }
         break
       }
 

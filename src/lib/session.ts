@@ -7,6 +7,7 @@ const MAX_AGE = 60 * 60 * 24 * 7 // 7 days in seconds
 
 interface SessionPayload {
   customerId: string
+  role: string
   iat: number
 }
 
@@ -30,8 +31,8 @@ function decode(token: string): SessionPayload | null {
   }
 }
 
-export function createSession(customerId: string): void {
-  const token = encode({ customerId, iat: Date.now() })
+export function createSession(customerId: string, role = 'customer'): void {
+  const token = encode({ customerId, role, iat: Date.now() })
   cookies().set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -41,12 +42,12 @@ export function createSession(customerId: string): void {
   })
 }
 
-export function getSession(): { customerId: string } | null {
+export function getSession(): { customerId: string; role: string } | null {
   const cookie = cookies().get(SESSION_COOKIE)
   if (!cookie) return null
   const payload = decode(cookie.value)
   if (!payload) return null
-  return { customerId: payload.customerId }
+  return { customerId: payload.customerId, role: payload.role ?? 'customer' }
 }
 
 export function deleteSession(): void {

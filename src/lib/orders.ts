@@ -1,5 +1,7 @@
 import { sql } from './db'
 import type { Order, ShippingAddress } from '@/types'
+import { getCustomerById } from './customers'
+import { sendOrderShippedEmail } from './email'
 
 interface CreateOrderInput {
   customerId: string
@@ -46,5 +48,18 @@ export async function updateOrderStatus(id: string, status: Order['status']): Pr
     WHERE id = ${id}
     RETURNING *
   `
-  return mapOrder(rows[0])
+  const order = mapOrder(rows[0])
+
+  if (status === 'shipped') {
+    const customer = await getCustomerById(order.customerId)
+    if (customer) {
+      await sendOrderShippedEmail({
+        to: customer.email,
+        firstName: customer.firstName,
+        orderId: order.id,
+      })
+    }
+  }
+
+  return order
 }

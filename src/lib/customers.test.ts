@@ -47,6 +47,7 @@ describe('getCustomerByEmail', () => {
       first_name: 'Jane',
       last_name: 'Doe',
       phone: null,
+      role: 'customer',
       created_at: now,
       updated_at: now,
     }])
@@ -56,6 +57,7 @@ describe('getCustomerByEmail', () => {
 
     expect(result?.email).toBe('jane@example.com')
     expect(result?.passwordHash).toBe('hashed_pw')
+    expect(result?.role).toBe('customer')
   })
 
   it('returns null when no customer matches the email', async () => {
@@ -66,5 +68,58 @@ describe('getCustomerByEmail', () => {
     const result = await getCustomerByEmail('unknown@example.com')
 
     expect(result).toBeNull()
+  })
+
+  it('returns optometrist role when DB row has role optometrist', async () => {
+    const { sql } = await import('./db')
+    vi.mocked(sql).mockResolvedValueOnce([{
+      id: 'cust-002',
+      email: 'dr.patel@example.com',
+      password_hash: 'hashed_pw',
+      first_name: 'Priya',
+      last_name: 'Patel',
+      phone: null,
+      role: 'optometrist',
+      created_at: new Date(),
+      updated_at: new Date(),
+    }])
+
+    const { getCustomerByEmail } = await import('./customers')
+    const result = await getCustomerByEmail('dr.patel@example.com')
+
+    expect(result?.role).toBe('optometrist')
+  })
+})
+
+describe('getCustomerById', () => {
+  beforeEach(() => { vi.resetModules(); vi.clearAllMocks() })
+
+  it('returns a customer with role when found by id', async () => {
+    const { sql } = await import('./db')
+    vi.mocked(sql).mockResolvedValueOnce([{
+      id: 'cust-001',
+      email: 'jane@example.com',
+      password_hash: 'hashed_pw',
+      first_name: 'Jane',
+      last_name: 'Doe',
+      phone: null,
+      role: 'customer',
+      created_at: new Date(),
+      updated_at: new Date(),
+    }])
+
+    const { getCustomerById } = await import('./customers')
+    const result = await getCustomerById('cust-001')
+
+    expect(result?.id).toBe('cust-001')
+    expect(result?.role).toBe('customer')
+  })
+
+  it('returns null when not found', async () => {
+    const { sql } = await import('./db')
+    vi.mocked(sql).mockResolvedValueOnce([])
+
+    const { getCustomerById } = await import('./customers')
+    expect(await getCustomerById('nonexistent')).toBeNull()
   })
 })
