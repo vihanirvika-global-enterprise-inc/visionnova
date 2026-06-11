@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef } from 'react'
 import Link from 'next/link'
 import { uploadPrescriptionAction } from './actions'
+import { trackEvent } from '@/lib/analytics'
 
 export default function PrescriptionUploadPage() {
   const [error, setError] = useState<string | null>(null)
@@ -43,7 +44,11 @@ export default function PrescriptionUploadPage() {
     setError(null)
     startTransition(async () => {
       const result = await uploadPrescriptionAction(formData)
-      if (result?.error) setError(result.error)
+      if (result?.error) {
+        setError(result.error)
+      } else {
+        trackEvent({ event: 'prescription_uploaded', method: 'file' })
+      }
     })
   }
 

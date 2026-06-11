@@ -4,6 +4,7 @@ import { getServerStripe } from '@/lib/stripe'
 import { updateOrderStatus } from '@/lib/orders'
 import { getCustomerById } from '@/lib/customers'
 import { sendOrderConfirmationEmail } from '@/lib/email'
+import { captureOrderError } from '@/lib/sentry'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,11 +40,13 @@ export async function POST(request: NextRequest) {
   }
 
   // Step 4 — dispatch on event type; DB errors bubble to the outer catch
+  let currentOrderId: string | undefined
   try {
     switch (event.type) {
       case 'payment_intent.succeeded': {
         const pi = event.data.object as Stripe.PaymentIntent
         const orderId = pi.metadata?.orderId
+        currentOrderId = orderId
         if (orderId) {
           const order = await updateOrderStatus(orderId, 'paid')
           const customer = await getCustomerById(order.customerId)
@@ -62,6 +65,7 @@ export async function POST(request: NextRequest) {
       case 'payment_intent.payment_failed': {
         const pi = event.data.object as Stripe.PaymentIntent
         const orderId = pi.metadata?.orderId
+        currentOrderId = orderId
         if (orderId) await updateOrderStatus(orderId, 'payment_failed')
         break
       }
@@ -73,7 +77,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ received: true }, { status: 200 })
   } catch (err) {
-    // DB or processing failure — return 500 so Stripe retries delivery
+    // DB or processing failure — report to Sentry then return 500 so Stripe retries delivery
+    captureOrderError(
+      err instanceof Error ? err : new Error(String(err)),
+      { orderId: currentOrderId }
+    )
     const message =
       err instanceof Error ? err.message : 'Internal server error'
     return NextResponse.json({ error: message }, { status: 500 })
