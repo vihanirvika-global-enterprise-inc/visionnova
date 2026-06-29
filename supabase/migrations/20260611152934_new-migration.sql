@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS products (
   category              VARCHAR(100),
   stock_quantity        INTEGER NOT NULL DEFAULT 0,
   requires_prescription BOOLEAN NOT NULL DEFAULT false,
-  created_at            TIMESTAMP NOT NULL DEFAULT NOW()
+  created_at           
+   TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- ── Customers ────────────────────────────────────────────────────────────────
