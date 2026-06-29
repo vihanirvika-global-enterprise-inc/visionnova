@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { getServerStripe } from '@/lib/stripe'
 import { formatPrice } from '@/lib/formatters'
+import { OrderCompletedTracker } from './OrderCompletedTracker'
 
 // ── Shared layout wrapper ─────────────────────────────────────────────────────
 
@@ -50,9 +51,10 @@ function InvalidOrder() {
   )
 }
 
-function PaymentSuccess({ amount }: { amount: number }) {
+function PaymentSuccess({ amount, paymentIntentId }: { amount: number; paymentIntentId: string }) {
   return (
     <>
+      <OrderCompletedTracker orderId={paymentIntentId} total={amount / 100} />
       <svg
         data-testid="success-icon"
         className="h-16 w-16 text-green-500"
@@ -135,7 +137,7 @@ export default async function ConfirmationPage({ searchParams }: PageProps) {
   )
 
   if (paymentIntent.status === 'succeeded') {
-    return <Wrapper><PaymentSuccess amount={paymentIntent.amount} /></Wrapper>
+    return <Wrapper><PaymentSuccess amount={paymentIntent.amount} paymentIntentId={paymentIntent.id} /></Wrapper>
   }
 
   if (paymentIntent.status === 'processing') {

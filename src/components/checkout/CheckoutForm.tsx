@@ -3,8 +3,10 @@
 import { useState } from 'react'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { getClientStripe } from '@/lib/stripe'
-import { createPaymentIntent, formatAmountForStripe } from '@/app/checkout/stripe-actions'
+import { createPaymentIntent } from '@/app/checkout/stripe-actions'
+import { formatAmountForStripe } from '@/lib/formatters'
 import { useCart } from '@/components/cart/CartContext'
+import { trackEvent } from '@/lib/analytics'
 import type { CheckoutStep } from '@/types/stripe'
 
 // ── Shared error card ─────────────────────────────────────────────────────────
@@ -253,9 +255,10 @@ export default function CheckoutForm() {
       return
     }
 
-    setClientSecret(result.clientSecret)
+    setClientSecret(result.clientSecret ?? null)
     setStep('payment')
     setIsLoading(false)
+    trackEvent({ event: 'checkout_started', total, itemCount: 1 })
   }
 
   return (

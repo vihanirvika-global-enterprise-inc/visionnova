@@ -1,19 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createHmac } from 'crypto'
 
+const SECRET = process.env.SESSION_SECRET ?? 'dev-secret-change-in-production'
 const PROTECTED = ['/account', '/checkout', '/prescription-upload']
+const ADMIN_ROLES = ['optometrist', 'admin']
+
+function decodeSessionCookie(cookieValue: string): { customerId: string; role: string } | null {
+  const [data, sig] = cookieValue.split('.')
+  if (!data || !sig) return null
+  const expected = createHmac('sha256', SECRET).update(data).digest('hex')
+  if (expected !== sig) return null
+  try {
+    const payload = JSON.parse(Buffer.from(data, 'base64url').toString('utf8'))
+    return { customerId: payload.customerId, role: payload.role ?? 'customer' }
+  } catch {
+    return null
+  }
+}
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const isProtected = PROTECTED.some((path) => pathname.startsWith(path))
+  const sessionCookie = request.cookies.get('session')
 
-  if (isProtected && !request.cookies.get('session')) {
-    const loginUrl = new URL('/login', request.url)
-    return NextResponse.redirect(loginUrl)
+  if (pathname.startsWith('/admin')) {
+    if (!sessionCookie) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+    const session = decodeSessionCookie(sessionCookie.value)
+    if (!session || !ADMIN_ROLES.includes(session.role)) {
+      return NextResponse.redirect(new URL('/unauthorized', request.url))
+    }
+    return NextResponse.next()
+  }
+
+  const isProtected = PROTECTED.some((path) => pathname.startsWith(path))
+  if (isProtected && !sessionCookie) {
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: ['/account/:path*', '/checkout/:path*', '/prescription-upload/:path*'],
+  matcher: [
+    '/account/:path*',
+    '/checkout/:path*',
+    '/prescription-upload/:path*',
+    '/admin/:path*',
+  ],
 }

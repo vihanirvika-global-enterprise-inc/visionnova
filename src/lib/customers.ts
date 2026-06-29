@@ -1,5 +1,5 @@
 import { sql } from './db'
-import type { Customer } from '@/types'
+import type { Customer, CustomerRole } from '@/types'
 
 interface CreateCustomerInput {
   email: string
@@ -17,6 +17,7 @@ function mapCustomer(row: Record<string, unknown>): Customer {
     firstName: row.first_name as string,
     lastName: row.last_name as string,
     phone: row.phone as string | null,
+    role: (row.role as CustomerRole) ?? 'customer',
     createdAt: row.created_at as Date,
     updatedAt: row.updated_at as Date,
   }
@@ -33,5 +34,10 @@ export async function createCustomer(input: CreateCustomerInput): Promise<Custom
 
 export async function getCustomerByEmail(email: string): Promise<Customer | null> {
   const rows = await sql`SELECT * FROM customers WHERE email = ${email} LIMIT 1`
+  return rows.length > 0 ? mapCustomer(rows[0]) : null
+}
+
+export async function getCustomerById(id: string): Promise<Customer | null> {
+  const rows = await sql`SELECT * FROM customers WHERE id = ${id} LIMIT 1`
   return rows.length > 0 ? mapCustomer(rows[0]) : null
 }

@@ -1,5 +1,11 @@
+import type { Metadata } from 'next'
 import { getInStockProducts } from '@/lib/products'
 import { ProductGrid } from '@/components/ui/ProductGrid'
+
+export const metadata: Metadata = {
+  title: 'Eyeglasses',
+  description: 'Shop premium prescription eyewear from ₹799. Verified by licensed optometrists with free delivery across India.',
+}
 
 export default async function CatalogPage() {
   const products = await getInStockProducts()

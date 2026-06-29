@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { getProductById } from '@/lib/products'
 import { AddToCartButton } from '@/components/ui/AddToCartButton'
@@ -34,9 +35,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
         {/* ── Left: image ───────────────────────────────────── */}
         <div className="aspect-square overflow-hidden rounded-2xl bg-slate-100">
           {product.imageUrl ? (
-            <img
+            <Image
               src={product.imageUrl}
               alt={product.name}
+              width={600}
+              height={600}
               className="h-full w-full object-cover"
             />
           ) : (

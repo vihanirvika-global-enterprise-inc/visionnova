@@ -7,9 +7,17 @@ vi.mock('@/lib/stripe', () => ({
 vi.mock('@/lib/orders', () => ({
   updateOrderStatus: vi.fn(),
 }))
+vi.mock('@/lib/customers', () => ({
+  getCustomerById: vi.fn(),
+}))
+vi.mock('@/lib/email', () => ({
+  sendOrderConfirmationEmail: vi.fn(),
+}))
 
 import { getServerStripe } from '@/lib/stripe'
 import { updateOrderStatus } from '@/lib/orders'
+import { getCustomerById } from '@/lib/customers'
+import { sendOrderConfirmationEmail } from '@/lib/email'
 import { POST } from './route'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -113,5 +121,42 @@ describe('POST /api/stripe/webhook', () => {
     expect(response.status).toBe(500)
     const body = await response.json()
     expect(body.error).toMatch(/DB connection failed/i)
+  })
+
+  it('calls sendOrderConfirmationEmail with customer details after payment_intent.succeeded', async () => {
+    mockConstructEvent.mockReturnValue({
+      type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_test_email', metadata: { orderId: 'order-42' } } },
+    })
+    vi.mocked(updateOrderStatus).mockResolvedValue({
+      id: 'order-42',
+      customerId: 'customer-1',
+      totalAmount: 149.99,
+      status: 'paid',
+      shippingAddress: {} as any,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    vi.mocked(getCustomerById).mockResolvedValue({
+      id: 'customer-1',
+      email: 'jane@example.com',
+      firstName: 'Jane',
+      lastName: 'Smith',
+      passwordHash: '',
+      phone: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+
+    const request = makeWebhookRequest(JSON.stringify({}), 'test_sig_ok')
+    const response = await POST(request)
+
+    expect(sendOrderConfirmationEmail).toHaveBeenCalledWith({
+      to: 'jane@example.com',
+      orderId: 'order-42',
+      firstName: 'Jane',
+      totalAmount: 149.99,
+    })
+    expect(response.status).toBe(200)
   })
 })

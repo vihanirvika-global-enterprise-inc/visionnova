@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import type { Product } from '@/types'
 import { AddToCartButton } from './AddToCartButton'
 
@@ -12,10 +13,13 @@ export function ProductCard({ product }: ProductCardProps) {
       {/* Image area */}
       <div className="aspect-video overflow-hidden rounded-t-xl bg-slate-100">
         {product.imageUrl ? (
-          <img
+          <Image
             src={product.imageUrl}
             alt={product.name}
+            width={400}
+            height={225}
             className="h-full w-full object-cover"
+            loading="lazy"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary to-cyan-400">

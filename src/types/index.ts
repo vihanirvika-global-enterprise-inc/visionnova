@@ -22,6 +22,8 @@ export interface ShippingAddress {
   country: string
 }
 
+export type CustomerRole = 'customer' | 'optometrist' | 'admin'
+
 export interface Customer {
   id: string
   email: string
@@ -29,6 +31,7 @@ export interface Customer {
   firstName: string
   lastName: string
   phone: string | null
+  role: CustomerRole
   createdAt: Date
   updatedAt: Date
 }
@@ -92,5 +95,23 @@ export interface OptometristReview {
   status: ReviewStatus
   notes: string | null
   reviewedAt: Date
+  createdAt: Date
+}
+
+export type RejectionReason = 'illegible' | 'expired' | 'incomplete' | 'mismatch'
+
+export interface PrescriptionWithCustomer extends Prescription {
+  customerName: string
+  customerEmail: string
+}
+
+export interface PrescriptionReviewLog {
+  id: string
+  prescriptionId: string
+  reviewerId: string
+  reviewerName: string
+  action: ReviewStatus
+  rejectionReason: RejectionReason | null
+  note: string | null
   createdAt: Date
 }

@@ -5,14 +5,6 @@ import type { PaymentIntentResult } from '@/types/stripe'
 
 export type { PaymentIntentResult }
 
-/**
- * Converts rupees to paise (Stripe's smallest INR unit).
- * Math.round removes floating-point noise — Stripe rejects fractional values.
- */
-export function formatAmountForStripe(amountInRupees: number): number {
-  return Math.round(amountInRupees * 100)
-}
-
 export async function createPaymentIntent(
   amountInPaise: number
 ): Promise<PaymentIntentResult> {

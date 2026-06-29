@@ -35,7 +35,7 @@ describe('session', () => {
     const token = mockSet.mock.calls[0][1] as string
     mockGet.mockReturnValue({ value: token })
 
-    expect(getSession()).toEqual({ customerId: 'customer-123' })
+    expect(getSession()).toEqual({ customerId: 'customer-123', role: 'customer' })
   })
 
   it('getSession returns null when no cookie is present', () => {
