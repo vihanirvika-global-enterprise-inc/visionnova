@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS orders (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id      UUID NOT NULL REFERENCES customers(id),
   status           TEXT NOT NULL DEFAULT 'pending'
-                     CHECK (status IN ('pending', 'processing', 'shipped', 'delivered', 'cancelled')),
+                     CHECK (status IN ('pending', 'paid', 'payment_failed',
+                                       'processing', 'shipped', 'delivered', 'cancelled')),
   total_amount     NUMERIC(10, 2) NOT NULL CHECK (total_amount >= 0),
   shipping_address JSONB NOT NULL,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
