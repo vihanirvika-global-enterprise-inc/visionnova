@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { getClientStripe } from '@/lib/stripe'
 import { createPaymentIntent } from '@/app/checkout/stripe-actions'
+import { checkoutAction } from '@/app/checkout/actions'
 import { formatAmountForStripe } from '@/lib/formatters'
 import { useCart } from '@/components/cart/CartContext'
 import { trackEvent } from '@/lib/analytics'
@@ -230,7 +231,7 @@ const INITIAL_FORM: AddressFormData = {
 }
 
 export default function CheckoutForm() {
-  const { total } = useCart()
+  const { items, total } = useCart()
   const [step, setStep] = useState<CheckoutStep>('address')
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -242,12 +243,44 @@ export default function CheckoutForm() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
+  // The order must exist before the payment intent so its id can be carried in
+  // the intent metadata — that is what the webhook uses to mark the order paid.
+  function buildOrderFormData(): FormData {
+    const fd = new FormData()
+    fd.append('line1', formData.addressLine1)
+    fd.append('city', formData.city)
+    fd.append('state', formData.state)
+    fd.append('postalCode', formData.pinCode)
+    fd.append('country', formData.country)
+    fd.append(
+      'cart',
+      JSON.stringify(
+        items.map((item) => ({
+          product: { id: item.product.id, price: item.product.price },
+          quantity: item.quantity,
+        }))
+      )
+    )
+    return fd
+  }
+
   async function handleAddressSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
 
-    const result = await createPaymentIntent(formatAmountForStripe(total))
+    const orderResult = await checkoutAction(buildOrderFormData())
+
+    if ('error' in orderResult) {
+      setError(orderResult.error)
+      setIsLoading(false)
+      return
+    }
+
+    const result = await createPaymentIntent(
+      formatAmountForStripe(total),
+      orderResult.orderId
+    )
 
     if (result.error) {
       setError(result.error)
@@ -258,7 +291,7 @@ export default function CheckoutForm() {
     setClientSecret(result.clientSecret ?? null)
     setStep('payment')
     setIsLoading(false)
-    trackEvent({ event: 'checkout_started', total, itemCount: 1 })
+    trackEvent({ event: 'checkout_started', total, itemCount: items.length })
   }
 
   return (

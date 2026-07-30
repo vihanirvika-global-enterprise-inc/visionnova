@@ -1,6 +1,5 @@
 'use server'
 
-import { redirect } from 'next/navigation'
 import { createOrder } from '@/lib/orders'
 import { addOrderItem } from '@/lib/orderItems'
 import { getSession } from '@/lib/session'
@@ -11,7 +10,9 @@ interface CartItem {
   quantity: number
 }
 
-export async function checkoutAction(formData: FormData): Promise<{ error: string } | never> {
+export type CheckoutResult = { orderId: string } | { error: string }
+
+export async function checkoutAction(formData: FormData): Promise<CheckoutResult> {
   const session = getSession()
   if (!session) return { error: 'You must be logged in to checkout' }
 
@@ -48,5 +49,5 @@ export async function checkoutAction(formData: FormData): Promise<{ error: strin
     )
   )
 
-  redirect('/account')
+  return { orderId: order.id }
 }

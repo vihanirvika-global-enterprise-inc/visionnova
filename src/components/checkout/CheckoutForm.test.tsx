@@ -14,6 +14,10 @@ vi.mock('@/app/checkout/stripe-actions', () => ({
   createPaymentIntent: vi.fn(),
 }))
 
+vi.mock('@/app/checkout/actions', () => ({
+  checkoutAction: vi.fn(),
+}))
+
 vi.mock('@/lib/formatters', () => ({
   formatAmountForStripe: (amount: number) => Math.round(amount * 100),
   formatPrice: (amount: number) => `₹${amount}`,
@@ -29,6 +33,7 @@ vi.mock('@/lib/stripe', () => ({
 
 import { useStripe, useElements } from '@stripe/react-stripe-js'
 import { createPaymentIntent } from '@/app/checkout/stripe-actions'
+import { checkoutAction } from '@/app/checkout/actions'
 import { useCart } from '@/components/cart/CartContext'
 import CheckoutForm from './CheckoutForm'
 
@@ -44,6 +49,7 @@ function setupDefaultMocks() {
   } as any)
   vi.mocked(useElements).mockReturnValue({} as any)
   vi.mocked(createPaymentIntent).mockResolvedValue({ clientSecret: 'pi_test_secret' })
+  vi.mocked(checkoutAction).mockResolvedValue({ orderId: 'order-1' })
 }
 
 beforeEach(() => {
@@ -79,7 +85,7 @@ describe('CheckoutForm', () => {
     expect(screen.queryByTestId('payment-element')).not.toBeInTheDocument()
   })
 
-  it('calls createPaymentIntent with correct paise amount on address submit', async () => {
+  it('calls createPaymentIntent with correct paise amount and orderId on address submit', async () => {
     render(<CheckoutForm />)
 
     const user = userEvent.setup()
@@ -89,8 +95,38 @@ describe('CheckoutForm', () => {
 
     // total = 999 rupees → formatAmountForStripe(999) = 99900 paise
     await waitFor(() => {
-      expect(createPaymentIntent).toHaveBeenCalledWith(99900)
+      expect(createPaymentIntent).toHaveBeenCalledWith(99900, 'order-1')
     })
+  })
+
+  it('creates the order before the payment intent', async () => {
+    render(<CheckoutForm />)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText(/full name/i), 'Test User')
+    await user.type(screen.getByLabelText(/email/i), 'test@test.com')
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+
+    await waitFor(() => expect(createPaymentIntent).toHaveBeenCalled())
+    expect(checkoutAction).toHaveBeenCalledWith(expect.any(FormData))
+    expect(vi.mocked(checkoutAction).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(createPaymentIntent).mock.invocationCallOrder[0]
+    )
+  })
+
+  it('stays on the address step and shows the error when order creation fails', async () => {
+    vi.mocked(checkoutAction).mockResolvedValue({ error: 'City is required' })
+    render(<CheckoutForm />)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText(/full name/i), 'Test User')
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('City is required')).toBeInTheDocument()
+    })
+    expect(createPaymentIntent).not.toHaveBeenCalled()
+    expect(screen.getByLabelText(/full name/i)).toBeInTheDocument()
   })
 
   it('shows PaymentElement after clientSecret is returned (step → payment)', async () => {

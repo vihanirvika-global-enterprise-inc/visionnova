@@ -70,7 +70,7 @@ describe('checkoutAction', () => {
     expect(Orders.createOrder).not.toHaveBeenCalled()
   })
 
-  it('creates an order with items and redirects on success', async () => {
+  it('creates an order with items and returns its orderId', async () => {
     const mockOrder = {
       id: 'order-1', customerId: SESSION_CUSTOMER, status: 'pending',
       totalAmount: 199.98, shippingAddress: address,
@@ -79,7 +79,7 @@ describe('checkoutAction', () => {
     vi.mocked(Orders.createOrder).mockResolvedValue(mockOrder as any)
     vi.mocked(OrderItems.addOrderItem).mockResolvedValue({} as any)
 
-    await checkoutAction(makeFormData(address, JSON.stringify(cartItems)))
+    const result = await checkoutAction(makeFormData(address, JSON.stringify(cartItems)))
 
     expect(Orders.createOrder).toHaveBeenCalledWith(expect.objectContaining({
       customerId: SESSION_CUSTOMER,
@@ -91,6 +91,28 @@ describe('checkoutAction', () => {
       quantity: 2,
       unitPrice: 99.99,
     }))
-    expect(NextNavigation.redirect).toHaveBeenCalledWith('/account')
+    expect(result).toEqual({ orderId: 'order-1' })
+  })
+
+  // The payment step needs the orderId in hand, so checkout must not redirect away
+  // before the caller can read it.
+  it('does not redirect — the caller drives the transition to payment', async () => {
+    vi.mocked(Orders.createOrder).mockResolvedValue({ id: 'order-1' } as any)
+    vi.mocked(OrderItems.addOrderItem).mockResolvedValue({} as any)
+
+    await checkoutAction(makeFormData(address, JSON.stringify(cartItems)))
+
+    expect(NextNavigation.redirect).not.toHaveBeenCalled()
+  })
+
+  it('leaves status to the schema default so the order starts pre-payment', async () => {
+    vi.mocked(Orders.createOrder).mockResolvedValue({ id: 'order-1' } as any)
+    vi.mocked(OrderItems.addOrderItem).mockResolvedValue({} as any)
+
+    await checkoutAction(makeFormData(address, JSON.stringify(cartItems)))
+
+    expect(Orders.createOrder).toHaveBeenCalledWith(
+      expect.not.objectContaining({ status: expect.anything() })
+    )
   })
 })

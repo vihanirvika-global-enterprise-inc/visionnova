@@ -6,7 +6,8 @@ import type { PaymentIntentResult } from '@/types/stripe'
 export type { PaymentIntentResult }
 
 export async function createPaymentIntent(
-  amountInPaise: number
+  amountInPaise: number,
+  orderId: string
 ): Promise<PaymentIntentResult> {
   try {
     const stripe = getServerStripe()
@@ -14,7 +15,7 @@ export async function createPaymentIntent(
       amount: amountInPaise,
       currency: 'inr',
       automatic_payment_methods: { enabled: true },
-      metadata: { source: 'visionnova_mvp' },
+      metadata: { orderId, source: 'visionnova_mvp' },
     })
 
     const clientSecret = paymentIntent.client_secret

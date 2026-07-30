@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/nextjs'
 
 export function captureOrderError(
   error: Error,
-  context: { orderId?: string; userId?: string }
+  context: { orderId?: string; userId?: string; paymentIntentId?: string }
 ) {
   Sentry.captureException(error, { extra: context })
 }

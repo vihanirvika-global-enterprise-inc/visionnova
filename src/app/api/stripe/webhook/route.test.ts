@@ -13,11 +13,15 @@ vi.mock('@/lib/customers', () => ({
 vi.mock('@/lib/email', () => ({
   sendOrderConfirmationEmail: vi.fn(),
 }))
+vi.mock('@/lib/sentry', () => ({
+  captureOrderError: vi.fn(),
+}))
 
 import { getServerStripe } from '@/lib/stripe'
 import { updateOrderStatus } from '@/lib/orders'
 import { getCustomerById } from '@/lib/customers'
 import { sendOrderConfirmationEmail } from '@/lib/email'
+import { captureOrderError } from '@/lib/sentry'
 import { POST } from './route'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -158,5 +162,42 @@ describe('POST /api/stripe/webhook', () => {
       totalAmount: 149.99,
     })
     expect(response.status).toBe(200)
+  })
+
+  // A paid intent with no orderId means the metadata thread is broken upstream.
+  // Acknowledge so Stripe stops retrying, but surface it rather than failing silently.
+  it('returns 200 and reports to Sentry when metadata.orderId is missing', async () => {
+    mockConstructEvent.mockReturnValue({
+      type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_no_order', metadata: {} } },
+    })
+
+    const request = makeWebhookRequest(JSON.stringify({}), 'test_sig_ok')
+    const response = await POST(request)
+
+    expect(response.status).toBe(200)
+    expect(updateOrderStatus).not.toHaveBeenCalled()
+    expect(sendOrderConfirmationEmail).not.toHaveBeenCalled()
+    expect(captureOrderError).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({ paymentIntentId: 'pi_no_order' })
+    )
+  })
+
+  it('returns 200 and reports to Sentry when the order is unknown', async () => {
+    mockConstructEvent.mockReturnValue({
+      type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_ghost', metadata: { orderId: 'does-not-exist' } } },
+    })
+    vi.mocked(updateOrderStatus).mockRejectedValue(new Error('Order not found'))
+
+    const request = makeWebhookRequest(JSON.stringify({}), 'test_sig_ok')
+    const response = await POST(request)
+
+    expect(response.status).toBe(500)
+    expect(captureOrderError).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({ orderId: 'does-not-exist' })
+    )
   })
 })
