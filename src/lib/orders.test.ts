@@ -169,3 +169,115 @@ describe('updateOrderStatus', () => {
     expect(mockSendOrderShippedEmail).not.toHaveBeenCalled()
   })
 })
+
+describe('shipment details', () => {
+  beforeEach(() => { vi.resetModules(); vi.clearAllMocks() })
+
+  const shippedRow = (overrides = {}) => ({
+    id: 'order-001', customer_id: 'cust-001', status: 'shipped',
+    total_amount: '2499.00',
+    shipping_address: { line1: '1 MG Road', city: 'Bengaluru', state: 'KA', postalCode: '560001', country: 'IN' },
+    carrier: 'Delhivery',
+    tracking_number: 'DL123456789',
+    shipped_at: new Date('2026-07-20T09:00:00Z'),
+    delivered_at: null,
+    created_at: new Date('2026-07-18T09:00:00Z'),
+    updated_at: new Date('2026-07-20T09:00:00Z'),
+  })
+
+  it('maps the shipment columns onto the order', async () => {
+    const { sql } = await import('./db')
+    mockSql(sql).mockResolvedValueOnce([shippedRow()])
+
+    const { getOrderById } = await import('./orders')
+    const order = await getOrderById('order-001')
+
+    expect(order?.carrier).toBe('Delhivery')
+    expect(order?.trackingNumber).toBe('DL123456789')
+    expect(order?.shippedAt).toEqual(new Date('2026-07-20T09:00:00Z'))
+    expect(order?.deliveredAt).toBeNull()
+  })
+
+  it('maps absent shipment columns to null rather than undefined', async () => {
+    const { sql } = await import('./db')
+    mockSql(sql).mockResolvedValueOnce([{
+      ...shippedRow(), carrier: null, tracking_number: null, shipped_at: null,
+    }])
+
+    const { getOrderById } = await import('./orders')
+    const order = await getOrderById('order-001')
+
+    expect(order?.carrier).toBeNull()
+    expect(order?.trackingNumber).toBeNull()
+    expect(order?.shippedAt).toBeNull()
+  })
+
+  it('records carrier and tracking number when marking an order shipped', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql).mockResolvedValueOnce([shippedRow()])
+    mockGetCustomerById.mockResolvedValueOnce(null)
+
+    const { updateOrderStatus } = await import('./orders')
+    const order = await updateOrderStatus('order-001', 'shipped', {
+      carrier: 'Delhivery',
+      trackingNumber: 'DL123456789',
+    })
+
+    expect(order.carrier).toBe('Delhivery')
+    expect(order.trackingNumber).toBe('DL123456789')
+    const params = spy.mock.calls[0].slice(1)
+    expect(params).toContain('Delhivery')
+    expect(params).toContain('DL123456789')
+  })
+
+  // Callers that only change status — both payment webhooks — must not blank
+  // shipment details that were already recorded.
+  it('leaves shipment details untouched when none are supplied', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql).mockResolvedValueOnce([shippedRow()])
+    mockGetCustomerById.mockResolvedValueOnce(null)
+
+    const { updateOrderStatus } = await import('./orders')
+    await updateOrderStatus('order-001', 'paid')
+
+    const query = (spy.mock.calls[0][0] as string[]).join('?')
+    expect(query).toMatch(/COALESCE/)
+  })
+
+  it('stamps shipped_at and delivered_at in SQL, not from the app clock', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql).mockResolvedValueOnce([shippedRow()])
+    mockGetCustomerById.mockResolvedValueOnce(null)
+
+    const { updateOrderStatus } = await import('./orders')
+    await updateOrderStatus('order-001', 'shipped')
+
+    const query = (spy.mock.calls[0][0] as string[]).join('?')
+    expect(query).toMatch(/shipped_at/)
+    expect(query).toMatch(/delivered_at/)
+    expect(query).toMatch(/NOW\(\)/)
+  })
+})
+
+describe('getOrdersAwaitingDispatch', () => {
+  beforeEach(() => { vi.resetModules(); vi.clearAllMocks() })
+
+  it('returns paid and processing orders, oldest first', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql).mockResolvedValueOnce([{
+      id: 'order-001', customer_id: 'cust-001', status: 'paid',
+      total_amount: '2499.00',
+      shipping_address: { line1: '1 MG Road', city: 'Bengaluru', state: 'KA', postalCode: '560001', country: 'IN' },
+      carrier: null, tracking_number: null, shipped_at: null, delivered_at: null,
+      created_at: new Date(), updated_at: new Date(),
+    }])
+
+    const { getOrdersAwaitingDispatch } = await import('./orders')
+    const orders = await getOrdersAwaitingDispatch()
+
+    expect(orders).toHaveLength(1)
+    expect(orders[0].status).toBe('paid')
+    const query = (spy.mock.calls[0][0] as string[]).join('?')
+    expect(query).toMatch(/ORDER BY created_at ASC/)
+  })
+})

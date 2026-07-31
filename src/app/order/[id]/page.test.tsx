@@ -32,6 +32,10 @@ function givenOrder(overrides: Record<string, unknown> = {}) {
     status: 'shipped',
     totalAmount: 2499,
     shippingAddress,
+    carrier: 'Delhivery',
+    trackingNumber: 'DL123456789',
+    shippedAt: new Date('2026-07-04T08:00:00Z'),
+    deliveredAt: null,
     createdAt: new Date('2026-07-01T10:00:00Z'),
     updatedAt: new Date('2026-07-05T10:00:00Z'),
     ...overrides,
@@ -122,17 +126,47 @@ describe('OrderDetailPage — shipment info', () => {
     expect(shipment).toHaveTextContent('560001')
   })
 
-  it('shows a dispatched date once the order has shipped', async () => {
+  it('shows the carrier and tracking number', async () => {
     await renderPage()
 
-    expect(screen.getByTestId('shipped-date')).toBeInTheDocument()
+    const shipment = screen.getByTestId('shipment-info')
+    expect(shipment).toHaveTextContent('Delhivery')
+    expect(shipment).toHaveTextContent('DL123456789')
+  })
+
+  // The dispatch date must come from shipped_at, not updated_at, which moves
+  // whenever the row is touched for any other reason.
+  it('shows the dispatch date from shippedAt', async () => {
+    await renderPage()
+
+    expect(screen.getByTestId('shipped-date')).toHaveTextContent('4')
+  })
+
+  it('shows a delivery date once delivered', async () => {
+    givenOrder({ status: 'delivered', deliveredAt: new Date('2026-07-09T08:00:00Z') })
+
+    await renderPage()
+
+    expect(screen.getByTestId('delivered-date')).toBeInTheDocument()
   })
 
   it('does not claim a dispatch date before the order ships', async () => {
-    givenOrder({ status: 'processing' })
+    givenOrder({ status: 'processing', shippedAt: null, carrier: null, trackingNumber: null })
 
     await renderPage()
 
     expect(screen.queryByTestId('shipped-date')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('delivered-date')).not.toBeInTheDocument()
+  })
+
+  // Rows predating the shipment columns are shipped with everything null.
+  it('degrades gracefully when a shipped order has no tracking recorded', async () => {
+    givenOrder({ status: 'shipped', carrier: null, trackingNumber: null, shippedAt: null })
+
+    await renderPage()
+
+    expect(screen.getByTestId('shipment-info')).toBeInTheDocument()
+    expect(screen.queryByTestId('shipped-date')).not.toBeInTheDocument()
+    expect(screen.getByText(/tracking details are not available/i)).toBeInTheDocument()
   })
 })

@@ -77,11 +77,15 @@ export default async function OrderDetailPage({ params }: { params: { id: string
         </div>
       </section>
 
-      <section aria-labelledby="shipment-heading" className="card mt-6 p-6">
+      <section
+        aria-labelledby="shipment-heading"
+        data-testid="shipment-info"
+        className="card mt-6 p-6"
+      >
         <h2 id="shipment-heading" className="mb-4 text-lg font-semibold text-dark">
           Shipment
         </h2>
-        <address data-testid="shipment-info" className="text-sm not-italic text-dark">
+        <address className="text-sm not-italic text-dark">
           {address.line1}
           {address.line2 ? <><br />{address.line2}</> : null}
           <br />
@@ -90,9 +94,40 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           {address.country}
         </address>
 
-        {hasShipped ? (
+        {order.carrier || order.trackingNumber ? (
+          <dl className="mt-4 text-sm">
+            {order.carrier ? (
+              <div className="flex gap-2">
+                <dt className="text-muted">Carrier</dt>
+                <dd className="font-medium text-dark">{order.carrier}</dd>
+              </div>
+            ) : null}
+            {order.trackingNumber ? (
+              <div className="mt-1 flex gap-2">
+                <dt className="text-muted">Tracking number</dt>
+                <dd className="font-medium text-dark">{order.trackingNumber}</dd>
+              </div>
+            ) : null}
+          </dl>
+        ) : null}
+
+        {order.shippedAt ? (
           <p data-testid="shipped-date" className="mt-4 text-sm text-muted">
-            Dispatched on {order.updatedAt.toLocaleDateString('en-IN')}
+            Dispatched on {order.shippedAt.toLocaleDateString('en-IN')}
+          </p>
+        ) : null}
+
+        {order.deliveredAt ? (
+          <p data-testid="delivered-date" className="mt-1 text-sm text-muted">
+            Delivered on {order.deliveredAt.toLocaleDateString('en-IN')}
+          </p>
+        ) : null}
+
+        {/* Orders shipped before these columns existed carry no tracking. Say so
+            rather than inventing a date from updatedAt. */}
+        {hasShipped && !order.carrier && !order.trackingNumber && !order.shippedAt ? (
+          <p className="mt-4 text-sm text-muted">
+            Tracking details are not available for this order.
           </p>
         ) : null}
       </section>

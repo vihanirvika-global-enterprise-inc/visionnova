@@ -37,6 +37,7 @@ describe('AccountPage', () => {
         status: 'delivered' as const,
         totalAmount: 89.99,
         shippingAddress: { line1: '1 Main St', city: 'Austin', state: 'TX', postalCode: '78701', country: 'US' },
+        carrier: null, trackingNumber: null, shippedAt: null, deliveredAt: null,
         createdAt: now,
         updatedAt: now,
       },
@@ -58,6 +59,7 @@ describe('AccountPage', () => {
         id: 'order-001', customerId: 'cust-001', status: 'shipped' as const,
         totalAmount: 2499,
         shippingAddress: { line1: '1 MG Road', city: 'Bengaluru', state: 'KA', postalCode: '560001', country: 'IN' },
+        carrier: null, trackingNumber: null, shippedAt: null, deliveredAt: null,
         createdAt: now, updatedAt: now,
       },
     ])
@@ -82,6 +84,7 @@ describe('AccountPage', () => {
         id: 'order-001', customerId: 'cust-001', status: 'delivered' as const,
         totalAmount: 2499,
         shippingAddress: { line1: '1 MG Road', city: 'Bengaluru', state: 'KA', postalCode: '560001', country: 'IN' },
+        carrier: null, trackingNumber: null, shippedAt: null, deliveredAt: null,
         createdAt: now, updatedAt: now,
       },
     ])

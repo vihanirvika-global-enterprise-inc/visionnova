@@ -33,6 +33,12 @@ CREATE TABLE IF NOT EXISTS orders (
                                        'processing', 'shipped', 'delivered', 'cancelled')),
   total_amount     NUMERIC(10, 2) NOT NULL CHECK (total_amount >= 0),
   shipping_address JSONB NOT NULL,
+  -- Shipment facts, recorded when dispatch actually happens. Never inferred
+  -- from updated_at, which moves for unrelated reasons.
+  carrier          TEXT,
+  tracking_number  TEXT,
+  shipped_at       TIMESTAMPTZ,
+  delivered_at     TIMESTAMPTZ,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

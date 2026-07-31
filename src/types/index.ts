@@ -58,8 +58,19 @@ export interface Order {
   status: OrderStatus
   totalAmount: number
   shippingAddress: ShippingAddress
+  // Recorded at dispatch. Null until an order actually ships — never inferred
+  // from updatedAt, which moves for unrelated reasons.
+  carrier: string | null
+  trackingNumber: string | null
+  shippedAt: Date | null
+  deliveredAt: Date | null
   createdAt: Date
   updatedAt: Date
+}
+
+export interface ShipmentDetails {
+  carrier?: string
+  trackingNumber?: string
 }
 
 export interface Prescription {

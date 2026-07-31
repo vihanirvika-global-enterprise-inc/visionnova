@@ -138,6 +138,10 @@ describe('POST /api/stripe/webhook', () => {
       totalAmount: 149.99,
       status: 'paid',
       shippingAddress: {} as any,
+      carrier: null,
+      trackingNumber: null,
+      shippedAt: null,
+      deliveredAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     })
@@ -178,6 +182,10 @@ describe('POST /api/stripe/webhook', () => {
       totalAmount: 149.99,
       status: 'paid',
       shippingAddress: {} as any,
+      carrier: null,
+      trackingNumber: null,
+      shippedAt: null,
+      deliveredAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     })
