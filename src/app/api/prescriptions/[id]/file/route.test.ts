@@ -2,19 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
-vi.mock('@/lib/prescriptions', () => ({ getPrescriptionById: vi.fn() }))
+vi.mock('@/lib/prescriptionAccess', () => ({ readPrescriptionForSession: vi.fn() }))
 vi.mock('@/lib/prescriptionStorage', () => ({
-  readPrescriptionFile: vi.fn(),
   contentTypeForKey: (key: string) =>
     key.endsWith('.png') ? 'image/png' : 'application/pdf',
 }))
 
 import { getSession } from '@/lib/session'
-import { getPrescriptionById } from '@/lib/prescriptions'
-import { readPrescriptionFile } from '@/lib/prescriptionStorage'
+import { readPrescriptionForSession } from '@/lib/prescriptionAccess'
 import { GET } from './route'
 
-const OWNER = 'cust-owner'
 const PRESCRIPTION_ID = 'rx-1'
 
 function request() {
@@ -25,96 +22,68 @@ function params() {
   return { params: { id: PRESCRIPTION_ID } }
 }
 
-function givenPrescription(fileUrl = 'stored-key.pdf') {
-  vi.mocked(getPrescriptionById).mockResolvedValue({
-    id: PRESCRIPTION_ID,
-    customerId: OWNER,
-    fileUrl,
-  } as any)
+function granted(fileUrl = 'key.pdf') {
+  vi.mocked(readPrescriptionForSession).mockResolvedValue({
+    ok: true,
+    prescription: { id: PRESCRIPTION_ID, fileUrl } as never,
+    file: Buffer.from('%PDF-1.4 rx'),
+  })
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(readPrescriptionFile).mockResolvedValue(Buffer.from('%PDF-1.4 rx'))
+  vi.mocked(getSession).mockReturnValue({ customerId: 'cust-owner', role: 'customer' })
 })
 
-describe('GET /api/prescriptions/[id]/file — rejects', () => {
-  it('401s an unauthenticated request', async () => {
-    vi.mocked(getSession).mockReturnValue(null)
-    givenPrescription()
+describe('GET /api/prescriptions/[id]/file — status mapping', () => {
+  it.each([
+    ['unauthenticated', 401],
+    ['forbidden', 403],
+    ['not_found', 404],
+    ['unreadable', 404],
+    ['audit_failed', 500],
+  ])('maps %s to %i', async (reason, status) => {
+    vi.mocked(readPrescriptionForSession).mockResolvedValue({ ok: false, reason } as never)
 
     const response = await GET(request(), params())
 
-    expect(response.status).toBe(401)
-    expect(readPrescriptionFile).not.toHaveBeenCalled()
-  })
-
-  // Health data: another signed-in customer must not be able to read it.
-  it('403s a signed-in customer who does not own the prescription', async () => {
-    vi.mocked(getSession).mockReturnValue({ customerId: 'cust-other', role: 'customer' })
-    givenPrescription()
-
-    const response = await GET(request(), params())
-
-    expect(response.status).toBe(403)
-    expect(readPrescriptionFile).not.toHaveBeenCalled()
-  })
-
-  it('404s an unknown prescription', async () => {
-    vi.mocked(getSession).mockReturnValue({ customerId: OWNER, role: 'customer' })
-    vi.mocked(getPrescriptionById).mockResolvedValue(null)
-
-    const response = await GET(request(), params())
-
-    expect(response.status).toBe(404)
-    expect(readPrescriptionFile).not.toHaveBeenCalled()
-  })
-
-  it('404s rather than 500 when the stored key is unreadable', async () => {
-    vi.mocked(getSession).mockReturnValue({ customerId: OWNER, role: 'customer' })
-    givenPrescription()
-    vi.mocked(readPrescriptionFile).mockRejectedValue(new Error('ENOENT'))
-
-    const response = await GET(request(), params())
-
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(status)
   })
 })
 
-describe('GET /api/prescriptions/[id]/file — allows', () => {
-  it('serves the file to its owner', async () => {
-    vi.mocked(getSession).mockReturnValue({ customerId: OWNER, role: 'customer' })
-    givenPrescription()
+describe('GET /api/prescriptions/[id]/file — granted', () => {
+  it('returns the bytes', async () => {
+    granted()
 
     const response = await GET(request(), params())
 
     expect(response.status).toBe(200)
-    expect(readPrescriptionFile).toHaveBeenCalledWith('stored-key.pdf')
     expect(await response.text()).toContain('%PDF-1.4')
   })
 
-  it.each(['optometrist', 'admin'])('serves the file to a %s reviewer', async (role) => {
-    vi.mocked(getSession).mockReturnValue({ customerId: 'cust-reviewer', role })
-    givenPrescription()
+  // Authorization and logging live in the accessor, so the route cannot serve
+  // a file without going through them.
+  it('delegates to the access choke point with the session', async () => {
+    granted()
 
-    const response = await GET(request(), params())
+    await GET(request(), params())
 
-    expect(response.status).toBe(200)
+    expect(readPrescriptionForSession).toHaveBeenCalledWith(PRESCRIPTION_ID, {
+      customerId: 'cust-owner',
+      role: 'customer',
+    })
   })
 
-  it('sets the content type from the stored extension', async () => {
-    vi.mocked(getSession).mockReturnValue({ customerId: OWNER, role: 'customer' })
-    givenPrescription('stored-key.png')
+  it('sets the content type from the stored key', async () => {
+    granted('key.png')
 
     const response = await GET(request(), params())
 
     expect(response.headers.get('content-type')).toBe('image/png')
   })
 
-  // Health data must not sit in a shared or browser cache.
   it('marks the response private and non-cacheable', async () => {
-    vi.mocked(getSession).mockReturnValue({ customerId: OWNER, role: 'customer' })
-    givenPrescription()
+    granted()
 
     const response = await GET(request(), params())
 
