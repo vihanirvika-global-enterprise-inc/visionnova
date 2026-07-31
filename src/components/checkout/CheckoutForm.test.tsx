@@ -73,7 +73,9 @@ async function fillNameAndEmail(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/email/i), 'test@test.com')
 }
 
-// Switches to a non-Indian address so the Stripe branch renders.
+// Drives the Stripe branch through the server response rather than the country
+// select: only serviceable countries are selectable, so a non-IN address cannot
+// be chosen in the UI. The branch still needs coverage for when GLOBAL opens.
 async function advanceToStripePaymentStep() {
   const user = userEvent.setup()
   vi.mocked(createPayment).mockResolvedValue({
@@ -81,7 +83,6 @@ async function advanceToStripePaymentStep() {
     clientRef: 'pi_test_secret',
   })
   await fillNameAndEmail(user)
-  await user.selectOptions(screen.getByLabelText(/country/i), 'US')
   await user.click(screen.getByRole('button', { name: /continue to payment/i }))
   await waitFor(() => expect(screen.getByTestId('payment-element')).toBeInTheDocument())
 }
@@ -113,16 +114,26 @@ describe('CheckoutForm', () => {
     expect(screen.getByRole('option', { name: 'India' })).toHaveValue('IN')
   })
 
-  it('submits the selected country code, not a country name', async () => {
+  // Offering a country we refuse at the end is a dead end: the customer fills
+  // the whole form before being told. The select shows only what we serve.
+  it('offers only serviceable countries', () => {
+    render(<CheckoutForm />)
+
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+    expect(screen.queryByRole('option', { name: 'United States' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Germany' })).not.toBeInTheDocument()
+  })
+
+  it('submits a country code, not a country name', async () => {
     render(<CheckoutForm />)
 
     const user = userEvent.setup()
-    await user.selectOptions(screen.getByLabelText(/country/i), 'US')
     await user.click(screen.getByRole('button', { name: /continue to payment/i }))
 
     await waitFor(() => expect(checkoutAction).toHaveBeenCalled())
     const submitted = vi.mocked(checkoutAction).mock.calls[0][0] as FormData
-    expect(submitted.get('country')).toBe('US')
+    expect(submitted.get('country')).toBe('IN')
+    expect(submitted.get('country')).not.toBe('India')
   })
 
   it('creates the order before the payment', async () => {

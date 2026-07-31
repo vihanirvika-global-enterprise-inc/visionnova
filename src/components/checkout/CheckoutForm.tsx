@@ -5,7 +5,7 @@ import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-
 import { getClientStripe } from '@/lib/stripe'
 import { createPayment } from '@/app/checkout/payment-actions'
 import { checkoutAction } from '@/app/checkout/actions'
-import { COUNTRIES } from '@/lib/countries'
+import { SERVICEABLE_COUNTRIES } from '@/lib/serviceableRegions'
 import { currencyForRegion } from '@/lib/currency'
 import { regionForCountry } from '@/lib/region'
 import RazorpayCheckout from './RazorpayCheckout'
@@ -161,7 +161,7 @@ function AddressForm({ formData, onChange, onSubmit, isLoading, error }: Address
             id="country" name="country" required
             value={formData.country} onChange={onChange} className="input-field"
           >
-            {COUNTRIES.map((country) => (
+            {SERVICEABLE_COUNTRIES.map((country) => (
               <option key={country.code} value={country.code}>
                 {country.name}
               </option>
