@@ -16,11 +16,14 @@ async function dispatchOrder(formData: FormData) {
   }
 }
 
+// No default value on the props object: Next's generated PageProps check
+// rejects a first argument that can be undefined, and it only runs during
+// `next build` — tsc --noEmit alone will not catch it.
 export default async function AdminOrdersPage({
   searchParams,
 }: {
   searchParams?: { error?: string }
-} = {}) {
+}) {
   const orders = await getOrdersAwaitingDispatch()
   const error = searchParams?.error
 

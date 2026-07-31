@@ -31,7 +31,7 @@ beforeEach(() => {
 
 describe('AdminOrdersPage', () => {
   it('lists orders awaiting dispatch', async () => {
-    render(await AdminOrdersPage())
+    render(await AdminOrdersPage({}))
 
     expect(screen.getByText(/order-001/)).toBeInTheDocument()
     expect(screen.getByText(/Bengaluru/)).toBeInTheDocument()
@@ -40,7 +40,7 @@ describe('AdminOrdersPage', () => {
   // Without inputs there is no way to record what actually shipped, which is
   // the whole reason the columns exist.
   it('offers carrier and tracking-number inputs per order', async () => {
-    render(await AdminOrdersPage())
+    render(await AdminOrdersPage({}))
 
     expect(screen.getByLabelText(/carrier/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/tracking number/i)).toBeInTheDocument()
@@ -48,7 +48,7 @@ describe('AdminOrdersPage', () => {
   })
 
   it('carries the order id through the form', async () => {
-    const { container } = render(await AdminOrdersPage())
+    const { container } = render(await AdminOrdersPage({}))
 
     const hidden = container.querySelector('input[name="orderId"]')
     expect(hidden).toHaveValue('order-001')
@@ -57,7 +57,7 @@ describe('AdminOrdersPage', () => {
   it('shows an empty state when nothing is awaiting dispatch', async () => {
     vi.mocked(getOrdersAwaitingDispatch).mockResolvedValue([])
 
-    render(await AdminOrdersPage())
+    render(await AdminOrdersPage({}))
 
     expect(screen.getByText(/no orders awaiting dispatch/i)).toBeInTheDocument()
   })
