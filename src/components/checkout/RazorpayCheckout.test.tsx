@@ -81,3 +81,47 @@ describe('RazorpayCheckout', () => {
     expect(mockOpen).not.toHaveBeenCalled()
   })
 })
+
+// Finding 5. Focus inside the modal is Razorpay's responsibility; returning it
+// when the modal closes is ours. Unit-tested here, but still needs manual
+// confirmation once real credentials make the modal reachable.
+describe('RazorpayCheckout focus restoration', () => {
+  it('returns focus to the pay button when the modal is dismissed', async () => {
+    render(<RazorpayCheckout {...defaultProps} />)
+
+    const payButton = screen.getByRole('button', { name: /pay now/i })
+    await userEvent.click(payButton)
+    await waitFor(() => expect(mockRazorpay).toHaveBeenCalled())
+
+    const { modal } = mockRazorpay.mock.calls[0][0] as { modal: { ondismiss: () => void } }
+    // Simulate Razorpay closing its overlay, which leaves focus wherever it was.
+    ;(document.activeElement as HTMLElement)?.blur()
+    modal.ondismiss()
+
+    await waitFor(() => expect(payButton).toHaveFocus())
+  })
+
+  it('clears the busy state on dismissal so the button is usable again', async () => {
+    render(<RazorpayCheckout {...defaultProps} />)
+
+    const payButton = screen.getByRole('button', { name: /pay now/i })
+    await userEvent.click(payButton)
+    await waitFor(() => expect(mockRazorpay).toHaveBeenCalled())
+
+    const { modal } = mockRazorpay.mock.calls[0][0] as { modal: { ondismiss: () => void } }
+    modal.ondismiss()
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /pay now/i })).not.toBeDisabled()
+    )
+  })
+
+  it('announces a load failure through a live region', async () => {
+    vi.stubGlobal('Razorpay', undefined)
+    render(<RazorpayCheckout {...defaultProps} onError={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /pay now/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/not loaded/i)
+  })
+})
