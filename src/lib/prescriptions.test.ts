@@ -1,4 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { mockSql } from '@/test/dbMock'
 
 const { mockGetCustomerById, mockSendPrescriptionStatusEmail } = vi.hoisted(() => ({
   mockGetCustomerById: vi.fn(),
@@ -15,7 +16,7 @@ describe('createPrescription', () => {
   it('inserts a prescription and returns it with pending status', async () => {
     const { sql } = await import('./db')
     const now = new Date()
-    vi.mocked(sql).mockResolvedValueOnce([{
+    mockSql(sql).mockResolvedValueOnce([{
       id: 'rx-001',
       customer_id: 'cust-001',
       file_url: 'https://storage.example.com/rx/rx-001.pdf',
@@ -59,7 +60,7 @@ describe('updatePrescriptionStatus', () => {
 
   it('updates status and returns the updated prescription', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([rxRow('approved')])
+    mockSql(sql).mockResolvedValueOnce([rxRow('approved')])
 
     const { updatePrescriptionStatus } = await import('./prescriptions')
     const result = await updatePrescriptionStatus('rx-001', 'approved')
@@ -71,7 +72,7 @@ describe('updatePrescriptionStatus', () => {
 
   it('sends prescription status email when status transitions to approved', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([rxRow('approved')])
+    mockSql(sql).mockResolvedValueOnce([rxRow('approved')])
     mockGetCustomerById.mockResolvedValueOnce({
       id: 'cust-001', email: 'patient@example.com', firstName: 'Alex',
       lastName: 'Smith', passwordHash: '', phone: null,
@@ -90,7 +91,7 @@ describe('updatePrescriptionStatus', () => {
 
   it('sends prescription status email when status transitions to rejected', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([rxRow('rejected')])
+    mockSql(sql).mockResolvedValueOnce([rxRow('rejected')])
     mockGetCustomerById.mockResolvedValueOnce({
       id: 'cust-001', email: 'patient@example.com', firstName: 'Alex',
       lastName: 'Smith', passwordHash: '', phone: null,
@@ -109,7 +110,7 @@ describe('updatePrescriptionStatus', () => {
 
   it('does not send email when status is pending', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([rxRow('pending')])
+    mockSql(sql).mockResolvedValueOnce([rxRow('pending')])
 
     const { updatePrescriptionStatus } = await import('./prescriptions')
     await updatePrescriptionStatus('rx-001', 'pending')
@@ -124,7 +125,7 @@ describe('getPendingPrescriptions', () => {
   it('returns pending prescriptions joined with customer name and email', async () => {
     const { sql } = await import('./db')
     const now = new Date()
-    vi.mocked(sql).mockResolvedValueOnce([{
+    mockSql(sql).mockResolvedValueOnce([{
       id: 'rx-001', customer_id: 'cust-001',
       file_url: '/uploads/rx-001.pdf',
       status: 'pending',
@@ -149,7 +150,7 @@ describe('getPendingPrescriptions', () => {
 
   it('returns empty array when no pending prescriptions exist', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([])
+    mockSql(sql).mockResolvedValueOnce([])
 
     const { getPendingPrescriptions } = await import('./prescriptions')
     const result = await getPendingPrescriptions()
@@ -163,7 +164,7 @@ describe('logPrescriptionReviewAction', () => {
 
   it('inserts a review log row and returns void', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([])
+    mockSql(sql).mockResolvedValueOnce([])
 
     const { logPrescriptionReviewAction } = await import('./prescriptions')
     const result = await logPrescriptionReviewAction({
@@ -178,7 +179,7 @@ describe('logPrescriptionReviewAction', () => {
 
   it('inserts with rejection reason and note when provided', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([])
+    mockSql(sql).mockResolvedValueOnce([])
 
     const { logPrescriptionReviewAction } = await import('./prescriptions')
     await logPrescriptionReviewAction({
@@ -199,7 +200,7 @@ describe('getPrescriptionById', () => {
   it('returns a prescription with customer info when found', async () => {
     const { sql } = await import('./db')
     const now = new Date()
-    vi.mocked(sql).mockResolvedValueOnce([{
+    mockSql(sql).mockResolvedValueOnce([{
       id: 'rx-001', customer_id: 'cust-001',
       file_url: '/uploads/rx-001.pdf', status: 'pending',
       right_sphere: null, right_cylinder: null, right_axis: null, right_add: null,
@@ -221,7 +222,7 @@ describe('getPrescriptionById', () => {
 
   it('returns null when prescription is not found', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([])
+    mockSql(sql).mockResolvedValueOnce([])
 
     const { getPrescriptionById } = await import('./prescriptions')
     const result = await getPrescriptionById('rx-999')
@@ -236,7 +237,7 @@ describe('getReviewLogsByPrescription', () => {
   it('returns review logs with reviewer name for a prescription', async () => {
     const { sql } = await import('./db')
     const now = new Date()
-    vi.mocked(sql).mockResolvedValueOnce([{
+    mockSql(sql).mockResolvedValueOnce([{
       id: 'log-001', prescription_id: 'rx-001', reviewer_id: 'cust-002',
       action: 'approved', rejection_reason: null, note: null,
       created_at: now, reviewer_name: 'Dr. Smith',
@@ -254,7 +255,7 @@ describe('getReviewLogsByPrescription', () => {
 
   it('returns empty array when no logs exist', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([])
+    mockSql(sql).mockResolvedValueOnce([])
 
     const { getReviewLogsByPrescription } = await import('./prescriptions')
     const result = await getReviewLogsByPrescription('rx-001')
@@ -269,7 +270,7 @@ describe('getPrescriptionsByCustomer', () => {
   it('returns all prescriptions for a customer', async () => {
     const { sql } = await import('./db')
     const now = new Date()
-    vi.mocked(sql).mockResolvedValueOnce([{
+    mockSql(sql).mockResolvedValueOnce([{
       id: 'rx-001', customer_id: 'cust-001',
       file_url: 'https://storage.example.com/rx-001.pdf',
       status: 'pending',

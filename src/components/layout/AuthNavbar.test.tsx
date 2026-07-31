@@ -18,7 +18,7 @@ describe('AuthNavbar', () => {
   })
 
   it('renders logout button when a session exists', async () => {
-    vi.mocked(Session.getSession).mockReturnValue({ customerId: 'cust-1' })
+    vi.mocked(Session.getSession).mockReturnValue({ customerId: 'cust-1', role: 'customer' })
 
     render(<CartProvider>{await AuthNavbar()}</CartProvider>)
 

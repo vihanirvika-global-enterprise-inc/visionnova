@@ -25,7 +25,7 @@ beforeEach(() => {
   vi.spyOn(NextHeaders, 'cookies').mockReturnValue(
     { set: mockSet, get: mockGet, delete: mockDelete } as any
   )
-  vi.mocked(Session.getSession).mockReturnValue({ customerId: SESSION_CUSTOMER })
+  vi.mocked(Session.getSession).mockReturnValue({ customerId: SESSION_CUSTOMER, role: 'customer' })
 })
 
 afterEach(() => { vi.restoreAllMocks() })

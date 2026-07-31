@@ -1,4 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { mockSql } from '@/test/dbMock'
 
 vi.mock('./db', () => ({ sql: vi.fn() }))
 
@@ -8,7 +9,7 @@ describe('createOptometristReview', () => {
   it('inserts a review and returns it', async () => {
     const { sql } = await import('./db')
     const now = new Date()
-    vi.mocked(sql).mockResolvedValueOnce([{
+    mockSql(sql).mockResolvedValueOnce([{
       id: 'review-001', prescription_id: 'rx-001',
       reviewer_name: 'Dr. Smith', status: 'approved',
       notes: 'Looks good', reviewed_at: now, created_at: now,

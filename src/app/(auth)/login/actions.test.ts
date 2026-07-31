@@ -59,7 +59,7 @@ describe('loginAction', () => {
     vi.mocked(Auth.loginUser).mockResolvedValue({
       id: 'cust-1', email: 'user@example.com',
       firstName: 'Ada', lastName: 'Lovelace',
-      passwordHash: 'hash', phone: null,
+      passwordHash: 'hash', phone: null, role: 'customer',
       createdAt: new Date(), updatedAt: new Date(),
     })
 

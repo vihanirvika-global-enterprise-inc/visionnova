@@ -63,7 +63,7 @@ describe('registerAction', () => {
     vi.mocked(Auth.registerUser).mockResolvedValue({
       id: 'cust-1', email: 'ada@example.com',
       firstName: 'Ada', lastName: 'Lovelace',
-      passwordHash: 'hash', phone: null,
+      passwordHash: 'hash', phone: null, role: 'customer',
       createdAt: new Date(), updatedAt: new Date(),
     })
 

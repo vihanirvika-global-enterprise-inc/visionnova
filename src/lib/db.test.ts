@@ -16,7 +16,9 @@ describe('db', () => {
   })
 
   it('exports a sql client built from DATABASE_URL with serverless options', async () => {
-    const postgres = (await import('postgres')).default as ReturnType<typeof vi.fn>
+    // Double cast: the mocked module still carries postgres' own call signature,
+    // which does not overlap with a vitest Mock.
+    const postgres = (await import('postgres')).default as unknown as ReturnType<typeof vi.fn>
     const { sql } = await import('./db')
 
     // Trigger lazy initialization by accessing a property on the proxy

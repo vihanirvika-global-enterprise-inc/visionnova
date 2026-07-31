@@ -1,4 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { mockSql } from '@/test/dbMock'
 
 vi.mock('./db', () => ({ sql: vi.fn() }))
 
@@ -22,7 +23,7 @@ describe('getProducts', () => {
         updated_at: new Date(),
       },
     ]
-    vi.mocked(sql).mockResolvedValueOnce(mockRows)
+    mockSql(sql).mockResolvedValueOnce(mockRows)
 
     const { getProducts } = await import('./products')
     const result = await getProducts()
@@ -39,7 +40,7 @@ describe('getProductById', () => {
 
   it('returns a single product by id', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([{
+    mockSql(sql).mockResolvedValueOnce([{
       id: 'abc-123',
       name: 'Classic Frame',
       description: null,
@@ -62,7 +63,7 @@ describe('getProductById', () => {
 
   it('returns null when product is not found', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([])
+    mockSql(sql).mockResolvedValueOnce([])
 
     const { getProductById } = await import('./products')
     const result = await getProductById('nonexistent')
@@ -76,7 +77,7 @@ describe('getProductsByCategory', () => {
 
   it('returns only products matching the given category', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([{
+    mockSql(sql).mockResolvedValueOnce([{
       id: 'abc-123',
       name: 'Classic Frame',
       description: null,
@@ -104,7 +105,7 @@ describe('getInStockProducts', () => {
 
   it('returns only products with stock quantity greater than zero', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([{
+    mockSql(sql).mockResolvedValueOnce([{
       id: 'prod-001', name: 'Classic Frame', description: null,
       price: '89.99', category: 'frames', sku: 'CF-001',
       stock_quantity: 5, image_url: null, requires_prescription: false,

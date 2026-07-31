@@ -10,7 +10,7 @@ describe('AccountPage', () => {
     vi.resetModules()
     vi.clearAllMocks()
     const { getSession } = await import('@/lib/session')
-    vi.mocked(getSession).mockReturnValue({ customerId: 'cust-001' })
+    vi.mocked(getSession).mockReturnValue({ customerId: 'cust-001', role: 'customer' })
   })
 
   it('shows an empty state when there are no orders', async () => {

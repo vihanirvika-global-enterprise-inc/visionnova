@@ -146,6 +146,7 @@ describe('POST /api/stripe/webhook', () => {
       email: 'jane@example.com',
       firstName: 'Jane',
       lastName: 'Smith',
+      role: 'customer',
       passwordHash: '',
       phone: null,
       createdAt: new Date(),
