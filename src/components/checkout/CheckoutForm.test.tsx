@@ -129,6 +129,34 @@ describe('CheckoutForm', () => {
     expect(screen.getByLabelText(/full name/i)).toBeInTheDocument()
   })
 
+  it('renders country as a select defaulting to IN, not a free-text input', () => {
+    render(<CheckoutForm />)
+
+    const country = screen.getByLabelText(/country/i)
+    expect(country.tagName).toBe('SELECT')
+    expect(country).toHaveValue('IN')
+  })
+
+  it('offers India as a selectable country option', () => {
+    render(<CheckoutForm />)
+
+    expect(
+      screen.getByRole('option', { name: 'India' })
+    ).toHaveValue('IN')
+  })
+
+  it('submits the selected country code, not a country name', async () => {
+    render(<CheckoutForm />)
+
+    const user = userEvent.setup()
+    await user.selectOptions(screen.getByLabelText(/country/i), 'US')
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+
+    await waitFor(() => expect(checkoutAction).toHaveBeenCalled())
+    const submitted = vi.mocked(checkoutAction).mock.calls[0][0] as FormData
+    expect(submitted.get('country')).toBe('US')
+  })
+
   it('shows PaymentElement after clientSecret is returned (step → payment)', async () => {
     render(<CheckoutForm />)
     await advanceToPaymentStep()

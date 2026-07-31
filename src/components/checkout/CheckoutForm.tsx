@@ -5,6 +5,7 @@ import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-
 import { getClientStripe } from '@/lib/stripe'
 import { createPaymentIntent } from '@/app/checkout/stripe-actions'
 import { checkoutAction } from '@/app/checkout/actions'
+import { COUNTRIES } from '@/lib/countries'
 import { formatAmountForStripe } from '@/lib/formatters'
 import { useCart } from '@/components/cart/CartContext'
 import { trackEvent } from '@/lib/analytics'
@@ -49,9 +50,13 @@ interface AddressFormData {
   country: string
 }
 
+type AddressFieldChangeEvent = React.ChangeEvent<
+  HTMLInputElement | HTMLSelectElement
+>
+
 interface AddressFormProps {
   formData: AddressFormData
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onChange: (e: AddressFieldChangeEvent) => void
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void
   isLoading: boolean
   error: string | null
@@ -148,10 +153,16 @@ function AddressForm({ formData, onChange, onSubmit, isLoading, error }: Address
           <label htmlFor="country" className="mb-1 block text-sm font-medium text-dark">
             Country
           </label>
-          <input
-            id="country" name="country" type="text"
+          <select
+            id="country" name="country" required
             value={formData.country} onChange={onChange} className="input-field"
-          />
+          >
+            {COUNTRIES.map((country) => (
+              <option key={country.code} value={country.code}>
+                {country.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -227,7 +238,7 @@ const INITIAL_FORM: AddressFormData = {
   city: '',
   state: '',
   pinCode: '',
-  country: 'India',
+  country: 'IN',
 }
 
 export default function CheckoutForm() {
@@ -238,7 +249,7 @@ export default function CheckoutForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState<AddressFormData>(INITIAL_FORM)
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleChange(e: AddressFieldChangeEvent) {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
   }

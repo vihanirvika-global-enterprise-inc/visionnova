@@ -9,6 +9,8 @@ export type OrderStatus =
 
 export type ProductCategory = 'frames' | 'lenses' | 'contacts' | 'sunglasses'
 
+export type Region = 'IN' | 'GLOBAL'
+
 export type PrescriptionStatus = 'pending' | 'approved' | 'rejected'
 
 export type ReviewStatus = 'approved' | 'rejected'

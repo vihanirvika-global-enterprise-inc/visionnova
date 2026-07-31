@@ -93,4 +93,24 @@ describe('validateShippingAddress', () => {
     const result = validateShippingAddress({ ...validAddress, postalCode: '' })
     expect(result.errors).toContain('Postal code is required')
   })
+
+  it('returns an error when country is empty', () => {
+    const result = validateShippingAddress({ ...validAddress, country: '' })
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContain('A valid country is required')
+  })
+
+  // Region — and therefore payment provider — is derived from this field, so a
+  // free-text country name must not reach the order.
+  it('returns an error when country is not an ISO-3166 code', () => {
+    for (const country of ['India', 'india', 'Bharat', 'XX']) {
+      const result = validateShippingAddress({ ...validAddress, country })
+      expect(result.valid).toBe(false)
+      expect(result.errors).toContain('A valid country is required')
+    }
+  })
+
+  it('accepts IN', () => {
+    expect(validateShippingAddress({ ...validAddress, country: 'IN' }).valid).toBe(true)
+  })
 })
