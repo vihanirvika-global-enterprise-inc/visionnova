@@ -40,11 +40,17 @@ afterEach(() => {
   process.env = { ...ORIGINAL_ENV }
 })
 
+describe('razorpayProvider', () => {
+  it('identifies itself as razorpay', () => {
+    expect(razorpayProvider.name).toBe('razorpay')
+  })
+})
+
 describe('razorpayProvider.createIntent', () => {
   it('threads orderId into notes and keeps amount as integer paise', async () => {
     mockCreateOrder.mockResolvedValue({ id: 'order_rzp_1' })
 
-    const result = await razorpayProvider.createIntent(99900, 'order-1')
+    const result = await razorpayProvider.createIntent(99900, 'order-1', 'INR')
 
     expect(mockCreateOrder).toHaveBeenCalledWith({
       amount: 99900,
@@ -57,7 +63,7 @@ describe('razorpayProvider.createIntent', () => {
   it('returns { error } when order creation fails', async () => {
     mockCreateOrder.mockRejectedValue(new Error('Razorpay is down'))
 
-    expect(await razorpayProvider.createIntent(99900, 'order-1')).toEqual({
+    expect(await razorpayProvider.createIntent(99900, 'order-1', 'INR')).toEqual({
       error: 'Razorpay is down',
     })
   })

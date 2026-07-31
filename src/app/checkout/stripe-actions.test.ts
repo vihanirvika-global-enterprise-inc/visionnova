@@ -22,7 +22,7 @@ describe('createPaymentIntent', () => {
     mockCreate.mockResolvedValue({ client_secret: 'pi_test_secret_abc' })
 
     const { createPaymentIntent } = await import('./stripe-actions')
-    const result = await createPaymentIntent(49900, 'order-1')
+    const result = await createPaymentIntent(49900, 'order-1', 'INR')
 
     expect(result).toEqual({ clientSecret: 'pi_test_secret_abc' })
     expect(mockCreate).toHaveBeenCalledWith({
@@ -33,13 +33,25 @@ describe('createPaymentIntent', () => {
     })
   })
 
+  // Currency follows the shipping region, not a provider default.
+  it('sends the requested currency lowercased for the Stripe API', async () => {
+    mockCreate.mockResolvedValue({ client_secret: 'pi_test_secret_abc' })
+
+    const { createPaymentIntent } = await import('./stripe-actions')
+    await createPaymentIntent(49900, 'order-1', 'USD')
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ currency: 'usd' })
+    )
+  })
+
   // The webhook resolves the order from metadata.orderId; without it no order
   // can ever advance to paid.
   it('puts orderId in metadata alongside source', async () => {
     mockCreate.mockResolvedValue({ client_secret: 'pi_test_secret_abc' })
 
     const { createPaymentIntent } = await import('./stripe-actions')
-    await createPaymentIntent(49900, 'order-xyz')
+    await createPaymentIntent(49900, 'order-xyz', 'INR')
 
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -52,7 +64,7 @@ describe('createPaymentIntent', () => {
     mockCreate.mockResolvedValue({ client_secret: 'pi_test_secret_abc' })
 
     const { createPaymentIntent } = await import('./stripe-actions')
-    await createPaymentIntent(99999, 'order-1')
+    await createPaymentIntent(99999, 'order-1', 'INR')
 
     const [{ amount }] = mockCreate.mock.calls[0]
     expect(amount).toBe(99999)
@@ -63,7 +75,7 @@ describe('createPaymentIntent', () => {
     mockCreate.mockRejectedValue(new Error('Your card was declined'))
 
     const { createPaymentIntent } = await import('./stripe-actions')
-    const result = await createPaymentIntent(49900, 'order-1')
+    const result = await createPaymentIntent(49900, 'order-1', 'INR')
 
     expect(result).toEqual({ error: 'Your card was declined' })
   })

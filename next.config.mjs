@@ -1,4 +1,7 @@
 import { withSentryConfig } from '@sentry/nextjs'
+import { buildContentSecurityPolicy } from './src/lib/csp.ts'
+
+const isDev = process.env.NODE_ENV !== 'production'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -6,6 +9,19 @@ const nextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: '**' },
     ],
+  },
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: buildContentSecurityPolicy({ isDev }),
+          },
+        ],
+      },
+    ]
   },
 }
 

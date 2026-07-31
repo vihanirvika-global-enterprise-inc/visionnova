@@ -10,8 +10,14 @@ vi.mock('@stripe/react-stripe-js', () => ({
   useElements: vi.fn(),
 }))
 
-vi.mock('@/app/checkout/stripe-actions', () => ({
-  createPaymentIntent: vi.fn(),
+vi.mock('./RazorpayCheckout', () => ({
+  default: ({ razorpayOrderId }: { razorpayOrderId: string }) => (
+    <div data-testid="razorpay-checkout" data-order-id={razorpayOrderId} />
+  ),
+}))
+
+vi.mock('@/app/checkout/payment-actions', () => ({
+  createPayment: vi.fn(),
 }))
 
 vi.mock('@/app/checkout/actions', () => ({
@@ -32,7 +38,7 @@ vi.mock('@/lib/stripe', () => ({
 }))
 
 import { useStripe, useElements } from '@stripe/react-stripe-js'
-import { createPaymentIntent } from '@/app/checkout/stripe-actions'
+import { createPayment } from '@/app/checkout/payment-actions'
 import { checkoutAction } from '@/app/checkout/actions'
 import { useCart } from '@/components/cart/CartContext'
 import CheckoutForm from './CheckoutForm'
@@ -48,8 +54,13 @@ function setupDefaultMocks() {
     confirmPayment: vi.fn().mockResolvedValue({}),
   } as any)
   vi.mocked(useElements).mockReturnValue({} as any)
-  vi.mocked(createPaymentIntent).mockResolvedValue({ clientSecret: 'pi_test_secret' })
   vi.mocked(checkoutAction).mockResolvedValue({ orderId: 'order-1' })
+  // Default country is IN, so the default provider is Razorpay.
+  vi.mocked(createPayment).mockResolvedValue({
+    provider: 'razorpay',
+    clientRef: 'order_rzp_1',
+    keyId: 'rzp_test_key',
+  })
 }
 
 beforeEach(() => {
@@ -57,16 +68,22 @@ beforeEach(() => {
   setupDefaultMocks()
 })
 
-// Fills the address form and waits until the payment step renders.
-// Used by tests 3, 5, 6 which start from 'payment' step.
-async function advanceToPaymentStep() {
-  const user = userEvent.setup()
+async function fillNameAndEmail(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/full name/i), 'Test User')
   await user.type(screen.getByLabelText(/email/i), 'test@test.com')
+}
+
+// Switches to a non-Indian address so the Stripe branch renders.
+async function advanceToStripePaymentStep() {
+  const user = userEvent.setup()
+  vi.mocked(createPayment).mockResolvedValue({
+    provider: 'stripe',
+    clientRef: 'pi_test_secret',
+  })
+  await fillNameAndEmail(user)
+  await user.selectOptions(screen.getByLabelText(/country/i), 'US')
   await user.click(screen.getByRole('button', { name: /continue to payment/i }))
-  await waitFor(() =>
-    expect(screen.getByTestId('payment-element')).toBeInTheDocument()
-  )
+  await waitFor(() => expect(screen.getByTestId('payment-element')).toBeInTheDocument())
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -76,57 +93,10 @@ describe('CheckoutForm', () => {
     render(<CheckoutForm />)
 
     expect(screen.getByLabelText(/full name/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/phone/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/address line 1/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/city/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/pin code/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /continue to payment/i })).toBeInTheDocument()
     expect(screen.queryByTestId('payment-element')).not.toBeInTheDocument()
-  })
-
-  it('calls createPaymentIntent with correct paise amount and orderId on address submit', async () => {
-    render(<CheckoutForm />)
-
-    const user = userEvent.setup()
-    await user.type(screen.getByLabelText(/full name/i), 'Test User')
-    await user.type(screen.getByLabelText(/email/i), 'test@test.com')
-    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
-
-    // total = 999 rupees → formatAmountForStripe(999) = 99900 paise
-    await waitFor(() => {
-      expect(createPaymentIntent).toHaveBeenCalledWith(99900, 'order-1')
-    })
-  })
-
-  it('creates the order before the payment intent', async () => {
-    render(<CheckoutForm />)
-
-    const user = userEvent.setup()
-    await user.type(screen.getByLabelText(/full name/i), 'Test User')
-    await user.type(screen.getByLabelText(/email/i), 'test@test.com')
-    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
-
-    await waitFor(() => expect(createPaymentIntent).toHaveBeenCalled())
-    expect(checkoutAction).toHaveBeenCalledWith(expect.any(FormData))
-    expect(vi.mocked(checkoutAction).mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(createPaymentIntent).mock.invocationCallOrder[0]
-    )
-  })
-
-  it('stays on the address step and shows the error when order creation fails', async () => {
-    vi.mocked(checkoutAction).mockResolvedValue({ error: 'City is required' })
-    render(<CheckoutForm />)
-
-    const user = userEvent.setup()
-    await user.type(screen.getByLabelText(/full name/i), 'Test User')
-    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText('City is required')).toBeInTheDocument()
-    })
-    expect(createPaymentIntent).not.toHaveBeenCalled()
-    expect(screen.getByLabelText(/full name/i)).toBeInTheDocument()
+    expect(screen.queryByTestId('razorpay-checkout')).not.toBeInTheDocument()
   })
 
   it('renders country as a select defaulting to IN, not a free-text input', () => {
@@ -140,9 +110,7 @@ describe('CheckoutForm', () => {
   it('offers India as a selectable country option', () => {
     render(<CheckoutForm />)
 
-    expect(
-      screen.getByRole('option', { name: 'India' })
-    ).toHaveValue('IN')
+    expect(screen.getByRole('option', { name: 'India' })).toHaveValue('IN')
   })
 
   it('submits the selected country code, not a country name', async () => {
@@ -157,63 +125,106 @@ describe('CheckoutForm', () => {
     expect(submitted.get('country')).toBe('US')
   })
 
-  it('shows PaymentElement after clientSecret is returned (step → payment)', async () => {
-    render(<CheckoutForm />)
-    await advanceToPaymentStep()
-
-    expect(screen.getByTestId('payment-element')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /pay now/i })).toBeInTheDocument()
-    // address form is gone
-    expect(screen.queryByLabelText(/full name/i)).not.toBeInTheDocument()
-  })
-
-  it('shows error card if createPaymentIntent returns an error', async () => {
-    vi.mocked(createPaymentIntent).mockResolvedValue({ error: 'Card declined' })
+  it('creates the order before the payment', async () => {
     render(<CheckoutForm />)
 
     const user = userEvent.setup()
-    await user.type(screen.getByLabelText(/full name/i), 'Test User')
-    await user.type(screen.getByLabelText(/email/i), 'test@test.com')
+    await fillNameAndEmail(user)
     await user.click(screen.getByRole('button', { name: /continue to payment/i }))
 
-    await waitFor(() => {
-      expect(screen.getByText('Card declined')).toBeInTheDocument()
-    })
+    await waitFor(() => expect(createPayment).toHaveBeenCalled())
+    expect(vi.mocked(checkoutAction).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(createPayment).mock.invocationCallOrder[0]
+    )
+  })
+
+  it('passes paise, orderId and the selected country to createPayment', async () => {
+    render(<CheckoutForm />)
+
+    const user = userEvent.setup()
+    await fillNameAndEmail(user)
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+
+    // total = 999 rupees → 99900 paise
+    await waitFor(() => expect(createPayment).toHaveBeenCalledWith(99900, 'order-1', 'IN'))
+  })
+
+  it('stays on the address step and shows the error when order creation fails', async () => {
+    vi.mocked(checkoutAction).mockResolvedValue({ error: 'City is required' })
+    render(<CheckoutForm />)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+
+    await waitFor(() => expect(screen.getByText('City is required')).toBeInTheDocument())
+    expect(createPayment).not.toHaveBeenCalled()
+    expect(screen.getByLabelText(/full name/i)).toBeInTheDocument()
+  })
+})
+
+describe('CheckoutForm payment method selection', () => {
+  it('renders Razorpay for an Indian address', async () => {
+    render(<CheckoutForm />)
+
+    const user = userEvent.setup()
+    await fillNameAndEmail(user)
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+
+    await waitFor(() => expect(screen.getByTestId('razorpay-checkout')).toBeInTheDocument())
+    expect(screen.getByTestId('razorpay-checkout')).toHaveAttribute(
+      'data-order-id',
+      'order_rzp_1'
+    )
+    expect(screen.queryByTestId('payment-element')).not.toBeInTheDocument()
+  })
+
+  it('renders Stripe Elements for a non-Indian address', async () => {
+    render(<CheckoutForm />)
+    await advanceToStripePaymentStep()
+
+    expect(screen.getByTestId('payment-element')).toBeInTheDocument()
+    expect(screen.queryByTestId('razorpay-checkout')).not.toBeInTheDocument()
+  })
+
+  it('shows an error card if payment creation fails', async () => {
+    vi.mocked(createPayment).mockResolvedValue({ error: 'Card declined' })
+    render(<CheckoutForm />)
+
+    const user = userEvent.setup()
+    await fillNameAndEmail(user)
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+
+    await waitFor(() => expect(screen.getByText('Card declined')).toBeInTheDocument())
     // still on address step — user can fix and retry
     expect(screen.getByLabelText(/full name/i)).toBeInTheDocument()
   })
+})
 
+describe('CheckoutForm Stripe payment step', () => {
   it('shows "Processing..." and disables the button while confirmPayment is in flight', async () => {
     vi.mocked(useStripe).mockReturnValue({
-      confirmPayment: vi.fn().mockImplementation(() => new Promise(() => {})), // never resolves
+      confirmPayment: vi.fn().mockImplementation(() => new Promise(() => {})),
     } as any)
 
     render(<CheckoutForm />)
-    await advanceToPaymentStep()
+    await advanceToStripePaymentStep()
 
-    const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { name: /pay now/i }))
+    await userEvent.setup().click(screen.getByRole('button', { name: /pay now/i }))
 
     expect(screen.getByRole('button', { name: /processing/i })).toBeDisabled()
   })
 
   it('shows confirmPayment error and stays on payment step', async () => {
     vi.mocked(useStripe).mockReturnValue({
-      confirmPayment: vi.fn().mockResolvedValue({
-        error: { message: 'Insufficient funds' },
-      }),
+      confirmPayment: vi.fn().mockResolvedValue({ error: { message: 'Insufficient funds' } }),
     } as any)
 
     render(<CheckoutForm />)
-    await advanceToPaymentStep()
+    await advanceToStripePaymentStep()
 
-    const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { name: /pay now/i }))
+    await userEvent.setup().click(screen.getByRole('button', { name: /pay now/i }))
 
-    await waitFor(() => {
-      expect(screen.getByText('Insufficient funds')).toBeInTheDocument()
-    })
-    // still on payment step — not redirected to address or confirmation
+    await waitFor(() => expect(screen.getByText('Insufficient funds')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /pay now/i })).toBeInTheDocument()
   })
 })

@@ -3,9 +3,13 @@
 import { useState } from 'react'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { getClientStripe } from '@/lib/stripe'
-import { createPaymentIntent } from '@/app/checkout/stripe-actions'
+import { createPayment } from '@/app/checkout/payment-actions'
 import { checkoutAction } from '@/app/checkout/actions'
 import { COUNTRIES } from '@/lib/countries'
+import { currencyForRegion } from '@/lib/currency'
+import { regionForCountry } from '@/lib/region'
+import RazorpayCheckout from './RazorpayCheckout'
+import type { PaymentProviderName } from '@/lib/payments/provider'
 import { formatAmountForStripe } from '@/lib/formatters'
 import { useCart } from '@/components/cart/CartContext'
 import { trackEvent } from '@/lib/analytics'
@@ -244,7 +248,9 @@ const INITIAL_FORM: AddressFormData = {
 export default function CheckoutForm() {
   const { items, total } = useCart()
   const [step, setStep] = useState<CheckoutStep>('address')
-  const [clientSecret, setClientSecret] = useState<string | null>(null)
+  const [clientRef, setClientRef] = useState<string | null>(null)
+  const [provider, setProvider] = useState<PaymentProviderName | null>(null)
+  const [razorpayKeyId, setRazorpayKeyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState<AddressFormData>(INITIAL_FORM)
@@ -288,9 +294,12 @@ export default function CheckoutForm() {
       return
     }
 
-    const result = await createPaymentIntent(
+    // The server decides the gateway from the shipping country, so the routing
+    // rule is not duplicated in the browser.
+    const result = await createPayment(
       formatAmountForStripe(total),
-      orderResult.orderId
+      orderResult.orderId,
+      formData.country
     )
 
     if (result.error) {
@@ -299,7 +308,9 @@ export default function CheckoutForm() {
       return
     }
 
-    setClientSecret(result.clientSecret ?? null)
+    setProvider(result.provider ?? null)
+    setClientRef(result.clientRef ?? null)
+    setRazorpayKeyId(result.keyId ?? null)
     setStep('payment')
     setIsLoading(false)
     trackEvent({ event: 'checkout_started', total, itemCount: items.length })
@@ -329,8 +340,8 @@ export default function CheckoutForm() {
         />
       )}
 
-      {step === 'payment' && clientSecret && (
-        <Elements stripe={getClientStripe()} options={{ clientSecret }}>
+      {step === 'payment' && clientRef && provider === 'stripe' && (
+        <Elements stripe={getClientStripe()} options={{ clientSecret: clientRef }}>
           <PaymentForm
             onError={setError}
             isLoading={isLoading}
@@ -338,6 +349,19 @@ export default function CheckoutForm() {
             error={error}
           />
         </Elements>
+      )}
+
+      {step === 'payment' && clientRef && provider === 'razorpay' && razorpayKeyId && (
+        <>
+          {error && <ErrorCard message={error} />}
+          <RazorpayCheckout
+            razorpayOrderId={clientRef}
+            keyId={razorpayKeyId}
+            amountInPaise={formatAmountForStripe(total)}
+            currency={currencyForRegion(regionForCountry(formData.country))}
+            onError={setError}
+          />
+        </>
       )}
     </div>
   )

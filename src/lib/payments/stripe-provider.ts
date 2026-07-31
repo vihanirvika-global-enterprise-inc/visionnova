@@ -1,6 +1,7 @@
 import type Stripe from 'stripe'
 import { createPaymentIntent } from '@/app/checkout/stripe-actions'
 import { getServerStripe } from '@/lib/stripe'
+import type { CurrencyCode } from '@/lib/currency'
 import type { CreateIntentResult, PaymentEvent, PaymentProvider } from './provider'
 
 function constructEvent(rawBody: string, signature: string): Stripe.Event {
@@ -12,10 +13,16 @@ function constructEvent(rawBody: string, signature: string): Stripe.Event {
 }
 
 export const stripeProvider: PaymentProvider = {
+  name: 'stripe',
+
   // Delegates to the existing server action so Stripe behaviour is unchanged by
   // the abstraction.
-  async createIntent(amountInPaise: number, orderId: string): Promise<CreateIntentResult> {
-    const result = await createPaymentIntent(amountInPaise, orderId)
+  async createIntent(
+    amountInPaise: number,
+    orderId: string,
+    currency: CurrencyCode
+  ): Promise<CreateIntentResult> {
+    const result = await createPaymentIntent(amountInPaise, orderId, currency)
     if (result.error) return { error: result.error }
     return { clientRef: result.clientSecret as string }
   },

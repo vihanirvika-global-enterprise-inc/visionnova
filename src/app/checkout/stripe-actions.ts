@@ -1,19 +1,22 @@
 'use server'
 
 import { getServerStripe } from '@/lib/stripe'
+import type { CurrencyCode } from '@/lib/currency'
 import type { PaymentIntentResult } from '@/types/stripe'
 
 export type { PaymentIntentResult }
 
 export async function createPaymentIntent(
   amountInPaise: number,
-  orderId: string
+  orderId: string,
+  currency: CurrencyCode
 ): Promise<PaymentIntentResult> {
   try {
     const stripe = getServerStripe()
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInPaise,
-      currency: 'inr',
+      // Stripe expects a lowercase ISO-4217 code.
+      currency: currency.toLowerCase(),
       automatic_payment_methods: { enabled: true },
       metadata: { orderId, source: 'visionnova_mvp' },
     })

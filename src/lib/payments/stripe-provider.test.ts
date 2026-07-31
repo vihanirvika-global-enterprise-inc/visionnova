@@ -17,22 +17,28 @@ beforeEach(() => {
   } as any)
 })
 
+describe('stripeProvider', () => {
+  it('identifies itself as stripe', () => {
+    expect(stripeProvider.name).toBe('stripe')
+  })
+})
+
 describe('stripeProvider.createIntent', () => {
   // Wraps the existing action rather than reimplementing it, so Stripe behaviour
   // is unchanged by the abstraction.
-  it('delegates to createPaymentIntent with amount and orderId', async () => {
+  it('delegates to createPaymentIntent with amount, orderId and currency', async () => {
     vi.mocked(createPaymentIntent).mockResolvedValue({ clientSecret: 'pi_secret' })
 
-    const result = await stripeProvider.createIntent(99900, 'order-1')
+    const result = await stripeProvider.createIntent(99900, 'order-1', 'USD')
 
-    expect(createPaymentIntent).toHaveBeenCalledWith(99900, 'order-1')
+    expect(createPaymentIntent).toHaveBeenCalledWith(99900, 'order-1', 'USD')
     expect(result).toEqual({ clientRef: 'pi_secret' })
   })
 
   it('passes the action error through unchanged', async () => {
     vi.mocked(createPaymentIntent).mockResolvedValue({ error: 'Card declined' })
 
-    expect(await stripeProvider.createIntent(99900, 'order-1')).toEqual({
+    expect(await stripeProvider.createIntent(99900, 'order-1', 'USD')).toEqual({
       error: 'Card declined',
     })
   })

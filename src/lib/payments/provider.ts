@@ -1,3 +1,5 @@
+import type { CurrencyCode } from '@/lib/currency'
+
 // The contract both gateways honour. The webhook is the sole source of truth for
 // order state: a provider's client-side callback is UX only and must never
 // advance an order.
@@ -16,10 +18,19 @@ export type CreateIntentResult =
   | { clientRef: string; error?: never }
   | { error: string; clientRef?: never }
 
+export type PaymentProviderName = 'stripe' | 'razorpay'
+
 export interface PaymentProvider {
+  // Lets the client render the right payment UI without re-deriving the region.
+  name: PaymentProviderName
+
   // clientRef is the opaque handle the browser needs to complete payment:
   // Stripe's client_secret, Razorpay's order id.
-  createIntent(amountInPaise: number, orderId: string): Promise<CreateIntentResult>
+  createIntent(
+    amountInPaise: number,
+    orderId: string,
+    currency: CurrencyCode
+  ): Promise<CreateIntentResult>
 
   verifyWebhook(rawBody: string, signature: string): boolean
 

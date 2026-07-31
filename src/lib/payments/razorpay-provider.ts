@@ -1,10 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 import { getServerRazorpay } from '@/lib/razorpay'
+import type { CurrencyCode } from '@/lib/currency'
 import type { CreateIntentResult, PaymentEvent, PaymentProvider } from './provider'
-
-// Razorpay serves the IN region only, so INR is correct here rather than
-// hardcoded-by-oversight. Step 2c lifts currency to follow region.
-const CURRENCY = 'INR'
 
 interface RazorpayWebhookPayload {
   event?: string
@@ -19,11 +16,17 @@ interface RazorpayWebhookPayload {
 }
 
 export const razorpayProvider: PaymentProvider = {
-  async createIntent(amountInPaise: number, orderId: string): Promise<CreateIntentResult> {
+  name: 'razorpay',
+
+  async createIntent(
+    amountInPaise: number,
+    orderId: string,
+    currency: CurrencyCode
+  ): Promise<CreateIntentResult> {
     try {
       const order = await getServerRazorpay().createOrder({
         amount: amountInPaise,
-        currency: CURRENCY,
+        currency,
         notes: { orderId },
       })
       return { clientRef: order.id }
