@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getOrdersByCustomer } from '@/lib/orders'
 import { getPrescriptionsByCustomer } from '@/lib/prescriptions'
 import { getSession } from '@/lib/session'
+import { formatPrice } from '@/lib/formatters'
 
 function statusColors(status: string): string {
   if (status === 'approved' || status === 'delivered' || status === 'shipped') {
@@ -123,12 +124,20 @@ export default async function AccountPage() {
                     <span className="mt-0.5 block text-xs text-muted">
                       {order.createdAt.toLocaleDateString()}
                     </span>
-                    <a href="#" className="mt-0.5 block text-xs text-primary hover:underline">
+                    <Link
+                      href={`/order/${order.id}`}
+                      className="mt-0.5 block text-xs text-primary hover:underline"
+                    >
                       View Details →
-                    </a>
+                    </Link>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-primary">${order.totalAmount.toFixed(2)}</p>
+                    <p
+                      data-testid={`order-total-${order.id}`}
+                      className="font-bold text-primary"
+                    >
+                      {formatPrice(order.totalAmount)}
+                    </p>
                     <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusColors(order.status)}`}>
                       {order.status}
                     </span>
