@@ -13,7 +13,7 @@ export default function CartPage() {
       <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
         <h1 className="mb-8 text-dark">Your Cart</h1>
         <div className="flex flex-col items-center py-16 text-center">
-          <svg
+          <svg aria-hidden="true"
             className="h-16 w-16 text-slate-300"
             fill="none"
             stroke="currentColor"
@@ -55,7 +55,7 @@ export default function CartPage() {
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary to-cyan-400">
-                      <svg
+                      <svg aria-hidden="true"
                         className="h-8 w-8 text-white opacity-50"
                         fill="none"
                         stroke="currentColor"

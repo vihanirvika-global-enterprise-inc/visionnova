@@ -40,7 +40,7 @@ export default async function AccountPage() {
 
           {prescriptions.length === 0 ? (
             <div className="flex flex-col items-center py-8 text-center">
-              <svg
+              <svg aria-hidden="true"
                 className="mx-auto mb-3 h-12 w-12 text-slate-300"
                 fill="none"
                 stroke="currentColor"
@@ -62,7 +62,7 @@ export default async function AccountPage() {
                   className="flex items-center justify-between border-b border-slate-100 py-4 last:border-0"
                 >
                   <div className="flex items-center gap-3">
-                    <svg
+                    <svg aria-hidden="true"
                       className="h-5 w-5 flex-shrink-0 text-primary"
                       fill="none"
                       stroke="currentColor"
@@ -98,7 +98,7 @@ export default async function AccountPage() {
 
           {orders.length === 0 ? (
             <div className="flex flex-col items-center py-8 text-center">
-              <svg
+              <svg aria-hidden="true"
                 className="mx-auto mb-3 h-12 w-12 text-slate-300"
                 fill="none"
                 stroke="currentColor"

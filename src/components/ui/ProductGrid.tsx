@@ -12,7 +12,7 @@ export function ProductGrid({ products }: ProductGridProps) {
   if (products.length === 0) {
     return (
       <div className="flex flex-col items-center py-16 text-center">
-        <svg
+        <svg aria-hidden="true"
           className="h-16 w-16 text-slate-300"
           fill="none"
           stroke="currentColor"

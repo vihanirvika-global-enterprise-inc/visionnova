@@ -38,7 +38,7 @@ export default function LoginPage() {
               role="alert"
               className="card flex items-center gap-2 border-red-200 bg-red-50 p-3 text-sm text-red-700"
             >
-              <svg
+              <svg aria-hidden="true"
                 className="h-4 w-4 flex-shrink-0"
                 fill="none"
                 stroke="currentColor"

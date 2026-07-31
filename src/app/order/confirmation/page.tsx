@@ -20,7 +20,7 @@ function Wrapper({ children }: { children: ReactNode }) {
 
 function RedXIcon() {
   return (
-    <svg
+    <svg aria-hidden="true"
       data-testid="error-icon"
       className="h-16 w-16 text-red-500"
       fill="none"
@@ -55,7 +55,7 @@ function PaymentSuccess({ amount, paymentIntentId }: { amount: number; paymentIn
   return (
     <>
       <OrderCompletedTracker orderId={paymentIntentId} total={amount / 100} />
-      <svg
+      <svg aria-hidden="true"
         data-testid="success-icon"
         className="h-16 w-16 text-green-500"
         fill="none"

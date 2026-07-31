@@ -19,9 +19,11 @@ export function Navbar({ isLoggedIn = false }: NavbarProps) {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
 
         {/* Wordmark */}
+        {/* No aria-label: the visible text is the accessible name. An
+            aria-label of "Home" here breaks WCAG 2.5.3 Label in Name, leaving
+            voice-control users unable to say what they can read. */}
         <Link
           href="/"
-          aria-label="Home"
           className="text-xl font-bold text-white hover:text-slate-200"
         >
           VisionNova
@@ -43,7 +45,7 @@ export function Navbar({ isLoggedIn = false }: NavbarProps) {
             aria-label={itemCount > 0 ? `Cart (${itemCount})` : 'Cart'}
             className="relative p-1 text-white transition-colors hover:text-slate-300"
           >
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <svg aria-hidden="true" className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
             </svg>
             {itemCount > 0 && (
@@ -98,11 +100,11 @@ export function Navbar({ isLoggedIn = false }: NavbarProps) {
             aria-expanded={mobileOpen}
           >
             {mobileOpen ? (
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <svg aria-hidden="true" className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             ) : (
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <svg aria-hidden="true" className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             )}

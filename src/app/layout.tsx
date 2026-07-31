@@ -42,10 +42,22 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        {/* WCAG 2.4.1 Bypass Blocks: first focusable element on every page, so
+            keyboard users can jump the navigation instead of tabbing it. */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-white"
+        >
+          Skip to main content
+        </a>
+
         <PostHogProvider>
           <CartProvider>
             <AuthNavbar />
-            {children}
+            {/* tabIndex -1 so following the skip link actually moves focus */}
+            <div id="main-content" tabIndex={-1}>
+              {children}
+            </div>
           </CartProvider>
         </PostHogProvider>
 

@@ -21,7 +21,7 @@ function ErrorCard({ message }: { message: string }) {
   return (
     <div className="card bg-red-50 border-red-200 p-3 mb-4">
       <div className="flex items-start gap-2">
-        <svg
+        <svg aria-hidden="true"
           className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500"
           fill="none"
           stroke="currentColor"

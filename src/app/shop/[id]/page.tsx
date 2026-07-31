@@ -44,7 +44,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary to-cyan-400">
-              <svg
+              <svg aria-hidden="true"
                 className="h-24 w-24 text-white opacity-40"
                 fill="none"
                 stroke="currentColor"
@@ -72,7 +72,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
           <div className="mt-4 text-sm">
             {product.stockQuantity > 0 ? (
-              <span className="flex items-center gap-1.5 font-medium text-green-600">
+              <span className="flex items-center gap-1.5 font-medium text-green-700">
                 <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-500" />
                 In Stock
               </span>
