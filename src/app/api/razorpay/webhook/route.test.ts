@@ -109,6 +109,42 @@ describe('POST /api/razorpay/webhook', () => {
     expect(response.status).toBe(200)
   })
 
+  // The order is already committed by the time the email is attempted. Returning
+  // 500 here makes Razorpay retry a payment that succeeded, forever.
+  it('returns 200 when the confirmation email fails, and reports it', async () => {
+    const body = eventBody('payment.captured', 'order-42')
+    vi.mocked(updateOrderStatus).mockResolvedValue({
+      id: 'order-42',
+      customerId: 'customer-1',
+      totalAmount: 149.99,
+      status: 'paid',
+      shippingAddress: {} as any,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    vi.mocked(getCustomerById).mockResolvedValue({
+      id: 'customer-1',
+      email: 'jane@example.com',
+      firstName: 'Jane',
+      lastName: 'Smith',
+      role: 'customer',
+      passwordHash: '',
+      phone: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as any)
+    vi.mocked(sendOrderConfirmationEmail).mockRejectedValue(new Error('Missing API key'))
+
+    const response = await POST(makeWebhookRequest(body, sign(body)))
+
+    expect(response.status).toBe(200)
+    expect(updateOrderStatus).toHaveBeenCalledWith('order-42', 'paid')
+    expect(captureOrderError).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({ orderId: 'order-42' })
+    )
+  })
+
   it('marks the order payment_failed on payment.failed', async () => {
     const body = eventBody('payment.failed', '42')
     vi.mocked(updateOrderStatus).mockResolvedValue({} as any)

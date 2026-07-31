@@ -1,14 +1,16 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { mockSql } from '@/test/dbMock'
 
-const { mockGetCustomerById, mockSendOrderShippedEmail } = vi.hoisted(() => ({
+const { mockGetCustomerById, mockSendOrderShippedEmail, mockCaptureOrderError } = vi.hoisted(() => ({
   mockGetCustomerById: vi.fn(),
   mockSendOrderShippedEmail: vi.fn(),
+  mockCaptureOrderError: vi.fn(),
 }))
 
 vi.mock('./db', () => ({ sql: vi.fn() }))
 vi.mock('./customers', () => ({ getCustomerById: mockGetCustomerById }))
 vi.mock('./email', () => ({ sendOrderShippedEmail: mockSendOrderShippedEmail }))
+vi.mock('./sentry', () => ({ captureOrderError: mockCaptureOrderError }))
 
 describe('createOrder', () => {
   beforeEach(() => { vi.resetModules(); vi.clearAllMocks() })
@@ -135,6 +137,26 @@ describe('updateOrderStatus', () => {
       firstName: 'Sam',
       orderId: 'order-001',
     })
+  })
+
+  // The status is already written when the email is attempted. Throwing here
+  // would report a successful state change as a failure to every caller.
+  it('still returns the updated order when the shipped email fails', async () => {
+    const { sql } = await import('./db')
+    mockSql(sql).mockResolvedValueOnce([orderRow('shipped')])
+    mockGetCustomerById.mockResolvedValue({
+      id: 'cust-001', email: 'sam@example.com', firstName: 'Sam',
+    })
+    mockSendOrderShippedEmail.mockRejectedValue(new Error('Missing API key'))
+
+    const { updateOrderStatus } = await import('./orders')
+    const result = await updateOrderStatus('order-001', 'shipped')
+
+    expect(result.status).toBe('shipped')
+    expect(mockCaptureOrderError).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({ orderId: 'order-001' })
+    )
   })
 
   it('does not send email for non-shipped status transitions', async () => {

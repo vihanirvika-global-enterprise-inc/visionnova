@@ -165,6 +165,49 @@ describe('POST /api/stripe/webhook', () => {
     expect(response.status).toBe(200)
   })
 
+  // The order is already committed by the time the email is attempted. Returning
+  // 500 here makes Stripe retry a payment that succeeded, forever.
+  it('returns 200 when the confirmation email fails, and reports it', async () => {
+    mockConstructEvent.mockReturnValue({
+      type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_mail_fail', metadata: { orderId: 'order-42' } } },
+    })
+    vi.mocked(updateOrderStatus).mockResolvedValue({
+      id: 'order-42',
+      customerId: 'customer-1',
+      totalAmount: 149.99,
+      status: 'paid',
+      shippingAddress: {} as any,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    vi.mocked(getCustomerById).mockResolvedValue({
+      id: 'customer-1',
+      email: 'jane@example.com',
+      firstName: 'Jane',
+      lastName: 'Smith',
+      role: 'customer',
+      passwordHash: '',
+      phone: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    vi.mocked(sendOrderConfirmationEmail).mockRejectedValue(
+      new Error('Missing API key. Pass it to the constructor `new Resend("re_123")`')
+    )
+
+    const request = makeWebhookRequest(JSON.stringify({}), 'test_sig_ok')
+    const response = await POST(request)
+
+    expect(response.status).toBe(200)
+    // the order still advanced — the failure is only the notification
+    expect(updateOrderStatus).toHaveBeenCalledWith('order-42', 'paid')
+    expect(captureOrderError).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({ orderId: 'order-42' })
+    )
+  })
+
   // A paid intent with no orderId means the metadata thread is broken upstream.
   // Acknowledge so Stripe stops retrying, but surface it rather than failing silently.
   it('returns 200 and reports to Sentry when metadata.orderId is missing', async () => {

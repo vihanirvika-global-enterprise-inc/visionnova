@@ -2,6 +2,7 @@ import { sql } from './db'
 import type { Order, ShippingAddress } from '@/types'
 import { getCustomerById } from './customers'
 import { sendOrderShippedEmail } from './email'
+import { sendEmailBestEffort } from './bestEffortEmail'
 
 interface CreateOrderInput {
   customerId: string
@@ -53,11 +54,15 @@ export async function updateOrderStatus(id: string, status: Order['status']): Pr
   if (status === 'shipped') {
     const customer = await getCustomerById(order.customerId)
     if (customer) {
-      await sendOrderShippedEmail({
-        to: customer.email,
-        firstName: customer.firstName,
-        orderId: order.id,
-      })
+      await sendEmailBestEffort(
+        () =>
+          sendOrderShippedEmail({
+            to: customer.email,
+            firstName: customer.firstName,
+            orderId: order.id,
+          }),
+        { orderId: order.id }
+      )
     }
   }
 

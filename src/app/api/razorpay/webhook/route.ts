@@ -3,6 +3,7 @@ import { razorpayProvider } from '@/lib/payments/razorpay-provider'
 import { updateOrderStatus } from '@/lib/orders'
 import { getCustomerById } from '@/lib/customers'
 import { sendOrderConfirmationEmail } from '@/lib/email'
+import { sendEmailBestEffort } from '@/lib/bestEffortEmail'
 import { captureOrderError } from '@/lib/sentry'
 
 export const dynamic = 'force-dynamic'
@@ -50,12 +51,16 @@ export async function POST(request: NextRequest) {
         const order = await updateOrderStatus(currentOrderId, 'paid')
         const customer = await getCustomerById(order.customerId)
         if (customer) {
-          await sendOrderConfirmationEmail({
-            to: customer.email,
-            orderId: order.id,
-            firstName: customer.firstName,
-            totalAmount: order.totalAmount,
-          })
+          await sendEmailBestEffort(
+            () =>
+              sendOrderConfirmationEmail({
+                to: customer.email,
+                orderId: order.id,
+                firstName: customer.firstName,
+                totalAmount: order.totalAmount,
+              }),
+            { orderId: order.id }
+          )
         }
         break
       }
