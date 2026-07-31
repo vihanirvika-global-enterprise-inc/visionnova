@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildContentSecurityPolicy } from './csp'
+import { buildContentSecurityPolicy } from './csp.mjs'
 
 function directive(policy: string, name: string): string {
   const found = policy

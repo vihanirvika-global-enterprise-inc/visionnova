@@ -1,19 +1,25 @@
 // Content Security Policy for the app shell.
 //
-// Kept here rather than inline in next.config.mjs so the third-party hosts the
-// app depends on are testable: this is the first CSP in the codebase, and a
-// policy that silently omits Stripe, Sentry or PostHog breaks payments and
-// observability with no build error.
-
-interface CspOptions {
-  isDev: boolean
-}
+// Plain .mjs rather than .ts because next.config.mjs imports it directly: Node
+// reparses a .ts file as ESM on every boot and warns
+// (MODULE_TYPELESS_PACKAGE_JSON). Adding "type": "module" to package.json would
+// silence that too, but would break scripts/*.js, which are CommonJS.
+//
+// Kept out of next.config.mjs so the third-party hosts the app depends on are
+// testable: this is the first CSP in the codebase, and a policy that silently
+// omits Stripe, Sentry or PostHog breaks payments and observability with no
+// build error.
 
 const STRIPE_SCRIPT = 'https://js.stripe.com'
 const RAZORPAY_SCRIPT = 'https://checkout.razorpay.com'
 
-export function buildContentSecurityPolicy({ isDev }: CspOptions): string {
-  const directives: Record<string, string[]> = {
+/**
+ * @param {{ isDev: boolean }} options
+ * @returns {string} a single-line CSP header value
+ */
+export function buildContentSecurityPolicy({ isDev }) {
+  /** @type {Record<string, string[]>} */
+  const directives = {
     'default-src': ["'self'"],
 
     // 'unsafe-inline' is required by Next.js, which injects inline bootstrap
