@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildContentSecurityPolicy } from './csp.mjs'
+import { buildContentSecurityPolicy, sentryCspReportUri } from './csp.mjs'
 
 function directive(policy: string, name: string): string {
   const found = policy
@@ -65,5 +65,64 @@ describe('buildContentSecurityPolicy in development', () => {
     expect(directive(buildContentSecurityPolicy({ isDev: false }), 'script-src')).not.toContain(
       "'unsafe-eval'"
     )
+  })
+})
+
+// Without a reporting endpoint, a report-only policy sends violations to each
+// visitor's console and nowhere else — the watch period would observe nothing.
+describe('sentryCspReportUri', () => {
+  it("derives Sentry's security-header endpoint from a DSN", () => {
+    expect(sentryCspReportUri('https://abc123@o12345.ingest.sentry.io/456')).toBe(
+      'https://o12345.ingest.sentry.io/api/456/security/?sentry_key=abc123'
+    )
+  })
+
+  it('preserves a path prefix on self-hosted Sentry', () => {
+    expect(sentryCspReportUri('https://key@sentry.example.com/prefix/789')).toBe(
+      'https://sentry.example.com/prefix/api/789/security/?sentry_key=key'
+    )
+  })
+
+  it('returns null when no DSN is configured', () => {
+    expect(sentryCspReportUri(undefined)).toBeNull()
+    expect(sentryCspReportUri('')).toBeNull()
+  })
+
+  it('returns null rather than throwing on a malformed DSN', () => {
+    expect(sentryCspReportUri('not-a-url')).toBeNull()
+    expect(sentryCspReportUri('https://o12345.ingest.sentry.io/456')).toBeNull() // no public key
+    expect(sentryCspReportUri('https://key@host/')).toBeNull() // no project id
+  })
+})
+
+describe('buildContentSecurityPolicy reporting', () => {
+  const REPORT_URI = 'https://o1.ingest.sentry.io/api/2/security/?sentry_key=k'
+
+  it('names both report-uri and report-to when an endpoint is configured', () => {
+    const policy = buildContentSecurityPolicy({ isDev: false, reportUri: REPORT_URI })
+
+    expect(directive(policy, 'report-uri')).toContain(REPORT_URI)
+    // report-uri is deprecated but still the only one several browsers honour;
+    // report-to is the replacement. Emitting both maximises collection.
+    expect(directive(policy, 'report-to')).toContain('csp-endpoint')
+  })
+
+  it('emits no reporting directives when there is no endpoint', () => {
+    const policy = buildContentSecurityPolicy({ isDev: false })
+
+    expect(policy).not.toContain('report-uri')
+    expect(policy).not.toContain('report-to')
+  })
+
+  it('leaves the protective directives unchanged', () => {
+    const policy = buildContentSecurityPolicy({ isDev: false, reportUri: REPORT_URI })
+
+    expect(directive(policy, 'default-src')).toContain("'self'")
+    expect(directive(policy, 'frame-ancestors')).toContain("'none'")
+    expect(directive(policy, 'script-src')).toContain('https://checkout.razorpay.com')
+  })
+
+  it('stays a single-line header value', () => {
+    expect(buildContentSecurityPolicy({ isDev: false, reportUri: REPORT_URI })).not.toContain('\n')
   })
 })

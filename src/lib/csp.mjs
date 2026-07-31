@@ -13,11 +13,42 @@
 const STRIPE_SCRIPT = 'https://js.stripe.com'
 const RAZORPAY_SCRIPT = 'https://checkout.razorpay.com'
 
+// Named group referenced by the report-to directive and defined by the
+// Reporting-Endpoints response header in next.config.mjs.
+export const CSP_REPORT_GROUP = 'csp-endpoint'
+
 /**
- * @param {{ isDev: boolean }} options
+ * Sentry accepts CSP reports at its Security Header endpoint, which is derived
+ * from the DSN rather than configured separately.
+ *
+ * DSN      https://<publicKey>@<host>/<projectId>
+ * endpoint https://<host>/api/<projectId>/security/?sentry_key=<publicKey>
+ *
+ * @param {string | undefined} dsn
+ * @returns {string | null} the endpoint, or null if no usable DSN
+ */
+export function sentryCspReportUri(dsn) {
+  if (!dsn) return null
+
+  try {
+    const url = new URL(dsn)
+    const segments = url.pathname.split('/').filter(Boolean)
+    const projectId = segments.pop()
+
+    if (!url.username || !projectId) return null
+
+    const prefix = segments.length > 0 ? `/${segments.join('/')}` : ''
+    return `${url.protocol}//${url.host}${prefix}/api/${projectId}/security/?sentry_key=${url.username}`
+  } catch {
+    return null
+  }
+}
+
+/**
+ * @param {{ isDev: boolean, reportUri?: string | null }} options
  * @returns {string} a single-line CSP header value
  */
-export function buildContentSecurityPolicy({ isDev }) {
+export function buildContentSecurityPolicy({ isDev, reportUri }) {
   /** @type {Record<string, string[]>} */
   const directives = {
     'default-src': ["'self'"],
@@ -60,6 +91,15 @@ export function buildContentSecurityPolicy({ isDev }) {
     'base-uri': ["'self'"],
     'form-action': ["'self'"],
     'frame-ancestors': ["'none'"],
+  }
+
+  // report-uri is deprecated but is still the only mechanism several browsers
+  // honour; report-to is its replacement. Emitting both collects the most
+  // violations. Omitted entirely when unconfigured, rather than emitting an
+  // empty directive that silently drops reports.
+  if (reportUri) {
+    directives['report-uri'] = [reportUri]
+    directives['report-to'] = [CSP_REPORT_GROUP]
   }
 
   return Object.entries(directives)

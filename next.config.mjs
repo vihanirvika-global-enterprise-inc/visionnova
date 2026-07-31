@@ -1,7 +1,17 @@
 import { withSentryConfig } from '@sentry/nextjs'
-import { buildContentSecurityPolicy } from './src/lib/csp.mjs'
+import {
+  buildContentSecurityPolicy,
+  sentryCspReportUri,
+  CSP_REPORT_GROUP,
+} from './src/lib/csp.mjs'
 
 const isDev = process.env.NODE_ENV !== 'production'
+
+// Violations go to Sentry's Security Header endpoint, derived from the DSN.
+// Without NEXT_PUBLIC_SENTRY_DSN set, this is null and no reporting directives
+// are emitted — report-only then collects nothing, which is the state the
+// watch period must not be run in.
+const reportUri = sentryCspReportUri(process.env.NEXT_PUBLIC_SENTRY_DSN)
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -27,12 +37,20 @@ const nextConfig = {
             // watch period passes with no unexpected violations. Nothing else
             // needs to change; the policy value is already the one to enforce.
             //
-            // Note: with no report-uri/report-to endpoint configured, violations
-            // surface only in the browser console. Wire up a reporting endpoint
-            // before relying on this to catch anything.
             key: 'Content-Security-Policy-Report-Only',
-            value: buildContentSecurityPolicy({ isDev }),
+            value: buildContentSecurityPolicy({ isDev, reportUri }),
           },
+          // Defines the group named by the report-to directive. Only emitted
+          // alongside a real endpoint, so the header never advertises a group
+          // the policy does not reference.
+          ...(reportUri
+            ? [
+                {
+                  key: 'Reporting-Endpoints',
+                  value: `${CSP_REPORT_GROUP}="${reportUri}"`,
+                },
+              ]
+            : []),
         ],
       },
     ]
