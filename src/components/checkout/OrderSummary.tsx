@@ -41,7 +41,7 @@ export default function OrderSummary() {
 
       <div className="flex justify-between text-sm mt-1">
         <span className="text-muted">Shipping</span>
-        <span className="font-medium text-green-600">Free</span>
+        <span className="font-medium text-green-700">Free</span>
       </div>
 
       <hr className="border-slate-100 my-3" />
