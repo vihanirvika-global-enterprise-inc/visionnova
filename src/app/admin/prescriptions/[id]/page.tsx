@@ -43,6 +43,18 @@ export default async function ReviewPrescriptionPage({ params }: { params: { id:
             View prescription
           </a>
         </div>
+
+        <div>
+          <p className="text-xs text-muted uppercase tracking-wide">Audit</p>
+          {/* Every read is logged; this is how that trail is answered without
+              a database query. */}
+          <Link
+            href={`/admin/prescriptions/${prescription.id}/access-log`}
+            className="mt-1 inline-block text-sm text-primary hover:underline"
+          >
+            Access log
+          </Link>
+        </div>
       </div>
 
       <div className="mt-8 flex flex-wrap items-start gap-4">

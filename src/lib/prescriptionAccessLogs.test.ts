@@ -33,9 +33,13 @@ describe('logPrescriptionAccess', () => {
 })
 
 describe('getAccessLogsByPrescription', () => {
-  it('returns the audit trail newest first', async () => {
+  // A subject-access response naming raw UUIDs answers nobody's question, so
+  // the accessor's name is joined in.
+  it('returns the audit trail newest first, with accessor names', async () => {
     const { sql } = await import('./db')
-    mockSql(sql).mockResolvedValueOnce([logRow])
+    const spy = mockSql(sql).mockResolvedValueOnce([
+      { ...logRow, accessor_name: 'Dr Rao' },
+    ])
 
     const { getAccessLogsByPrescription } = await import('./prescriptionAccessLogs')
     const logs = await getAccessLogsByPrescription('rx-001')
@@ -45,10 +49,25 @@ describe('getAccessLogsByPrescription', () => {
         id: 'log-001',
         prescriptionId: 'rx-001',
         accessorId: 'cust-001',
+        accessorName: 'Dr Rao',
         accessorRole: 'optometrist',
         accessedAt: logRow.accessed_at,
       },
     ])
+
+    const query = (spy.mock.calls[0][0] as string[]).join('?')
+    expect(query).toMatch(/JOIN customers/i)
+    expect(query).toMatch(/ORDER BY .*accessed_at DESC/i)
+  })
+
+  it('falls back when the accessor record has since been removed', async () => {
+    const { sql } = await import('./db')
+    mockSql(sql).mockResolvedValueOnce([{ ...logRow, accessor_name: null }])
+
+    const { getAccessLogsByPrescription } = await import('./prescriptionAccessLogs')
+    const [log] = await getAccessLogsByPrescription('rx-001')
+
+    expect(log.accessorName).toBe('Unknown user')
   })
 
   it('returns an empty trail when nothing has been read', async () => {

@@ -51,6 +51,21 @@ describe('ReviewPrescriptionPage', () => {
     expect(link).toHaveAttribute('href', '/api/prescriptions/rx-001/file')
   })
 
+  // The trail is recorded on every read; a reviewer needs a way to reach it
+  // without writing SQL.
+  it('links to the access log', async () => {
+    const { getPrescriptionById } = await import('@/lib/prescriptions')
+    vi.mocked(getPrescriptionById).mockResolvedValueOnce(mockPrescription)
+
+    const ReviewPrescriptionPage = (await import('./page')).default
+    render(await ReviewPrescriptionPage({ params: { id: 'rx-001' } }))
+
+    expect(screen.getByRole('link', { name: /access log/i })).toHaveAttribute(
+      'href',
+      '/admin/prescriptions/rx-001/access-log'
+    )
+  })
+
   it('renders an Approve submit button', async () => {
     const { getPrescriptionById } = await import('@/lib/prescriptions')
     vi.mocked(getPrescriptionById).mockResolvedValueOnce(mockPrescription)
