@@ -41,9 +41,11 @@ function makeFormData(address: ShippingAddress, cartJson: string): FormData {
   return fd
 }
 
+// India-first: the serviceable-region guard rejects anything else, so the
+// happy-path fixture has to be an Indian address.
 const address: ShippingAddress = {
-  line1: '123 Main St', city: 'Springfield',
-  state: 'IL', postalCode: '62701', country: 'US',
+  line1: '123 MG Road', city: 'Bengaluru',
+  state: 'KA', postalCode: '560001', country: 'IN',
 }
 
 const cartItems = [
@@ -68,6 +70,18 @@ describe('checkoutAction', () => {
 
     expect(result).toEqual({ error: expect.any(String) })
     expect(Orders.createOrder).not.toHaveBeenCalled()
+  })
+
+  // Blocking only at the payment step would leave orphaned pending orders for
+  // customers we cannot serve.
+  it('refuses a non-Indian shipping address before creating an order', async () => {
+    const result = await checkoutAction(
+      makeFormData({ ...address, country: 'US' }, JSON.stringify(cartItems))
+    )
+
+    expect(result).toEqual({ error: expect.stringMatching(/india/i) })
+    expect(Orders.createOrder).not.toHaveBeenCalled()
+    expect(OrderItems.addOrderItem).not.toHaveBeenCalled()
   })
 
   it('creates an order with items and returns its orderId', async () => {

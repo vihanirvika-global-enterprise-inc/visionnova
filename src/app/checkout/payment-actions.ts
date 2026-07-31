@@ -2,6 +2,10 @@
 
 import { regionForCountry } from '@/lib/region'
 import { currencyForRegion } from '@/lib/currency'
+import {
+  isServiceableRegion,
+  UNSERVICEABLE_REGION_MESSAGE,
+} from '@/lib/serviceableRegions'
 import { selectProvider } from '@/lib/payments/select-provider'
 import type { PaymentProviderName } from '@/lib/payments/provider'
 
@@ -25,6 +29,13 @@ export async function createPayment(
   country: string
 ): Promise<CreatePaymentResult> {
   const region = regionForCountry(country)
+
+  // Before anything reaches a gateway: an unserviceable region must never have
+  // a payment created for it.
+  if (!isServiceableRegion(region)) {
+    return { error: UNSERVICEABLE_REGION_MESSAGE }
+  }
+
   const provider = selectProvider(region)
   const currency = currencyForRegion(region)
 

@@ -1,5 +1,7 @@
-'use server'
-
+// Deliberately NOT a server action. This is reached only through
+// createPayment, which enforces the serviceable-region guard first. Marking it
+// 'use server' would expose a callable endpoint that creates a Stripe payment
+// in any currency, bypassing that guard entirely.
 import { getServerStripe } from '@/lib/stripe'
 import type { CurrencyCode } from '@/lib/currency'
 import type { PaymentIntentResult } from '@/types/stripe'

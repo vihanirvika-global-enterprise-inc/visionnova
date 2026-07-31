@@ -43,14 +43,35 @@ describe('createPayment', () => {
     })
   })
 
-  it('routes a non-Indian address to Stripe and charges USD', async () => {
+  // GLOBAL is not launched: prices are INR numbers with no FX layer, so a USD
+  // charge would bill the rupee figure in dollars (~83x). Fail closed before any
+  // payment exists at the gateway.
+  it.each(['US', 'GB', 'AE', 'SG'])('refuses %s before creating any payment', async (country) => {
     mockProvider('stripe')
 
-    const result = await createPayment(99900, 'order-1', 'US')
+    const result = await createPayment(99900, 'order-1', country)
 
-    expect(selectProvider).toHaveBeenCalledWith('GLOBAL')
-    expect(mockCreateIntent).toHaveBeenCalledWith(99900, 'order-1', 'USD')
-    expect(result).toEqual({ provider: 'stripe', clientRef: 'ref_123' })
+    expect(result.error).toMatch(/india/i)
+    expect(selectProvider).not.toHaveBeenCalled()
+    expect(mockCreateIntent).not.toHaveBeenCalled()
+  })
+
+  it('refuses a lowercase non-IN country too', async () => {
+    mockProvider('stripe')
+
+    const result = await createPayment(99900, 'order-1', 'us')
+
+    expect(result.error).toMatch(/india/i)
+    expect(mockCreateIntent).not.toHaveBeenCalled()
+  })
+
+  it('refuses an unrecognised country rather than defaulting to a gateway', async () => {
+    mockProvider('stripe')
+
+    const result = await createPayment(99900, 'order-1', 'ZZ')
+
+    expect(result.error).toMatch(/india/i)
+    expect(mockCreateIntent).not.toHaveBeenCalled()
   })
 
   it('keeps the amount as integer paise', async () => {
@@ -64,9 +85,9 @@ describe('createPayment', () => {
   })
 
   it('passes a provider failure back to the caller', async () => {
-    mockProvider('stripe')
-    mockCreateIntent.mockResolvedValue({ error: 'Card declined' })
+    mockProvider('razorpay')
+    mockCreateIntent.mockResolvedValue({ error: 'Payment declined' })
 
-    expect(await createPayment(99900, 'order-1', 'US')).toEqual({ error: 'Card declined' })
+    expect(await createPayment(99900, 'order-1', 'IN')).toEqual({ error: 'Payment declined' })
   })
 })
