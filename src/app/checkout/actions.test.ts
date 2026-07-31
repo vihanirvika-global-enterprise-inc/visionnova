@@ -25,7 +25,7 @@ beforeEach(() => {
   vi.spyOn(NextHeaders, 'cookies').mockReturnValue(
     { set: mockSet, get: mockGet, delete: mockDelete } as any
   )
-  vi.mocked(Session.getSession).mockReturnValue({ customerId: SESSION_CUSTOMER })
+  vi.mocked(Session.getSession).mockReturnValue({ customerId: SESSION_CUSTOMER, role: 'customer' })
 })
 
 afterEach(() => { vi.restoreAllMocks() })
@@ -41,9 +41,11 @@ function makeFormData(address: ShippingAddress, cartJson: string): FormData {
   return fd
 }
 
+// India-first: the serviceable-region guard rejects anything else, so the
+// happy-path fixture has to be an Indian address.
 const address: ShippingAddress = {
-  line1: '123 Main St', city: 'Springfield',
-  state: 'IL', postalCode: '62701', country: 'US',
+  line1: '123 MG Road', city: 'Bengaluru',
+  state: 'KA', postalCode: '560001', country: 'IN',
 }
 
 const cartItems = [
@@ -70,7 +72,19 @@ describe('checkoutAction', () => {
     expect(Orders.createOrder).not.toHaveBeenCalled()
   })
 
-  it('creates an order with items and redirects on success', async () => {
+  // Blocking only at the payment step would leave orphaned pending orders for
+  // customers we cannot serve.
+  it('refuses a non-Indian shipping address before creating an order', async () => {
+    const result = await checkoutAction(
+      makeFormData({ ...address, country: 'US' }, JSON.stringify(cartItems))
+    )
+
+    expect(result).toEqual({ error: expect.stringMatching(/india/i) })
+    expect(Orders.createOrder).not.toHaveBeenCalled()
+    expect(OrderItems.addOrderItem).not.toHaveBeenCalled()
+  })
+
+  it('creates an order with items and returns its orderId', async () => {
     const mockOrder = {
       id: 'order-1', customerId: SESSION_CUSTOMER, status: 'pending',
       totalAmount: 199.98, shippingAddress: address,
@@ -79,7 +93,7 @@ describe('checkoutAction', () => {
     vi.mocked(Orders.createOrder).mockResolvedValue(mockOrder as any)
     vi.mocked(OrderItems.addOrderItem).mockResolvedValue({} as any)
 
-    await checkoutAction(makeFormData(address, JSON.stringify(cartItems)))
+    const result = await checkoutAction(makeFormData(address, JSON.stringify(cartItems)))
 
     expect(Orders.createOrder).toHaveBeenCalledWith(expect.objectContaining({
       customerId: SESSION_CUSTOMER,
@@ -91,6 +105,28 @@ describe('checkoutAction', () => {
       quantity: 2,
       unitPrice: 99.99,
     }))
-    expect(NextNavigation.redirect).toHaveBeenCalledWith('/account')
+    expect(result).toEqual({ orderId: 'order-1' })
+  })
+
+  // The payment step needs the orderId in hand, so checkout must not redirect away
+  // before the caller can read it.
+  it('does not redirect — the caller drives the transition to payment', async () => {
+    vi.mocked(Orders.createOrder).mockResolvedValue({ id: 'order-1' } as any)
+    vi.mocked(OrderItems.addOrderItem).mockResolvedValue({} as any)
+
+    await checkoutAction(makeFormData(address, JSON.stringify(cartItems)))
+
+    expect(NextNavigation.redirect).not.toHaveBeenCalled()
+  })
+
+  it('leaves status to the schema default so the order starts pre-payment', async () => {
+    vi.mocked(Orders.createOrder).mockResolvedValue({ id: 'order-1' } as any)
+    vi.mocked(OrderItems.addOrderItem).mockResolvedValue({} as any)
+
+    await checkoutAction(makeFormData(address, JSON.stringify(cartItems)))
+
+    expect(Orders.createOrder).toHaveBeenCalledWith(
+      expect.not.objectContaining({ status: expect.anything() })
+    )
   })
 })

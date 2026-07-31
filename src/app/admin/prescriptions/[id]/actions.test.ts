@@ -31,6 +31,31 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks() })
 
 describe('reviewPrescription', () => {
+  // Why the email fix matters here: updatePrescriptionStatus writes the decision
+  // and then sends mail. If the send throws, the throw propagates and
+  // logPrescriptionReviewAction never runs — leaving a prescription marked
+  // approved with no record of who approved it.
+  it('still writes the review audit when the status email fails', async () => {
+    vi.mocked(Prescriptions.updatePrescriptionStatus).mockResolvedValue({
+      id: 'rx-001', status: 'approved',
+    } as any)
+
+    const { reviewPrescription } = await import('./actions')
+    const fd = new FormData()
+    fd.append('prescriptionId', 'rx-001')
+    fd.append('action', 'approved')
+
+    await reviewPrescription(fd)
+
+    expect(Prescriptions.logPrescriptionReviewAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prescriptionId: 'rx-001',
+        reviewerId: 'reviewer-001',
+        action: 'approved',
+      })
+    )
+  })
+
   it('calls updatePrescriptionStatus and logPrescriptionReviewAction on approval', async () => {
     const { reviewPrescription } = await import('./actions')
     const fd = new FormData()

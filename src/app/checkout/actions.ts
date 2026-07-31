@@ -1,17 +1,23 @@
 'use server'
 
-import { redirect } from 'next/navigation'
 import { createOrder } from '@/lib/orders'
 import { addOrderItem } from '@/lib/orderItems'
 import { getSession } from '@/lib/session'
 import { validateShippingAddress } from '@/lib/validation'
+import { regionForCountry } from '@/lib/region'
+import {
+  isServiceableRegion,
+  UNSERVICEABLE_REGION_MESSAGE,
+} from '@/lib/serviceableRegions'
 
 interface CartItem {
   product: { id: string; price: number }
   quantity: number
 }
 
-export async function checkoutAction(formData: FormData): Promise<{ error: string } | never> {
+export type CheckoutResult = { orderId: string } | { error: string }
+
+export async function checkoutAction(formData: FormData): Promise<CheckoutResult> {
   const session = getSession()
   if (!session) return { error: 'You must be logged in to checkout' }
 
@@ -25,6 +31,12 @@ export async function checkoutAction(formData: FormData): Promise<{ error: strin
 
   const { valid, errors } = validateShippingAddress(address)
   if (!valid) return { error: errors[0] }
+
+  // Refuse before the order row exists, so an unserviceable customer does not
+  // leave an orphaned pending order behind.
+  if (!isServiceableRegion(regionForCountry(address.country))) {
+    return { error: UNSERVICEABLE_REGION_MESSAGE }
+  }
 
   const cartJson = formData.get('cart') as string
   const items: CartItem[] = cartJson ? JSON.parse(cartJson) : []
@@ -48,5 +60,5 @@ export async function checkoutAction(formData: FormData): Promise<{ error: strin
     )
   )
 
-  redirect('/account')
+  return { orderId: order.id }
 }

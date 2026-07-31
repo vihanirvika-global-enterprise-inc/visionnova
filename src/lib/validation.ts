@@ -1,3 +1,5 @@
+import { isValidCountryCode } from './countries'
+
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 interface RegistrationInput {
@@ -67,6 +69,7 @@ export function validateShippingAddress(input: ShippingAddressInput): Validation
   if (!input.line1.trim()) errors.push('Street address is required')
   if (!input.city.trim()) errors.push('City is required')
   if (!input.postalCode.trim()) errors.push('Postal code is required')
+  if (!isValidCountryCode(input.country)) errors.push('A valid country is required')
 
   return { valid: errors.length === 0, errors }
 }

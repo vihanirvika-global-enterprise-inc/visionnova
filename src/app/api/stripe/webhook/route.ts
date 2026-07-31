@@ -4,6 +4,7 @@ import { getServerStripe } from '@/lib/stripe'
 import { updateOrderStatus } from '@/lib/orders'
 import { getCustomerById } from '@/lib/customers'
 import { sendOrderConfirmationEmail } from '@/lib/email'
+import { sendEmailBestEffort } from '@/lib/bestEffortEmail'
 import { captureOrderError } from '@/lib/sentry'
 
 export const dynamic = 'force-dynamic'
@@ -47,17 +48,29 @@ export async function POST(request: NextRequest) {
         const pi = event.data.object as Stripe.PaymentIntent
         const orderId = pi.metadata?.orderId
         currentOrderId = orderId
-        if (orderId) {
-          const order = await updateOrderStatus(orderId, 'paid')
-          const customer = await getCustomerById(order.customerId)
-          if (customer) {
-            await sendOrderConfirmationEmail({
-              to: customer.email,
-              orderId: order.id,
-              firstName: customer.firstName,
-              totalAmount: order.totalAmount,
-            })
-          }
+        if (!orderId) {
+          // Payment succeeded but we cannot resolve the order — the metadata thread
+          // is broken upstream. Acknowledge so Stripe stops retrying, but surface it:
+          // silently dropping this would leave a paid customer with no order.
+          captureOrderError(
+            new Error('payment_intent.succeeded has no metadata.orderId'),
+            { paymentIntentId: pi.id }
+          )
+          break
+        }
+        const order = await updateOrderStatus(orderId, 'paid')
+        const customer = await getCustomerById(order.customerId)
+        if (customer) {
+          await sendEmailBestEffort(
+            () =>
+              sendOrderConfirmationEmail({
+                to: customer.email,
+                orderId: order.id,
+                firstName: customer.firstName,
+                totalAmount: order.totalAmount,
+              }),
+            { orderId: order.id }
+          )
         }
         break
       }

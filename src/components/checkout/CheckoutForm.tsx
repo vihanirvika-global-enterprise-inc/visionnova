@@ -1,9 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { getClientStripe } from '@/lib/stripe'
-import { createPaymentIntent } from '@/app/checkout/stripe-actions'
+import { createPayment } from '@/app/checkout/payment-actions'
+import { checkoutAction } from '@/app/checkout/actions'
+import { SERVICEABLE_COUNTRIES } from '@/lib/serviceableRegions'
+import { currencyForRegion } from '@/lib/currency'
+import { regionForCountry } from '@/lib/region'
+import RazorpayCheckout from './RazorpayCheckout'
+import type { PaymentProviderName } from '@/lib/payments/provider'
 import { formatAmountForStripe } from '@/lib/formatters'
 import { useCart } from '@/components/cart/CartContext'
 import { trackEvent } from '@/lib/analytics'
@@ -11,11 +17,13 @@ import type { CheckoutStep } from '@/types/stripe'
 
 // ── Shared error card ─────────────────────────────────────────────────────────
 
+// role="alert" so a failure is spoken. Without it a screen-reader user submits,
+// the request fails, and nothing is announced at all.
 function ErrorCard({ message }: { message: string }) {
   return (
-    <div className="card bg-red-50 border-red-200 p-3 mb-4">
+    <div role="alert" className="card bg-red-50 border-red-200 p-3 mb-4">
       <div className="flex items-start gap-2">
-        <svg
+        <svg aria-hidden="true"
           className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500"
           fill="none"
           stroke="currentColor"
@@ -48,9 +56,13 @@ interface AddressFormData {
   country: string
 }
 
+type AddressFieldChangeEvent = React.ChangeEvent<
+  HTMLInputElement | HTMLSelectElement
+>
+
 interface AddressFormProps {
   formData: AddressFormData
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onChange: (e: AddressFieldChangeEvent) => void
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void
   isLoading: boolean
   error: string | null
@@ -147,16 +159,31 @@ function AddressForm({ formData, onChange, onSubmit, isLoading, error }: Address
           <label htmlFor="country" className="mb-1 block text-sm font-medium text-dark">
             Country
           </label>
-          <input
-            id="country" name="country" type="text"
+          <select
+            id="country" name="country" required
             value={formData.country} onChange={onChange} className="input-field"
-          />
+          >
+            {SERVICEABLE_COUNTRIES.map((country) => (
+              <option key={country.code} value={country.code}>
+                {country.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
+
+      {/* Announced separately from the button: changing a button's label does
+          not notify assistive tech, and disabling it drops focus. */}
+      {isLoading ? (
+        <p role="status" className="sr-only">
+          Processing, please wait
+        </p>
+      ) : null}
 
       <button
         type="submit"
         disabled={isLoading}
+        aria-busy={isLoading}
         className="btn-primary w-full py-3 text-lg"
       >
         {isLoading ? 'Please wait...' : 'Continue to Payment'}
@@ -217,6 +244,11 @@ function PaymentForm({ onError, isLoading, setIsLoading, error }: PaymentFormPro
 
 // ── CheckoutForm (default export) ─────────────────────────────────────────────
 
+const CHECKOUT_STEPS = [
+  { key: 'address', label: 'Shipping' },
+  { key: 'payment', label: 'Payment' },
+] as const
+
 const INITIAL_FORM: AddressFormData = {
   fullName: '',
   email: '',
@@ -226,20 +258,51 @@ const INITIAL_FORM: AddressFormData = {
   city: '',
   state: '',
   pinCode: '',
-  country: 'India',
+  country: 'IN',
 }
 
 export default function CheckoutForm() {
-  const { total } = useCart()
+  const { items, total } = useCart()
   const [step, setStep] = useState<CheckoutStep>('address')
-  const [clientSecret, setClientSecret] = useState<string | null>(null)
+  const [clientRef, setClientRef] = useState<string | null>(null)
+  const [provider, setProvider] = useState<PaymentProviderName | null>(null)
+  const [razorpayKeyId, setRazorpayKeyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState<AddressFormData>(INITIAL_FORM)
+  const paymentRegionRef = useRef<HTMLDivElement>(null)
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+  // The address form unmounts on transition, destroying the focused button and
+  // dropping focus to <body> — a keyboard user is silently returned to the top
+  // of the page. Move focus into the payment region instead.
+  useEffect(() => {
+    if (step === 'payment') paymentRegionRef.current?.focus()
+  }, [step])
+
+  function handleChange(e: AddressFieldChangeEvent) {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  // The order must exist before the payment intent so its id can be carried in
+  // the intent metadata — that is what the webhook uses to mark the order paid.
+  function buildOrderFormData(): FormData {
+    const fd = new FormData()
+    fd.append('line1', formData.addressLine1)
+    fd.append('city', formData.city)
+    fd.append('state', formData.state)
+    fd.append('postalCode', formData.pinCode)
+    fd.append('country', formData.country)
+    fd.append(
+      'cart',
+      JSON.stringify(
+        items.map((item) => ({
+          product: { id: item.product.id, price: item.product.price },
+          quantity: item.quantity,
+        }))
+      )
+    )
+    return fd
   }
 
   async function handleAddressSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -247,7 +310,21 @@ export default function CheckoutForm() {
     setIsLoading(true)
     setError(null)
 
-    const result = await createPaymentIntent(formatAmountForStripe(total))
+    const orderResult = await checkoutAction(buildOrderFormData())
+
+    if ('error' in orderResult) {
+      setError(orderResult.error)
+      setIsLoading(false)
+      return
+    }
+
+    // The server decides the gateway from the shipping country, so the routing
+    // rule is not duplicated in the browser.
+    const result = await createPayment(
+      formatAmountForStripe(total),
+      orderResult.orderId,
+      formData.country
+    )
 
     if (result.error) {
       setError(result.error)
@@ -255,25 +332,42 @@ export default function CheckoutForm() {
       return
     }
 
-    setClientSecret(result.clientSecret ?? null)
+    setProvider(result.provider ?? null)
+    setClientRef(result.clientRef ?? null)
+    setRazorpayKeyId(result.keyId ?? null)
     setStep('payment')
     setIsLoading(false)
-    trackEvent({ event: 'checkout_started', total, itemCount: 1 })
+    trackEvent({ event: 'checkout_started', total, itemCount: items.length })
   }
 
   return (
     <div>
-      <p className="mb-6 text-lg font-semibold text-dark">Shipping &amp; Payment</p>
+      <h2 className="mb-6 text-lg font-semibold text-dark">Shipping &amp; Payment</h2>
 
-      <div className="mb-8 flex items-center gap-2">
-        <span className={step === 'address' ? 'font-semibold text-primary' : 'text-muted'}>
-          1 Shipping
-        </span>
-        <span className="mx-2 text-muted">→</span>
-        <span className={step !== 'address' ? 'font-semibold text-primary' : 'text-muted'}>
-          2 Payment
-        </span>
-      </div>
+      {/* A real list with aria-current, matching OrderStatusTimeline. Previously
+          the current step was conveyed by font weight and colour alone. */}
+      <ol aria-label="Checkout progress" className="mb-8 flex items-center gap-2">
+        {CHECKOUT_STEPS.map((checkoutStep, index) => {
+          const isCurrent =
+            checkoutStep.key === 'address' ? step === 'address' : step !== 'address'
+          return (
+            <li
+              key={checkoutStep.key}
+              aria-current={isCurrent ? 'step' : undefined}
+              className="flex items-center gap-2"
+            >
+              {index > 0 ? (
+                <span aria-hidden="true" className="mx-2 text-muted">
+                  →
+                </span>
+              ) : null}
+              <span className={isCurrent ? 'font-semibold text-primary' : 'text-muted'}>
+                {index + 1} {checkoutStep.label}
+              </span>
+            </li>
+          )
+        })}
+      </ol>
 
       {step === 'address' && (
         <AddressForm
@@ -285,16 +379,42 @@ export default function CheckoutForm() {
         />
       )}
 
-      {step === 'payment' && clientSecret && (
-        <Elements stripe={getClientStripe()} options={{ clientSecret }}>
-          <PaymentForm
-            onError={setError}
-            isLoading={isLoading}
-            setIsLoading={setIsLoading}
-            error={error}
-          />
-        </Elements>
-      )}
+      {step === 'payment' && clientRef ? (
+        <div
+          ref={paymentRegionRef}
+          tabIndex={-1}
+          role="group"
+          aria-labelledby="payment-step-heading"
+        >
+          <h3 id="payment-step-heading" className="mb-4 text-base font-semibold text-dark">
+            Payment
+          </h3>
+
+          {provider === 'stripe' ? (
+            <Elements stripe={getClientStripe()} options={{ clientSecret: clientRef }}>
+              <PaymentForm
+                onError={setError}
+                isLoading={isLoading}
+                setIsLoading={setIsLoading}
+                error={error}
+              />
+            </Elements>
+          ) : null}
+
+          {provider === 'razorpay' && razorpayKeyId ? (
+            <>
+              {error && <ErrorCard message={error} />}
+              <RazorpayCheckout
+                razorpayOrderId={clientRef}
+                keyId={razorpayKeyId}
+                amountInPaise={formatAmountForStripe(total)}
+                currency={currencyForRegion(regionForCountry(formData.country))}
+                onError={setError}
+              />
+            </>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }

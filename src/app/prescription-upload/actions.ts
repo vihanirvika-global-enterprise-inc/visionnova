@@ -1,9 +1,8 @@
 'use server'
 
-import * as fsPromises from 'fs/promises'
-import { join } from 'path'
 import { redirect } from 'next/navigation'
 import { createPrescription } from '@/lib/prescriptions'
+import { savePrescriptionFile } from '@/lib/prescriptionStorage'
 import { getSession } from '@/lib/session'
 
 export async function uploadPrescriptionAction(
@@ -18,13 +17,14 @@ export async function uploadPrescriptionAction(
   }
 
   const bytes = await file.arrayBuffer()
-  const filename = `${Date.now()}-${file.name}`
-  const uploadPath = join(process.cwd(), 'public', 'uploads', filename)
-  await fsPromises.writeFile(uploadPath, Buffer.from(bytes))
+
+  // Stores an opaque key, not a public path: the file is served only through
+  // /api/prescriptions/[id]/file after a session check.
+  const storageKey = await savePrescriptionFile(Buffer.from(bytes), file.name)
 
   await createPrescription({
     customerId: session.customerId,
-    fileUrl: `/uploads/${filename}`,
+    fileUrl: storageKey,
   })
 
   redirect('/account')

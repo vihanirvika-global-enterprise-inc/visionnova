@@ -29,9 +29,16 @@ CREATE TABLE IF NOT EXISTS orders (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id      UUID NOT NULL REFERENCES customers(id),
   status           TEXT NOT NULL DEFAULT 'pending'
-                     CHECK (status IN ('pending', 'processing', 'shipped', 'delivered', 'cancelled')),
+                     CHECK (status IN ('pending', 'paid', 'payment_failed',
+                                       'processing', 'shipped', 'delivered', 'cancelled')),
   total_amount     NUMERIC(10, 2) NOT NULL CHECK (total_amount >= 0),
   shipping_address JSONB NOT NULL,
+  -- Shipment facts, recorded when dispatch actually happens. Never inferred
+  -- from updated_at, which moves for unrelated reasons.
+  carrier          TEXT,
+  tracking_number  TEXT,
+  shipped_at       TIMESTAMPTZ,
+  delivered_at     TIMESTAMPTZ,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -75,8 +82,23 @@ CREATE TABLE IF NOT EXISTS optometrist_reviews (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Access audit for prescription files — who read which prescription, and when.
+-- Distinct from the review logs above, which record approve/reject decisions:
+-- this records reads, including a customer viewing their own file.
+CREATE TABLE IF NOT EXISTS prescription_access_logs (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  prescription_id UUID NOT NULL REFERENCES prescriptions(id),
+  accessor_id     UUID NOT NULL REFERENCES customers(id),
+  accessor_role   VARCHAR(20) NOT NULL,
+  accessed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Indexes for common query patterns
 CREATE INDEX IF NOT EXISTS idx_orders_customer_id        ON orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_prescription_access_logs_prescription_id
+  ON prescription_access_logs(prescription_id);
+CREATE INDEX IF NOT EXISTS idx_prescription_access_logs_accessor_id
+  ON prescription_access_logs(accessor_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id      ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_product_id    ON order_items(product_id);
 CREATE INDEX IF NOT EXISTS idx_prescriptions_customer_id ON prescriptions(customer_id);

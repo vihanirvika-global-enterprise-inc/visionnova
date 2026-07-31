@@ -31,7 +31,7 @@ describe('registerUser', () => {
     const { createCustomer } = await import('./customers')
     vi.mocked(createCustomer).mockResolvedValueOnce({
       id: 'cust-001', email: 'jane@example.com',
-      passwordHash: 'hashed_pw', firstName: 'Jane', lastName: 'Doe',
+      passwordHash: 'hashed_pw', firstName: 'Jane', lastName: 'Doe', role: 'customer',
       phone: null, createdAt: new Date(), updatedAt: new Date(),
     })
 
@@ -54,7 +54,7 @@ describe('loginUser', () => {
     const { getCustomerByEmail } = await import('./customers')
     vi.mocked(getCustomerByEmail).mockResolvedValueOnce({
       id: 'cust-001', email: 'jane@example.com', passwordHash: hash,
-      firstName: 'Jane', lastName: 'Doe', phone: null,
+      firstName: 'Jane', lastName: 'Doe', phone: null, role: 'customer',
       createdAt: new Date(), updatedAt: new Date(),
     })
     const { loginUser } = await import('./auth')
@@ -66,7 +66,7 @@ describe('loginUser', () => {
     const { getCustomerByEmail } = await import('./customers')
     vi.mocked(getCustomerByEmail).mockResolvedValueOnce({
       id: 'cust-001', email: 'jane@example.com', passwordHash: hash,
-      firstName: 'Jane', lastName: 'Doe', phone: null,
+      firstName: 'Jane', lastName: 'Doe', phone: null, role: 'customer',
       createdAt: new Date(), updatedAt: new Date(),
     })
     const { loginUser } = await import('./auth')

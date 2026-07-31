@@ -23,7 +23,7 @@ export function ProductCard({ product }: ProductCardProps) {
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary to-cyan-400">
-            <svg
+            <svg aria-hidden="true"
               className="h-16 w-16 text-white opacity-50"
               fill="none"
               stroke="currentColor"
@@ -50,7 +50,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
         <div className="text-sm">
           {product.stockQuantity > 0 ? (
-            <span className="flex items-center gap-1.5 text-green-600">
+            <span className="flex items-center gap-1.5 text-green-700">
               <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-green-500" />
               In Stock
             </span>

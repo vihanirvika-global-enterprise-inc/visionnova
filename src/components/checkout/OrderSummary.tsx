@@ -11,7 +11,7 @@ export default function OrderSummary() {
 
   return (
     <div className="card sticky top-24 p-6">
-      <p className="mb-4 text-lg font-semibold text-dark">Order Summary</p>
+      <h2 className="mb-4 text-lg font-semibold text-dark">Order Summary</h2>
 
       {items.length === 0 ? (
         <p className="text-sm text-muted">Your cart is empty</p>
@@ -41,7 +41,7 @@ export default function OrderSummary() {
 
       <div className="flex justify-between text-sm mt-1">
         <span className="text-muted">Shipping</span>
-        <span className="font-medium text-green-600">Free</span>
+        <span className="font-medium text-green-700">Free</span>
       </div>
 
       <hr className="border-slate-100 my-3" />

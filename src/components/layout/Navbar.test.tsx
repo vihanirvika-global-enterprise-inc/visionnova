@@ -18,9 +18,23 @@ describe('Navbar', () => {
         <Navbar />
       </CartProvider>
     )
-    expect(screen.getByRole('link', { name: /home/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /visionnova/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /cart/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /account/i })).toBeInTheDocument()
+  })
+
+  // WCAG 2.5.3 Label in Name: an aria-label of "Home" on a link reading
+  // "VisionNova" leaves voice-control users with no way to say the link.
+  it('gives the brand link an accessible name matching its visible text', () => {
+    render(
+      <CartProvider>
+        <Navbar />
+      </CartProvider>
+    )
+
+    const brand = screen.getByRole('link', { name: /visionnova/i })
+    expect(brand).toHaveAttribute('href', '/')
+    expect(brand).not.toHaveAttribute('aria-label', 'Home')
   })
 
   it('renders a link to the shop catalog', () => {

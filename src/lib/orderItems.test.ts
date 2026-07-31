@@ -1,4 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { mockSql } from '@/test/dbMock'
 
 vi.mock('./db', () => ({ sql: vi.fn() }))
 
@@ -7,7 +8,7 @@ describe('addOrderItem', () => {
 
   it('inserts an order item and returns it', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([{
+    mockSql(sql).mockResolvedValueOnce([{
       id: 'item-001',
       order_id: 'order-001',
       product_id: 'prod-001',
@@ -37,7 +38,7 @@ describe('getOrderItems', () => {
 
   it('returns all items for an order', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([{
+    mockSql(sql).mockResolvedValueOnce([{
       id: 'item-001', order_id: 'order-001', product_id: 'prod-001',
       prescription_id: null, quantity: 2, unit_price: '89.99',
     }])

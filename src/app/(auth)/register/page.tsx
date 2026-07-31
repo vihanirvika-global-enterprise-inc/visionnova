@@ -38,7 +38,7 @@ export default function RegisterPage() {
               role="alert"
               className="card flex items-center gap-2 border-red-200 bg-red-50 p-3 text-sm text-red-700"
             >
-              <svg
+              <svg aria-hidden="true"
                 className="h-4 w-4 flex-shrink-0"
                 fill="none"
                 stroke="currentColor"
@@ -117,9 +117,9 @@ export default function RegisterPage() {
 
           <p className="text-center text-xs text-muted">
             By creating an account you agree to our{' '}
-            <Link href="/help" className="text-primary">Terms of Service</Link>
+            <Link href="/help" className="text-primary underline">Terms of Service</Link>
             {' '}and{' '}
-            <Link href="/help" className="text-primary">Privacy Policy</Link>
+            <Link href="/help" className="text-primary underline">Privacy Policy</Link>
           </p>
 
         </form>
@@ -127,7 +127,7 @@ export default function RegisterPage() {
         {/* Switch link — text must contain "login" to match test: getByRole('link', { name: /login/i }) */}
         <p className="mt-6 text-center text-sm text-muted">
           Already have an account?{' '}
-          <Link href="/login" className="font-medium text-primary">
+          <Link href="/login" className="font-medium text-primary underline">
             Login
           </Link>
         </p>

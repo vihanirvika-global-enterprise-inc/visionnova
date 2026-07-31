@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getOrdersByCustomer } from '@/lib/orders'
 import { getPrescriptionsByCustomer } from '@/lib/prescriptions'
 import { getSession } from '@/lib/session'
+import { formatPrice } from '@/lib/formatters'
 
 function statusColors(status: string): string {
   if (status === 'approved' || status === 'delivered' || status === 'shipped') {
@@ -39,7 +40,7 @@ export default async function AccountPage() {
 
           {prescriptions.length === 0 ? (
             <div className="flex flex-col items-center py-8 text-center">
-              <svg
+              <svg aria-hidden="true"
                 className="mx-auto mb-3 h-12 w-12 text-slate-300"
                 fill="none"
                 stroke="currentColor"
@@ -61,7 +62,7 @@ export default async function AccountPage() {
                   className="flex items-center justify-between border-b border-slate-100 py-4 last:border-0"
                 >
                   <div className="flex items-center gap-3">
-                    <svg
+                    <svg aria-hidden="true"
                       className="h-5 w-5 flex-shrink-0 text-primary"
                       fill="none"
                       stroke="currentColor"
@@ -97,7 +98,7 @@ export default async function AccountPage() {
 
           {orders.length === 0 ? (
             <div className="flex flex-col items-center py-8 text-center">
-              <svg
+              <svg aria-hidden="true"
                 className="mx-auto mb-3 h-12 w-12 text-slate-300"
                 fill="none"
                 stroke="currentColor"
@@ -123,12 +124,20 @@ export default async function AccountPage() {
                     <span className="mt-0.5 block text-xs text-muted">
                       {order.createdAt.toLocaleDateString()}
                     </span>
-                    <a href="#" className="mt-0.5 block text-xs text-primary hover:underline">
+                    <Link
+                      href={`/order/${order.id}`}
+                      className="mt-0.5 block text-xs text-primary hover:underline"
+                    >
                       View Details →
-                    </a>
+                    </Link>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-primary">${order.totalAmount.toFixed(2)}</p>
+                    <p
+                      data-testid={`order-total-${order.id}`}
+                      className="font-bold text-primary"
+                    >
+                      {formatPrice(order.totalAmount)}
+                    </p>
                     <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusColors(order.status)}`}>
                       {order.status}
                     </span>

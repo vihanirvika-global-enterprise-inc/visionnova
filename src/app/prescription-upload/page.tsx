@@ -86,7 +86,7 @@ export default function PrescriptionUploadPage() {
 
           {selectedFile ? (
             <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-green-300 bg-green-50 p-8 text-center">
-              <svg
+              <svg aria-hidden="true"
                 className="h-10 w-10 text-green-500"
                 fill="none"
                 stroke="currentColor"
@@ -118,7 +118,7 @@ export default function PrescriptionUploadPage() {
                   : 'border-slate-300 hover:border-primary hover:bg-slate-50'
               }`}
             >
-              <svg
+              <svg aria-hidden="true"
                 className="mx-auto mb-3 h-12 w-12 text-slate-400"
                 fill="none"
                 stroke="currentColor"
@@ -149,7 +149,7 @@ export default function PrescriptionUploadPage() {
             className="flex w-full items-center justify-between text-sm text-primary transition-colors hover:text-cyan-800"
           >
             <span>Enter prescription manually instead</span>
-            <svg
+            <svg aria-hidden="true"
               className={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${manualOpen ? 'rotate-180' : ''}`}
               fill="none"
               stroke="currentColor"
@@ -213,7 +213,7 @@ export default function PrescriptionUploadPage() {
             Upload Prescription
           </button>
           <div className="mt-3 flex items-center justify-center gap-2">
-            <svg
+            <svg aria-hidden="true"
               className="h-4 w-4 flex-shrink-0 text-muted"
               fill="none"
               stroke="currentColor"

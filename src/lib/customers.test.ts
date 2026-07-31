@@ -1,4 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { mockSql } from '@/test/dbMock'
 
 vi.mock('./db', () => ({ sql: vi.fn() }))
 
@@ -8,7 +9,7 @@ describe('createCustomer', () => {
   it('inserts a customer and returns it', async () => {
     const { sql } = await import('./db')
     const now = new Date()
-    vi.mocked(sql).mockResolvedValueOnce([{
+    mockSql(sql).mockResolvedValueOnce([{
       id: 'cust-001',
       email: 'jane@example.com',
       password_hash: 'hashed_pw',
@@ -40,7 +41,7 @@ describe('getCustomerByEmail', () => {
   it('returns a customer when found by email', async () => {
     const { sql } = await import('./db')
     const now = new Date()
-    vi.mocked(sql).mockResolvedValueOnce([{
+    mockSql(sql).mockResolvedValueOnce([{
       id: 'cust-001',
       email: 'jane@example.com',
       password_hash: 'hashed_pw',
@@ -62,7 +63,7 @@ describe('getCustomerByEmail', () => {
 
   it('returns null when no customer matches the email', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([])
+    mockSql(sql).mockResolvedValueOnce([])
 
     const { getCustomerByEmail } = await import('./customers')
     const result = await getCustomerByEmail('unknown@example.com')
@@ -72,7 +73,7 @@ describe('getCustomerByEmail', () => {
 
   it('returns optometrist role when DB row has role optometrist', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([{
+    mockSql(sql).mockResolvedValueOnce([{
       id: 'cust-002',
       email: 'dr.patel@example.com',
       password_hash: 'hashed_pw',
@@ -96,7 +97,7 @@ describe('getCustomerById', () => {
 
   it('returns a customer with role when found by id', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([{
+    mockSql(sql).mockResolvedValueOnce([{
       id: 'cust-001',
       email: 'jane@example.com',
       password_hash: 'hashed_pw',
@@ -117,7 +118,7 @@ describe('getCustomerById', () => {
 
   it('returns null when not found', async () => {
     const { sql } = await import('./db')
-    vi.mocked(sql).mockResolvedValueOnce([])
+    mockSql(sql).mockResolvedValueOnce([])
 
     const { getCustomerById } = await import('./customers')
     expect(await getCustomerById('nonexistent')).toBeNull()

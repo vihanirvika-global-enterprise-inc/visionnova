@@ -10,7 +10,7 @@ describe('AccountPage', () => {
     vi.resetModules()
     vi.clearAllMocks()
     const { getSession } = await import('@/lib/session')
-    vi.mocked(getSession).mockReturnValue({ customerId: 'cust-001' })
+    vi.mocked(getSession).mockReturnValue({ customerId: 'cust-001', role: 'customer' })
   })
 
   it('shows an empty state when there are no orders', async () => {
@@ -37,6 +37,7 @@ describe('AccountPage', () => {
         status: 'delivered' as const,
         totalAmount: 89.99,
         shippingAddress: { line1: '1 Main St', city: 'Austin', state: 'TX', postalCode: '78701', country: 'US' },
+        carrier: null, trackingNumber: null, shippedAt: null, deliveredAt: null,
         createdAt: now,
         updatedAt: now,
       },
@@ -47,6 +48,54 @@ describe('AccountPage', () => {
 
     expect(screen.getByText(/order-001/)).toBeInTheDocument()
     expect(screen.getByText(/delivered/)).toBeInTheDocument()
+  })
+
+  it('links each order to its tracking screen', async () => {
+    const { getOrdersByCustomer } = await import('@/lib/orders')
+    const { getPrescriptionsByCustomer } = await import('@/lib/prescriptions')
+    const now = new Date()
+    vi.mocked(getOrdersByCustomer).mockResolvedValueOnce([
+      {
+        id: 'order-001', customerId: 'cust-001', status: 'shipped' as const,
+        totalAmount: 2499,
+        shippingAddress: { line1: '1 MG Road', city: 'Bengaluru', state: 'KA', postalCode: '560001', country: 'IN' },
+        carrier: null, trackingNumber: null, shippedAt: null, deliveredAt: null,
+        createdAt: now, updatedAt: now,
+      },
+    ])
+    vi.mocked(getPrescriptionsByCustomer).mockResolvedValueOnce([])
+
+    const AccountPage = (await import('./page')).default
+    render(await AccountPage())
+
+    expect(screen.getByRole('link', { name: /view details/i })).toHaveAttribute(
+      'href',
+      '/order/order-001'
+    )
+  })
+
+  // Prices are INR; a dollar sign on a rupee figure misstates the amount by ~83x.
+  it('shows order totals in rupees, never dollars', async () => {
+    const { getOrdersByCustomer } = await import('@/lib/orders')
+    const { getPrescriptionsByCustomer } = await import('@/lib/prescriptions')
+    const now = new Date()
+    vi.mocked(getOrdersByCustomer).mockResolvedValueOnce([
+      {
+        id: 'order-001', customerId: 'cust-001', status: 'delivered' as const,
+        totalAmount: 2499,
+        shippingAddress: { line1: '1 MG Road', city: 'Bengaluru', state: 'KA', postalCode: '560001', country: 'IN' },
+        carrier: null, trackingNumber: null, shippedAt: null, deliveredAt: null,
+        createdAt: now, updatedAt: now,
+      },
+    ])
+    vi.mocked(getPrescriptionsByCustomer).mockResolvedValueOnce([])
+
+    const AccountPage = (await import('./page')).default
+    render(await AccountPage())
+
+    const total = screen.getByTestId('order-total-order-001')
+    expect(total).toHaveTextContent('₹')
+    expect(total).not.toHaveTextContent('$')
   })
 
   it('renders a link to upload a prescription', async () => {

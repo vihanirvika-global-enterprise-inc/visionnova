@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
 
 const SECRET = process.env.SESSION_SECRET ?? 'dev-secret-change-in-production'
-const PROTECTED = ['/account', '/checkout', '/prescription-upload']
+const PROTECTED = ['/account', '/checkout', '/prescription-upload', '/order']
 const ADMIN_ROLES = ['optometrist', 'admin']
 
 function decodeSessionCookie(cookieValue: string): { customerId: string; role: string } | null {
@@ -46,6 +46,7 @@ export const config = {
     '/account/:path*',
     '/checkout/:path*',
     '/prescription-upload/:path*',
+    '/order/:path*',
     '/admin/:path*',
   ],
 }
