@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 // @stripe/react-stripe-js — Elements renders children; PaymentElement is a traceable stub
@@ -237,5 +237,107 @@ describe('CheckoutForm Stripe payment step', () => {
 
     await waitFor(() => expect(screen.getByText('Insufficient funds')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /pay now/i })).toBeInTheDocument()
+  })
+})
+
+// ── Accessibility of the checkout flow ───────────────────────────────────────
+// Lighthouse scores this screen 100; none of the following is visible to it.
+
+describe('CheckoutForm accessibility — status messages (finding 2)', () => {
+  it('announces an error through a live region', async () => {
+    vi.mocked(checkoutAction).mockResolvedValue({ error: 'City is required' })
+    render(<CheckoutForm />)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+
+    // Without role=alert a screen-reader user hears nothing at all on failure.
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('City is required')
+  })
+})
+
+describe('CheckoutForm accessibility — step indicator (finding 3)', () => {
+  it('exposes the steps as a list, not styled spans', () => {
+    render(<CheckoutForm />)
+
+    const steps = screen.getByRole('list', { name: /checkout progress/i })
+    expect(within(steps).getAllByRole('listitem')).toHaveLength(2)
+  })
+
+  it('marks the shipping step current on arrival', () => {
+    render(<CheckoutForm />)
+
+    const current = screen.getByRole('listitem', { current: 'step' })
+    expect(current).toHaveTextContent(/shipping/i)
+  })
+
+  it('moves the current marker to payment after the address step', async () => {
+    render(<CheckoutForm />)
+    await advanceToStripePaymentStep()
+
+    expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent(/payment/i)
+  })
+})
+
+describe('CheckoutForm accessibility — busy state (finding 4)', () => {
+  it('marks the submit button busy while the request is in flight', async () => {
+    let release: (v: unknown) => void = () => {}
+    vi.mocked(checkoutAction).mockReturnValue(new Promise((r) => { release = r }) as never)
+    render(<CheckoutForm />)
+
+    const user = userEvent.setup()
+    const submit = screen.getByRole('button', { name: /continue to payment/i })
+    await user.click(submit)
+
+    expect(submit).toHaveAttribute('aria-busy', 'true')
+    release({ error: 'stop' })
+  })
+
+  it('announces the in-flight state in a status region', async () => {
+    let release: (v: unknown) => void = () => {}
+    vi.mocked(checkoutAction).mockReturnValue(new Promise((r) => { release = r }) as never)
+    render(<CheckoutForm />)
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /continue to payment/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/processing|please wait/i)
+    release({ error: 'stop' })
+  })
+
+  it('is not busy before submission', () => {
+    render(<CheckoutForm />)
+
+    expect(screen.getByRole('button', { name: /continue to payment/i }))
+      .toHaveAttribute('aria-busy', 'false')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+})
+
+describe('CheckoutForm accessibility — headings (finding 6)', () => {
+  it('uses a real heading for the form section', () => {
+    render(<CheckoutForm />)
+
+    expect(screen.getByRole('heading', { name: /shipping & payment/i })).toBeInTheDocument()
+  })
+
+  it('gives the payment step its own heading', async () => {
+    render(<CheckoutForm />)
+    await advanceToStripePaymentStep()
+
+    expect(screen.getByRole('heading', { name: /^payment$/i })).toBeInTheDocument()
+  })
+})
+
+// Finding 1. Unit-tested here; still needs manual confirmation once real
+// credentials make the payment step reachable in a browser.
+describe('CheckoutForm accessibility — focus on step change (finding 1)', () => {
+  it('moves focus into the payment step instead of dropping it to the body', async () => {
+    render(<CheckoutForm />)
+    await advanceToStripePaymentStep()
+
+    const region = screen.getByRole('group', { name: /^payment$/i })
+    await waitFor(() => expect(region).toHaveFocus())
+    expect(document.activeElement).not.toBe(document.body)
   })
 })

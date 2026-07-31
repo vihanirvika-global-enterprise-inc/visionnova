@@ -11,7 +11,7 @@ export default function OrderSummary() {
 
   return (
     <div className="card sticky top-24 p-6">
-      <p className="mb-4 text-lg font-semibold text-dark">Order Summary</p>
+      <h2 className="mb-4 text-lg font-semibold text-dark">Order Summary</h2>
 
       {items.length === 0 ? (
         <p className="text-sm text-muted">Your cart is empty</p>

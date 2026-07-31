@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { getClientStripe } from '@/lib/stripe'
 import { createPayment } from '@/app/checkout/payment-actions'
@@ -17,9 +17,11 @@ import type { CheckoutStep } from '@/types/stripe'
 
 // ── Shared error card ─────────────────────────────────────────────────────────
 
+// role="alert" so a failure is spoken. Without it a screen-reader user submits,
+// the request fails, and nothing is announced at all.
 function ErrorCard({ message }: { message: string }) {
   return (
-    <div className="card bg-red-50 border-red-200 p-3 mb-4">
+    <div role="alert" className="card bg-red-50 border-red-200 p-3 mb-4">
       <div className="flex items-start gap-2">
         <svg aria-hidden="true"
           className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500"
@@ -170,9 +172,18 @@ function AddressForm({ formData, onChange, onSubmit, isLoading, error }: Address
         </div>
       </div>
 
+      {/* Announced separately from the button: changing a button's label does
+          not notify assistive tech, and disabling it drops focus. */}
+      {isLoading ? (
+        <p role="status" className="sr-only">
+          Processing, please wait
+        </p>
+      ) : null}
+
       <button
         type="submit"
         disabled={isLoading}
+        aria-busy={isLoading}
         className="btn-primary w-full py-3 text-lg"
       >
         {isLoading ? 'Please wait...' : 'Continue to Payment'}
@@ -233,6 +244,11 @@ function PaymentForm({ onError, isLoading, setIsLoading, error }: PaymentFormPro
 
 // ── CheckoutForm (default export) ─────────────────────────────────────────────
 
+const CHECKOUT_STEPS = [
+  { key: 'address', label: 'Shipping' },
+  { key: 'payment', label: 'Payment' },
+] as const
+
 const INITIAL_FORM: AddressFormData = {
   fullName: '',
   email: '',
@@ -254,6 +270,14 @@ export default function CheckoutForm() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState<AddressFormData>(INITIAL_FORM)
+  const paymentRegionRef = useRef<HTMLDivElement>(null)
+
+  // The address form unmounts on transition, destroying the focused button and
+  // dropping focus to <body> — a keyboard user is silently returned to the top
+  // of the page. Move focus into the payment region instead.
+  useEffect(() => {
+    if (step === 'payment') paymentRegionRef.current?.focus()
+  }, [step])
 
   function handleChange(e: AddressFieldChangeEvent) {
     const { name, value } = e.target
@@ -318,17 +342,32 @@ export default function CheckoutForm() {
 
   return (
     <div>
-      <p className="mb-6 text-lg font-semibold text-dark">Shipping &amp; Payment</p>
+      <h2 className="mb-6 text-lg font-semibold text-dark">Shipping &amp; Payment</h2>
 
-      <div className="mb-8 flex items-center gap-2">
-        <span className={step === 'address' ? 'font-semibold text-primary' : 'text-muted'}>
-          1 Shipping
-        </span>
-        <span className="mx-2 text-muted">→</span>
-        <span className={step !== 'address' ? 'font-semibold text-primary' : 'text-muted'}>
-          2 Payment
-        </span>
-      </div>
+      {/* A real list with aria-current, matching OrderStatusTimeline. Previously
+          the current step was conveyed by font weight and colour alone. */}
+      <ol aria-label="Checkout progress" className="mb-8 flex items-center gap-2">
+        {CHECKOUT_STEPS.map((checkoutStep, index) => {
+          const isCurrent =
+            checkoutStep.key === 'address' ? step === 'address' : step !== 'address'
+          return (
+            <li
+              key={checkoutStep.key}
+              aria-current={isCurrent ? 'step' : undefined}
+              className="flex items-center gap-2"
+            >
+              {index > 0 ? (
+                <span aria-hidden="true" className="mx-2 text-muted">
+                  →
+                </span>
+              ) : null}
+              <span className={isCurrent ? 'font-semibold text-primary' : 'text-muted'}>
+                {index + 1} {checkoutStep.label}
+              </span>
+            </li>
+          )
+        })}
+      </ol>
 
       {step === 'address' && (
         <AddressForm
@@ -340,29 +379,42 @@ export default function CheckoutForm() {
         />
       )}
 
-      {step === 'payment' && clientRef && provider === 'stripe' && (
-        <Elements stripe={getClientStripe()} options={{ clientSecret: clientRef }}>
-          <PaymentForm
-            onError={setError}
-            isLoading={isLoading}
-            setIsLoading={setIsLoading}
-            error={error}
-          />
-        </Elements>
-      )}
+      {step === 'payment' && clientRef ? (
+        <div
+          ref={paymentRegionRef}
+          tabIndex={-1}
+          role="group"
+          aria-labelledby="payment-step-heading"
+        >
+          <h3 id="payment-step-heading" className="mb-4 text-base font-semibold text-dark">
+            Payment
+          </h3>
 
-      {step === 'payment' && clientRef && provider === 'razorpay' && razorpayKeyId && (
-        <>
-          {error && <ErrorCard message={error} />}
-          <RazorpayCheckout
-            razorpayOrderId={clientRef}
-            keyId={razorpayKeyId}
-            amountInPaise={formatAmountForStripe(total)}
-            currency={currencyForRegion(regionForCountry(formData.country))}
-            onError={setError}
-          />
-        </>
-      )}
+          {provider === 'stripe' ? (
+            <Elements stripe={getClientStripe()} options={{ clientSecret: clientRef }}>
+              <PaymentForm
+                onError={setError}
+                isLoading={isLoading}
+                setIsLoading={setIsLoading}
+                error={error}
+              />
+            </Elements>
+          ) : null}
+
+          {provider === 'razorpay' && razorpayKeyId ? (
+            <>
+              {error && <ErrorCard message={error} />}
+              <RazorpayCheckout
+                razorpayOrderId={clientRef}
+                keyId={razorpayKeyId}
+                amountInPaise={formatAmountForStripe(total)}
+                currency={currencyForRegion(regionForCountry(formData.country))}
+                onError={setError}
+              />
+            </>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }
