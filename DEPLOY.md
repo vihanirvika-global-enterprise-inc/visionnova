@@ -8,47 +8,46 @@ order doesn't.
 
 Work through this for every environment. Staging counts.
 
+Every item below fails the same way — the order stays `pending` — so when a
+payment doesn't land, walk this list top to bottom.
+
 ---
 
 ## 1. Apply pending migrations
 
-**`npm run db:setup` does not apply migrations.** [scripts/setup-db.js](scripts/setup-db.js)
-reads `src/lib/schema.sql` and nothing else — it never walks
-`src/lib/migrations/`. Every file in that directory is applied by hand, in
-order, once per environment.
-
-Current migrations:
-
-| File | What it does |
-|---|---|
-| `add-user-role.sql` | Adds the `role` column to customers |
-| `create-prescription-review-logs.sql` | Adds the optometrist review audit table |
-| `allow-payment-order-statuses.sql` | Permits `'paid'` and `'payment_failed'` in the `orders_status_check` constraint |
-
 ```bash
-psql "$DATABASE_URL" -f src/lib/migrations/allow-payment-order-statuses.sql
+npm run db:setup
 ```
 
-**Why this one bites hardest:** the Stripe and Razorpay webhooks both write
-`status = 'paid'`. Before this migration the CHECK constraint rejected that
-value, so every payment webhook threw, returned 500, and the gateway retried
-forever while the order sat at `pending`. The test suite stayed green
-throughout — tests mock the database, so no test can catch a constraint
-mismatch.
+This applies `src/lib/schema.sql`, then every `src/lib/migrations/*.sql` in
+filename order. Applied migrations are recorded in a `schema_migrations`
+ledger, so re-running is safe: anything already in the ledger is skipped, and
+each migration commits with its ledger row in one transaction — a failure
+leaves it unrecorded and retryable rather than half-applied.
+
+Adding a migration means dropping a `.sql` file into `src/lib/migrations/`.
+Nothing else. There is no list here to keep in sync.
 
 **Verify it took:**
 
 ```sql
+SELECT name FROM schema_migrations ORDER BY name;
+
 SELECT pg_get_constraintdef(oid) FROM pg_constraint
 WHERE conrelid = 'orders'::regclass AND conname = 'orders_status_check';
 ```
 
-The output must list `paid` and `payment_failed`. If it doesn't, payments are
-broken in that environment no matter what the code says.
+The constraint must list `paid` and `payment_failed`. If it doesn't, payments
+are broken in that environment no matter what the code says: both webhooks
+write `status = 'paid'`, and a CHECK constraint that rejects it makes every
+payment webhook throw, return 500, and retry forever while the order sits at
+`pending`. The test suite stays green throughout — tests mock the database, so
+no test can catch a constraint mismatch.
 
-> **Follow-up logged:** make `setup-db.js` apply `src/lib/migrations/*.sql` in
-> order after `schema.sql`, so this stops being a manual step. Until then,
-> adding a migration means adding a line to this file.
+> **Environments created before the ledger existed** have no
+> `schema_migrations` table. The first `db:setup` run creates it and re-applies
+> all migrations; the existing ones are individually idempotent, so this is
+> safe. Confirm with the ledger query above afterwards.
 
 ---
 

@@ -2,6 +2,7 @@
 const { readFileSync } = require('fs')
 const { join } = require('path')
 const postgres = require('postgres')
+const { applyMigrations, MIGRATIONS_DIR } = require('./migrations')
 
 async function main() {
   const url = process.env.DATABASE_URL
@@ -17,6 +18,13 @@ async function main() {
   console.log(`Applying schema to ${redacted} ...`)
   await sql.unsafe(schema)
   console.log('Schema applied successfully.')
+
+  console.log('Applying migrations ...')
+  const applied = await applyMigrations(sql, MIGRATIONS_DIR)
+  if (applied.length > 0) {
+    console.log(`Applied ${applied.length} migration(s).`)
+  }
+
   await sql.end()
 }
 
