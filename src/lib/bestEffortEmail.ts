@@ -1,4 +1,4 @@
-import { captureOrderError } from './sentry'
+import { captureOrderError, type OrderErrorContext } from './sentry'
 
 // Email is sent only after order state has already been committed. A mail
 // failure at that point is not a failure of the operation, and must not be
@@ -6,7 +6,7 @@ import { captureOrderError } from './sentry'
 // a payment that already succeeded, indefinitely. Report it and move on.
 export async function sendEmailBestEffort(
   send: () => Promise<unknown>,
-  context: { orderId?: string }
+  context: OrderErrorContext
 ): Promise<void> {
   try {
     await send()

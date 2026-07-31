@@ -2,6 +2,7 @@ import { sql } from './db'
 import type { Prescription, PrescriptionReviewLog, PrescriptionWithCustomer, RejectionReason, ReviewStatus } from '@/types'
 import { getCustomerById } from './customers'
 import { sendPrescriptionStatusEmail } from './email'
+import { sendEmailBestEffort } from './bestEffortEmail'
 
 interface CreatePrescriptionInput {
   customerId: string
@@ -52,11 +53,19 @@ export async function updatePrescriptionStatus(
   if (status === 'approved' || status === 'rejected') {
     const customer = await getCustomerById(prescription.customerId)
     if (customer) {
-      await sendPrescriptionStatusEmail({
-        to: customer.email,
-        firstName: customer.firstName,
-        status,
-      })
+      // The decision is already committed. Letting a mail failure propagate
+      // aborts the caller mid-flow — in the review action that skips
+      // logPrescriptionReviewAction, leaving an approved prescription with no
+      // record of who approved it.
+      await sendEmailBestEffort(
+        () =>
+          sendPrescriptionStatusEmail({
+            to: customer.email,
+            firstName: customer.firstName,
+            status,
+          }),
+        { prescriptionId: prescription.id }
+      )
     }
   }
 

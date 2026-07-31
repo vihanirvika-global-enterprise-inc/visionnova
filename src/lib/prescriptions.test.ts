@@ -1,14 +1,17 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { mockSql } from '@/test/dbMock'
 
-const { mockGetCustomerById, mockSendPrescriptionStatusEmail } = vi.hoisted(() => ({
-  mockGetCustomerById: vi.fn(),
-  mockSendPrescriptionStatusEmail: vi.fn(),
-}))
+const { mockGetCustomerById, mockSendPrescriptionStatusEmail, mockCaptureOrderError } =
+  vi.hoisted(() => ({
+    mockGetCustomerById: vi.fn(),
+    mockSendPrescriptionStatusEmail: vi.fn(),
+    mockCaptureOrderError: vi.fn(),
+  }))
 
 vi.mock('./db', () => ({ sql: vi.fn() }))
 vi.mock('./customers', () => ({ getCustomerById: mockGetCustomerById }))
 vi.mock('./email', () => ({ sendPrescriptionStatusEmail: mockSendPrescriptionStatusEmail }))
+vi.mock('./sentry', () => ({ captureOrderError: mockCaptureOrderError }))
 
 describe('createPrescription', () => {
   beforeEach(() => { vi.resetModules(); vi.clearAllMocks() })
@@ -56,6 +59,29 @@ describe('updatePrescriptionStatus', () => {
     expires_at: null,
     created_at: now,
     updated_at: now,
+  })
+
+  // The status is already written when the email is attempted. Throwing here
+  // aborts the caller mid-flow — in the review action that means the decision
+  // audit row is never written for a prescription already marked approved.
+  it('still returns the updated prescription when the status email fails', async () => {
+    const { sql } = await import('./db')
+    mockSql(sql).mockResolvedValueOnce([rxRow('approved')])
+    // Once-variants: clearAllMocks resets calls but not implementations, so a
+    // persistent rejection would leak into every later test in this file.
+    mockGetCustomerById.mockResolvedValueOnce({
+      id: 'cust-001', email: 'jane@example.com', firstName: 'Jane',
+    })
+    mockSendPrescriptionStatusEmail.mockRejectedValueOnce(new Error('Missing API key'))
+
+    const { updatePrescriptionStatus } = await import('./prescriptions')
+    const result = await updatePrescriptionStatus('rx-001', 'approved')
+
+    expect(result.status).toBe('approved')
+    expect(mockCaptureOrderError).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({ prescriptionId: 'rx-001' })
+    )
   })
 
   it('updates status and returns the updated prescription', async () => {
