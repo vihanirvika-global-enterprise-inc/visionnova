@@ -35,7 +35,7 @@ export default async function ReviewPrescriptionPage({ params }: { params: { id:
         <div>
           <p className="text-xs text-muted uppercase tracking-wide">File</p>
           <a
-            href={prescription.fileUrl}
+            href={`/api/prescriptions/${prescription.id}/file`}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-1 inline-block text-sm text-primary hover:underline"

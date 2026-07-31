@@ -45,8 +45,10 @@ describe('ReviewPrescriptionPage', () => {
     const ReviewPrescriptionPage = (await import('./page')).default
     render(await ReviewPrescriptionPage({ params: { id: 'rx-001' } }))
 
+    // Never the stored key: the file is reachable only through the
+    // session-checked route.
     const link = screen.getByRole('link', { name: /view prescription/i })
-    expect(link).toHaveAttribute('href', '/uploads/rx-001.pdf')
+    expect(link).toHaveAttribute('href', '/api/prescriptions/rx-001/file')
   })
 
   it('renders an Approve submit button', async () => {
