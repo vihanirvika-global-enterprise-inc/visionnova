@@ -20,6 +20,12 @@ const mockRazorpay = vi.fn(function (_options: Record<string, unknown>) {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('Razorpay', mockRazorpay)
+  // jsdom's window.location.assign isn't configurable for vi.spyOn, so replace
+  // the whole location object — configurable so this can run again next test.
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    value: { ...window.location, assign: vi.fn() },
+  })
 })
 
 afterEach(() => {
@@ -59,15 +65,30 @@ describe('RazorpayCheckout', () => {
   })
 
   // The webhook is the only thing that advances order state. The browser
-  // callback exists to move the user along, nothing more.
-  it('redirects to confirmation from the handler without advancing order state', async () => {
+  // callback exists to move the user along, nothing more — it must not call
+  // any API, only navigate.
+  it('redirects to confirmation with the razorpay_payment_id from the handler', async () => {
     render(<RazorpayCheckout {...defaultProps} />)
 
     await userEvent.click(screen.getByRole('button', { name: /pay now/i }))
     await waitFor(() => expect(mockRazorpay).toHaveBeenCalled())
 
-    const { handler } = mockRazorpay.mock.calls[0][0] as { handler: () => void }
-    expect(typeof handler).toBe('function')
+    const { handler } = mockRazorpay.mock.calls[0][0] as {
+      handler: (response: {
+        razorpay_payment_id: string
+        razorpay_order_id: string
+        razorpay_signature: string
+      }) => void
+    }
+    handler({
+      razorpay_payment_id: 'pay_test_123',
+      razorpay_order_id: 'order_rzp_1',
+      razorpay_signature: 'sig_abc',
+    })
+
+    expect(window.location.assign).toHaveBeenCalledWith(
+      '/order/confirmation?razorpay_payment_id=pay_test_123'
+    )
   })
 
   it('reports an error when the script has not loaded yet', async () => {

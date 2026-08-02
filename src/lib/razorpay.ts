@@ -13,11 +13,25 @@ export interface RazorpayOrder {
   id: string
 }
 
+// Razorpay's own lifecycle: created → authorized (funds held) → captured
+// (funds actually taken), or failed/refunded off that path.
+export type RazorpayPaymentStatus = 'created' | 'authorized' | 'captured' | 'refunded' | 'failed'
+
+export interface RazorpayPayment {
+  id: string
+  order_id: string
+  amount: number
+  currency: string
+  status: RazorpayPaymentStatus
+}
+
 export interface RazorpayClient {
   createOrder(input: RazorpayOrderInput): Promise<RazorpayOrder>
+  fetchPayment(paymentId: string): Promise<RazorpayPayment>
 }
 
 const RAZORPAY_ORDERS_URL = 'https://api.razorpay.com/v1/orders'
+const RAZORPAY_PAYMENTS_URL = 'https://api.razorpay.com/v1/payments'
 
 let razorpayInstance: RazorpayClient | null = null
 
@@ -59,6 +73,25 @@ export function getServerRazorpay(): RazorpayClient {
           throw new Error(
             body?.error?.description ??
             `Razorpay order creation failed (${response.status})`
+          )
+        }
+
+        return response.json()
+      },
+
+      async fetchPayment(paymentId: string): Promise<RazorpayPayment> {
+        const response = await fetch(`${RAZORPAY_PAYMENTS_URL}/${paymentId}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Basic ${auth}`,
+          },
+        })
+
+        if (!response.ok) {
+          const body = await response.json().catch(() => null)
+          throw new Error(
+            body?.error?.description ??
+            `Razorpay payment lookup failed (${response.status})`
           )
         }
 

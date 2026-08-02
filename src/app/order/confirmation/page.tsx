@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { getServerStripe } from '@/lib/stripe'
+import { getServerRazorpay } from '@/lib/razorpay'
 import { formatPrice } from '@/lib/formatters'
 import { OrderCompletedTracker } from './OrderCompletedTracker'
 
@@ -51,10 +52,10 @@ function InvalidOrder() {
   )
 }
 
-function PaymentSuccess({ amount, paymentIntentId }: { amount: number; paymentIntentId: string }) {
+function PaymentSuccess({ amount, orderReference }: { amount: number; orderReference: string }) {
   return (
     <>
-      <OrderCompletedTracker orderId={paymentIntentId} total={amount / 100} />
+      <OrderCompletedTracker orderId={orderReference} total={amount / 100} />
       <svg aria-hidden="true"
         data-testid="success-icon"
         className="h-16 w-16 text-green-500"
@@ -123,10 +124,33 @@ interface PageProps {
     payment_intent?: string
     payment_intent_client_secret?: string
     redirect_status?: string
+    razorpay_payment_id?: string
   }
 }
 
+// Razorpay's client-side handler only ever runs on success, so its redirect is
+// UX only — this looks the payment up against Razorpay's own API rather than
+// trusting the fact that the id is present in the URL.
+async function renderRazorpayResult(paymentId: string) {
+  const razorpay = getServerRazorpay()
+  const payment = await razorpay.fetchPayment(paymentId)
+
+  if (payment.status === 'captured') {
+    return <Wrapper><PaymentSuccess amount={payment.amount} orderReference={payment.id} /></Wrapper>
+  }
+
+  if (payment.status === 'created' || payment.status === 'authorized') {
+    return <Wrapper><PaymentProcessing /></Wrapper>
+  }
+
+  return <Wrapper><PaymentFailed /></Wrapper>
+}
+
 export default async function ConfirmationPage({ searchParams }: PageProps) {
+  if (searchParams.razorpay_payment_id) {
+    return renderRazorpayResult(searchParams.razorpay_payment_id)
+  }
+
   if (!searchParams.payment_intent) {
     return <Wrapper><InvalidOrder /></Wrapper>
   }
@@ -137,7 +161,7 @@ export default async function ConfirmationPage({ searchParams }: PageProps) {
   )
 
   if (paymentIntent.status === 'succeeded') {
-    return <Wrapper><PaymentSuccess amount={paymentIntent.amount} paymentIntentId={paymentIntent.id} /></Wrapper>
+    return <Wrapper><PaymentSuccess amount={paymentIntent.amount} orderReference={paymentIntent.id} /></Wrapper>
   }
 
   if (paymentIntent.status === 'processing') {
