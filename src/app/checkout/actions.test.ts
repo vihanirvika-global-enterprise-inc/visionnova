@@ -5,14 +5,16 @@ import * as Orders from '@/lib/orders'
 import * as OrderItems from '@/lib/orderItems'
 import * as Session from '@/lib/session'
 import * as Products from '@/lib/products'
+import * as Prescriptions from '@/lib/prescriptions'
 import { checkoutAction } from './actions'
-import type { ShippingAddress, Product } from '@/types'
+import type { ShippingAddress, Product, Prescription } from '@/types'
 
 vi.mock('@/lib/orders', () => ({ createOrder: vi.fn() }))
 vi.mock('@/lib/orderItems', () => ({ addOrderItem: vi.fn() }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/products', () => ({ getProductById: vi.fn() }))
+vi.mock('@/lib/prescriptions', () => ({ getPrescriptionsByCustomer: vi.fn() }))
 
 let mockSet: ReturnType<typeof vi.fn>
 let mockGet: ReturnType<typeof vi.fn>
@@ -27,6 +29,21 @@ const realProduct: Product = {
   createdAt: new Date(), updatedAt: new Date(),
 }
 
+const rxProduct: Product = {
+  ...realProduct, id: 'prod-rx', requiresPrescription: true,
+}
+
+function makePrescription(overrides: Partial<Prescription> = {}): Prescription {
+  return {
+    id: 'rx-1', customerId: SESSION_CUSTOMER, fileUrl: 'key.pdf', status: 'approved',
+    rightSphere: null, rightCylinder: null, rightAxis: null, rightAdd: null,
+    leftSphere: null, leftCylinder: null, leftAxis: null, leftAdd: null,
+    pupillaryDistance: null, expiresAt: null,
+    createdAt: new Date(), updatedAt: new Date(),
+    ...overrides,
+  }
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   mockSet = vi.fn()
@@ -36,7 +53,10 @@ beforeEach(() => {
     { set: mockSet, get: mockGet, delete: mockDelete } as any
   )
   vi.mocked(Session.getSession).mockReturnValue({ customerId: SESSION_CUSTOMER, role: 'customer' })
-  vi.mocked(Products.getProductById).mockResolvedValue(realProduct)
+  vi.mocked(Products.getProductById).mockImplementation(async (id: string) =>
+    id === 'prod-rx' ? rxProduct : realProduct
+  )
+  vi.mocked(Prescriptions.getPrescriptionsByCustomer).mockResolvedValue([])
   vi.mocked(Orders.createOrder).mockImplementation(async (input: any) => ({
     id: 'order-1', customerId: input.customerId, status: 'pending',
     totalAmount: input.totalAmount, shippingAddress: input.shippingAddress,
@@ -201,5 +221,73 @@ describe('checkoutAction', () => {
     expect(Orders.createOrder).toHaveBeenCalledWith(
       expect.not.objectContaining({ status: expect.anything() })
     )
+  })
+})
+
+describe('checkoutAction — prescription-confirmation gate', () => {
+  it('rejects checkout for a prescription-required item when the customer has no prescription on file at all', async () => {
+    vi.mocked(Prescriptions.getPrescriptionsByCustomer).mockResolvedValue([])
+
+    const result = await checkoutAction(
+      makeFormData(address, cartPayload([{ productId: 'prod-rx', quantity: 1, assumedPrice: 99.99 }]))
+    )
+
+    expect(result).toEqual({ error: expect.any(String), requiresPrescriptionUpload: true })
+    expect(Orders.createOrder).not.toHaveBeenCalled()
+    expect(OrderItems.addOrderItem).not.toHaveBeenCalled()
+  })
+
+  it.each(['pending', 'rejected'] as const)(
+    'rejects checkout for a prescription-required item when the only prescription on file is %s, not approved',
+    async (status) => {
+      vi.mocked(Prescriptions.getPrescriptionsByCustomer).mockResolvedValue([
+        makePrescription({ status }),
+      ])
+
+      const result = await checkoutAction(
+        makeFormData(address, cartPayload([{ productId: 'prod-rx', quantity: 1, assumedPrice: 99.99 }]))
+      )
+
+      expect(result).toEqual({ error: expect.any(String), requiresPrescriptionUpload: true })
+      expect(Orders.createOrder).not.toHaveBeenCalled()
+    }
+  )
+
+  it('proceeds and populates order_items.prescriptionId when an approved prescription exists', async () => {
+    const approved = makePrescription({ id: 'rx-approved', status: 'approved' })
+    vi.mocked(Prescriptions.getPrescriptionsByCustomer).mockResolvedValue([approved])
+
+    const result = await checkoutAction(
+      makeFormData(address, cartPayload([{ productId: 'prod-rx', quantity: 1, assumedPrice: 99.99 }]))
+    )
+
+    expect('error' in result).toBe(false)
+    expect(OrderItems.addOrderItem).toHaveBeenCalledWith(
+      expect.objectContaining({ productId: 'prod-rx', prescriptionId: 'rx-approved' })
+    )
+  })
+
+  it('rejects the entire checkout for a mixed cart — one Rx item without approval, one non-Rx item — not just the Rx item', async () => {
+    vi.mocked(Prescriptions.getPrescriptionsByCustomer).mockResolvedValue([])
+
+    const result = await checkoutAction(
+      makeFormData(address, cartPayload([
+        { productId: 'prod-rx', quantity: 1, assumedPrice: 99.99 },
+        { productId: 'prod-1', quantity: 1, assumedPrice: 99.99 },
+      ]))
+    )
+
+    expect(result).toEqual({ error: expect.any(String), requiresPrescriptionUpload: true })
+    expect(Orders.createOrder).not.toHaveBeenCalled()
+    expect(OrderItems.addOrderItem).not.toHaveBeenCalled()
+  })
+
+  it('does not check prescriptions at all when the cart has no Rx-required items', async () => {
+    const result = await checkoutAction(
+      makeFormData(address, cartPayload([{ productId: 'prod-1', quantity: 1, assumedPrice: 99.99 }]))
+    )
+
+    expect('error' in result).toBe(false)
+    expect(Prescriptions.getPrescriptionsByCustomer).not.toHaveBeenCalled()
   })
 })
