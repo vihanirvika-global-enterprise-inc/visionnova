@@ -34,7 +34,7 @@ export default async function HomePage() {
 
             {/* Hero image placeholder */}
             <div className="mx-auto w-full max-w-sm">
-              <div className="aspect-square rounded-2xl bg-gradient-to-br from-primary to-cyan-400" />
+              <div className="aspect-square rounded-2xl bg-gradient-to-br from-primary to-teal" />
             </div>
 
           </div>
@@ -76,7 +76,7 @@ export default async function HomePage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-8 flex items-center justify-between">
             <h2>Featured Eyewear</h2>
-            <Link href="/shop" className="text-sm font-medium text-primary hover:text-cyan-800">
+            <Link href="/shop" className="text-sm font-medium text-primary hover:text-teal">
               View All →
             </Link>
           </div>

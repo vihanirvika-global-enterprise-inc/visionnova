@@ -22,7 +22,7 @@ export function ProductCard({ product }: ProductCardProps) {
             loading="lazy"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary to-cyan-400">
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary to-teal">
             <svg aria-hidden="true"
               className="h-16 w-16 text-white opacity-50"
               fill="none"

@@ -19,17 +19,17 @@
   h6 { @apply text-base font-semibold; }
 
   a {
-    @apply text-primary transition-colors hover:text-cyan-800;
+    @apply text-primary transition-colors hover:text-teal;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-cyan-800 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-teal focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-lg border-2 border-primary bg-transparent px-6 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-cyan-50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-lg border-2 border-primary bg-transparent px-6 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-teal/10 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-gold {

@@ -23,7 +23,7 @@ export function ProductGrid({ products }: ProductGridProps) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
         <p className="mt-4 text-lg text-muted">No products found</p>
-        <Link href="/shop" className="mt-2 text-sm font-medium text-primary hover:text-cyan-800">
+        <Link href="/shop" className="mt-2 text-sm font-medium text-primary hover:text-teal">
           Browse all eyewear →
         </Link>
       </div>

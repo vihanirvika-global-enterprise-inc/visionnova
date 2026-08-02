@@ -24,7 +24,7 @@ export default function AboutPage() {
             honest prices, delivered to your door.
           </p>
         </div>
-        <div className="aspect-video rounded-2xl bg-gradient-to-br from-primary to-cyan-400" />
+        <div className="aspect-video rounded-2xl bg-gradient-to-br from-primary to-teal" />
       </div>
 
       {/* Section 2 — Values */}
