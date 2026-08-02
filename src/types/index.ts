@@ -101,16 +101,6 @@ export interface OrderItem {
   unitPrice: number
 }
 
-export interface OptometristReview {
-  id: string
-  prescriptionId: string
-  reviewerName: string
-  status: ReviewStatus
-  notes: string | null
-  reviewedAt: Date
-  createdAt: Date
-}
-
 export type RejectionReason = 'illegible' | 'expired' | 'incomplete' | 'mismatch'
 
 export interface PrescriptionWithCustomer extends Prescription {

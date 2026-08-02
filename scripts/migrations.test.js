@@ -247,4 +247,16 @@ describe('the real migrations directory', () => {
 
     expect(sql).toMatch(/timestamp\s+TIMESTAMPTZ NOT NULL DEFAULT NOW\(\)/)
   })
+
+  // optometrist_reviews is dead: zero callers anywhere in the app, fully
+  // superseded by prescription_review_logs. Removed from schema.sql for
+  // fresh installs, but existing databases already have the table — this
+  // migration is what actually drops it there.
+  it('contains a migration that drops the dead optometrist_reviews table', async () => {
+    const { MIGRATIONS_DIR } = await import('./migrations.js')
+    expect(listMigrationFiles(MIGRATIONS_DIR)).toContain('drop-optometrist-reviews.sql')
+
+    const sql = readFileSync(join(MIGRATIONS_DIR, 'drop-optometrist-reviews.sql'), 'utf8')
+    expect(sql).toMatch(/DROP TABLE IF EXISTS optometrist_reviews/)
+  })
 })
