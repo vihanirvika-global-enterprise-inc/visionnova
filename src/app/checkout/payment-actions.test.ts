@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('@/lib/payments/select-provider', () => ({ selectProvider: vi.fn() }))
+vi.mock('@/lib/sentry', () => ({ capturePaymentError: vi.fn() }))
 
 import { selectProvider } from '@/lib/payments/select-provider'
+import { capturePaymentError } from '@/lib/sentry'
 import type { PaymentProvider } from '@/lib/payments/provider'
 import { createPayment } from './payment-actions'
 
@@ -89,5 +91,20 @@ describe('createPayment', () => {
     mockCreateIntent.mockResolvedValue({ error: 'Payment declined' })
 
     expect(await createPayment(99900, 'order-1', 'IN')).toEqual({ error: 'Payment declined' })
+  })
+
+  // A provider failure here means checkout is blocked and no payment exists
+  // anywhere — that has to be visible to ops, not just returned silently to
+  // the browser as a string the user reads and moves on from.
+  it('reports a provider failure to Sentry, not just to the caller', async () => {
+    mockProvider('razorpay')
+    mockCreateIntent.mockResolvedValue({ error: 'Payment declined' })
+
+    await createPayment(99900, 'order-1', 'IN')
+
+    expect(capturePaymentError).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({ amount: 99900 })
+    )
   })
 })
