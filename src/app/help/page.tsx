@@ -169,8 +169,8 @@ export default function HelpPage() {
                 <span className="text-primary text-xl">+</span>
               </summary>
               <p className="text-muted text-sm mt-3 leading-relaxed">
-                Yes. Your prescription is stored encrypted and is only accessible to you and our
-                licensed optometrists. We never share your medical information with third parties.
+                Yes. Your prescription is only accessible to you and our licensed optometrists, and
+                every access is logged. We never share your medical information with third parties.
               </p>
             </details>
 
