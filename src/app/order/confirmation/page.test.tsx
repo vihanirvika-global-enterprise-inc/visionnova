@@ -11,14 +11,45 @@ vi.mock('@/lib/razorpay', () => ({
 vi.mock('@/lib/formatters', () => ({
   formatPrice: vi.fn(),
 }))
+vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
+vi.mock('@/lib/orders', () => ({ getOrderById: vi.fn() }))
+vi.mock('next/navigation', () => ({
+  notFound: vi.fn(() => {
+    throw new Error('NEXT_NOT_FOUND')
+  }),
+}))
 
 import { getServerStripe } from '@/lib/stripe'
 import { getServerRazorpay } from '@/lib/razorpay'
 import { formatPrice } from '@/lib/formatters'
+import { getSession } from '@/lib/session'
+import { getOrderById } from '@/lib/orders'
 import ConfirmationPage from './page'
+
+const OWNER = 'cust-owner'
+const ORDER_ID = 'order-1'
 
 const mockRetrieve = vi.fn()
 const mockFetchPayment = vi.fn()
+
+function givenOrder(overrides: Record<string, unknown> = {}) {
+  vi.mocked(getOrderById).mockResolvedValue({
+    id: ORDER_ID,
+    customerId: OWNER,
+    status: 'paid',
+    totalAmount: 999,
+    shippingAddress: {
+      line1: '123 MG Road', city: 'Bengaluru', state: 'KA', postalCode: '560001', country: 'IN',
+    },
+    carrier: null,
+    trackingNumber: null,
+    shippedAt: null,
+    deliveredAt: null,
+    createdAt: new Date('2026-07-01T10:00:00Z'),
+    updatedAt: new Date('2026-07-01T10:00:00Z'),
+    ...overrides,
+  } as never)
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -31,6 +62,10 @@ beforeEach(() => {
   } as any)
   // Default formatPrice — overridden in Test 5
   vi.mocked(formatPrice).mockReturnValue('₹999')
+  // Default: the logged-in customer owns the order — individual ownership
+  // tests override this to exercise the gate.
+  vi.mocked(getSession).mockReturnValue({ customerId: OWNER, role: 'customer' })
+  givenOrder()
 })
 
 describe('ConfirmationPage', () => {
@@ -39,7 +74,7 @@ describe('ConfirmationPage', () => {
       status: 'succeeded',
       amount: 99900,
       currency: 'inr',
-      metadata: { source: 'visionnova_mvp' },
+      metadata: { source: 'visionnova_mvp', orderId: ORDER_ID },
     })
 
     render(await ConfirmationPage({
@@ -61,6 +96,7 @@ describe('ConfirmationPage', () => {
   it('shows failure UI when redirect_status=failed', async () => {
     mockRetrieve.mockResolvedValue({
       status: 'requires_payment_method',
+      metadata: { orderId: ORDER_ID },
     })
 
     render(await ConfirmationPage({
@@ -83,6 +119,7 @@ describe('ConfirmationPage', () => {
   it('shows processing UI when redirect_status=processing', async () => {
     mockRetrieve.mockResolvedValue({
       status: 'processing',
+      metadata: { orderId: ORDER_ID },
     })
 
     render(await ConfirmationPage({
@@ -116,6 +153,7 @@ describe('ConfirmationPage', () => {
       status: 'succeeded',
       amount: 149900, // paise → 1499 rupees
       currency: 'inr',
+      metadata: { orderId: ORDER_ID },
     })
     vi.mocked(formatPrice).mockImplementation((amount: number) =>
       amount === 1499 ? '₹1,499' : `₹${amount}`
@@ -140,6 +178,7 @@ describe('ConfirmationPage — Razorpay', () => {
       amount: 99900,
       currency: 'INR',
       status: 'captured',
+      notes: { orderId: ORDER_ID },
     })
 
     render(await ConfirmationPage({
@@ -162,6 +201,7 @@ describe('ConfirmationPage — Razorpay', () => {
       amount: 99900,
       currency: 'INR',
       status: 'failed',
+      notes: { orderId: ORDER_ID },
     })
 
     render(await ConfirmationPage({
@@ -181,6 +221,7 @@ describe('ConfirmationPage — Razorpay', () => {
       amount: 99900,
       currency: 'INR',
       status: 'authorized',
+      notes: { orderId: ORDER_ID },
     })
 
     render(await ConfirmationPage({
@@ -202,6 +243,7 @@ describe('ConfirmationPage — Razorpay', () => {
       amount: 99900,
       currency: 'INR',
       status: 'failed',
+      notes: { orderId: ORDER_ID },
     })
 
     render(await ConfirmationPage({
@@ -210,5 +252,97 @@ describe('ConfirmationPage — Razorpay', () => {
 
     expect(mockFetchPayment).toHaveBeenCalledWith('pay_test_4')
     expect(screen.queryByTestId('success-icon')).not.toBeInTheDocument()
+  })
+})
+
+describe('ConfirmationPage — ownership gate', () => {
+  it('404s when there is no session (Stripe)', async () => {
+    vi.mocked(getSession).mockReturnValue(null)
+    mockRetrieve.mockResolvedValue({
+      status: 'succeeded',
+      amount: 99900,
+      currency: 'inr',
+      metadata: { orderId: ORDER_ID },
+    })
+
+    await expect(
+      ConfirmationPage({ searchParams: { payment_intent: 'pi_test_123' } })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  // notFound rather than a 403: telling a stranger the order exists is itself
+  // a leak — same reasoning as order/[id]/page.tsx.
+  it('404s for a customer who does not own the order (Stripe)', async () => {
+    vi.mocked(getSession).mockReturnValue({ customerId: 'cust-other', role: 'customer' })
+    mockRetrieve.mockResolvedValue({
+      status: 'succeeded',
+      amount: 99900,
+      currency: 'inr',
+      metadata: { orderId: ORDER_ID },
+    })
+
+    await expect(
+      ConfirmationPage({ searchParams: { payment_intent: 'pi_test_123' } })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it('404s when the payment intent carries no resolvable orderId (Stripe)', async () => {
+    mockRetrieve.mockResolvedValue({
+      status: 'succeeded',
+      amount: 99900,
+      currency: 'inr',
+      metadata: {},
+    })
+
+    await expect(
+      ConfirmationPage({ searchParams: { payment_intent: 'pi_test_123' } })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it('404s when there is no session (Razorpay)', async () => {
+    vi.mocked(getSession).mockReturnValue(null)
+    mockFetchPayment.mockResolvedValue({
+      id: 'pay_test_1',
+      order_id: 'order_rzp_1',
+      amount: 99900,
+      currency: 'INR',
+      status: 'captured',
+      notes: { orderId: ORDER_ID },
+    })
+
+    await expect(
+      ConfirmationPage({ searchParams: { razorpay_payment_id: 'pay_test_1' } })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it('404s for a customer who does not own the order (Razorpay)', async () => {
+    vi.mocked(getSession).mockReturnValue({ customerId: 'cust-other', role: 'customer' })
+    mockFetchPayment.mockResolvedValue({
+      id: 'pay_test_1',
+      order_id: 'order_rzp_1',
+      amount: 99900,
+      currency: 'INR',
+      status: 'captured',
+      notes: { orderId: ORDER_ID },
+    })
+
+    await expect(
+      ConfirmationPage({ searchParams: { razorpay_payment_id: 'pay_test_1' } })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it('404s when the Razorpay payment carries no resolvable orderId', async () => {
+    mockFetchPayment.mockResolvedValue({
+      id: 'pay_test_1',
+      order_id: 'order_rzp_1',
+      amount: 99900,
+      currency: 'INR',
+      status: 'captured',
+      notes: {},
+    })
+
+    await expect(
+      ConfirmationPage({ searchParams: { razorpay_payment_id: 'pay_test_1' } })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
   })
 })

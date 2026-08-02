@@ -23,6 +23,10 @@ export interface RazorpayPayment {
   amount: number
   currency: string
   status: RazorpayPaymentStatus
+  // Razorpay copies the notes set on the order (createIntent's notes.orderId)
+  // onto every payment made against it — this is how we tie a payment back to
+  // our internal order without an extra API call.
+  notes?: Record<string, string>
 }
 
 export interface RazorpayClient {

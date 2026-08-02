@@ -1,7 +1,10 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import { getServerStripe } from '@/lib/stripe'
 import { getServerRazorpay } from '@/lib/razorpay'
+import { getSession } from '@/lib/session'
+import { getOrderById } from '@/lib/orders'
 import { formatPrice } from '@/lib/formatters'
 import { OrderCompletedTracker } from './OrderCompletedTracker'
 
@@ -128,6 +131,19 @@ interface PageProps {
   }
 }
 
+// The provider identifier in the URL only ever proves which payment the
+// browser was redirected for — never who it belongs to. notFound() rather
+// than a 403 for every failure: confirming that someone else's order exists
+// is itself a disclosure. Same reasoning as order/[id]/page.tsx.
+async function assertOwnership(orderId: string | undefined) {
+  const session = getSession()
+  const order = session && orderId ? await getOrderById(orderId) : null
+
+  if (!session || !order || order.customerId !== session.customerId) {
+    notFound()
+  }
+}
+
 // Razorpay's client-side handler only ever runs on success, so its redirect is
 // UX only — this looks the payment up against Razorpay's own API rather than
 // trusting the fact that the id is present in the URL.
@@ -135,11 +151,30 @@ async function renderRazorpayResult(paymentId: string) {
   const razorpay = getServerRazorpay()
   const payment = await razorpay.fetchPayment(paymentId)
 
+  await assertOwnership(payment.notes?.orderId)
+
   if (payment.status === 'captured') {
     return <Wrapper><PaymentSuccess amount={payment.amount} orderReference={payment.id} /></Wrapper>
   }
 
   if (payment.status === 'created' || payment.status === 'authorized') {
+    return <Wrapper><PaymentProcessing /></Wrapper>
+  }
+
+  return <Wrapper><PaymentFailed /></Wrapper>
+}
+
+async function renderStripeResult(paymentIntentId: string) {
+  const stripe = getServerStripe()
+  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
+
+  await assertOwnership(paymentIntent.metadata?.orderId)
+
+  if (paymentIntent.status === 'succeeded') {
+    return <Wrapper><PaymentSuccess amount={paymentIntent.amount} orderReference={paymentIntent.id} /></Wrapper>
+  }
+
+  if (paymentIntent.status === 'processing') {
     return <Wrapper><PaymentProcessing /></Wrapper>
   }
 
@@ -155,18 +190,5 @@ export default async function ConfirmationPage({ searchParams }: PageProps) {
     return <Wrapper><InvalidOrder /></Wrapper>
   }
 
-  const stripe = getServerStripe()
-  const paymentIntent = await stripe.paymentIntents.retrieve(
-    searchParams.payment_intent
-  )
-
-  if (paymentIntent.status === 'succeeded') {
-    return <Wrapper><PaymentSuccess amount={paymentIntent.amount} orderReference={paymentIntent.id} /></Wrapper>
-  }
-
-  if (paymentIntent.status === 'processing') {
-    return <Wrapper><PaymentProcessing /></Wrapper>
-  }
-
-  return <Wrapper><PaymentFailed /></Wrapper>
+  return renderStripeResult(searchParams.payment_intent)
 }
