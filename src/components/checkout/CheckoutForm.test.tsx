@@ -49,6 +49,7 @@ function setupDefaultMocks() {
     total: 999,
     addToCart: vi.fn(),
     removeFromCart: vi.fn(),
+    updateQuantity: vi.fn(),
   })
   vi.mocked(useStripe).mockReturnValue({
     confirmPayment: vi.fn().mockResolvedValue({}),

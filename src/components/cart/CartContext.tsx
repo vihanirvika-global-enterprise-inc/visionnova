@@ -13,6 +13,7 @@ interface CartContextValue {
   total: number
   addToCart: (product: Product) => void
   removeFromCart: (productId: string) => void
+  updateQuantity: (productId: string, quantity: number) => void
 }
 
 const CartContext = createContext<CartContextValue | null>(null)
@@ -38,9 +39,35 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems((prev) => prev.filter((item) => item.product.id !== productId))
   }
 
+  // No live stock check here — the cart is pure in-memory state with no
+  // server sync, so product.stockQuantity is only the snapshot from whenever
+  // the item was added. It's a soft cap against an arbitrary quantity, not a
+  // real-time availability guarantee.
+  function updateQuantity(productId: string, quantity: number) {
+    setItems((prev) => {
+      const existing = prev.find((item) => item.product.id === productId)
+      if (!existing) return prev
+
+      if (quantity <= 0) {
+        return prev.filter((item) => item.product.id !== productId)
+      }
+
+      const max = Math.max(1, existing.product.stockQuantity)
+      const capped = Math.min(quantity, max)
+
+      return prev.map((item) =>
+        item.product.id === productId ? { ...item, quantity: capped } : item
+      )
+    })
+  }
+
   const total = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
 
-  return <CartContext.Provider value={{ items, total, addToCart, removeFromCart }}>{children}</CartContext.Provider>
+  return (
+    <CartContext.Provider value={{ items, total, addToCart, removeFromCart, updateQuantity }}>
+      {children}
+    </CartContext.Provider>
+  )
 }
 
 export function useCart(): CartContextValue {

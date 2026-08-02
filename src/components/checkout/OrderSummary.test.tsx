@@ -19,6 +19,7 @@ function setupCart(items: ReturnType<typeof makeItem>[]) {
     total: items.reduce((sum, i) => sum + i.product.price * i.quantity, 0),
     addToCart: vi.fn(),
     removeFromCart: vi.fn(),
+    updateQuantity: vi.fn(),
   })
 }
 
