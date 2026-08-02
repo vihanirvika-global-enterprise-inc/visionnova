@@ -45,6 +45,39 @@ describe('OrderStatusTimeline', () => {
   })
 })
 
+// Color alone must never be the only signal: a completed step swaps its
+// ordinal number for an icon so the state doesn't depend on hue perception.
+describe('OrderStatusTimeline — completed-step icon', () => {
+  it('shows a checkmark icon instead of the ordinal number for completed steps', () => {
+    render(<OrderStatusTimeline status="shipped" />)
+
+    const steps = screen.getAllByRole('listitem')
+    // pending, paid, processing are complete when status is "shipped"
+    expect(within(steps[0]).getByTestId('step-complete-icon')).toBeInTheDocument()
+    expect(within(steps[1]).getByTestId('step-complete-icon')).toBeInTheDocument()
+    expect(within(steps[2]).getByTestId('step-complete-icon')).toBeInTheDocument()
+    expect(within(steps[0]).queryByText('1')).not.toBeInTheDocument()
+    expect(within(steps[1]).queryByText('2')).not.toBeInTheDocument()
+    expect(within(steps[2]).queryByText('3')).not.toBeInTheDocument()
+  })
+
+  it('keeps the ordinal number, not the icon, for the current step', () => {
+    render(<OrderStatusTimeline status="shipped" />)
+
+    const steps = screen.getAllByRole('listitem')
+    expect(within(steps[3]).getByText('4')).toBeInTheDocument()
+    expect(within(steps[3]).queryByTestId('step-complete-icon')).not.toBeInTheDocument()
+  })
+
+  it('keeps the ordinal number, not the icon, for upcoming steps', () => {
+    render(<OrderStatusTimeline status="shipped" />)
+
+    const steps = screen.getAllByRole('listitem')
+    expect(within(steps[4]).getByText('5')).toBeInTheDocument()
+    expect(within(steps[4]).queryByTestId('step-complete-icon')).not.toBeInTheDocument()
+  })
+})
+
 // cancelled and payment_failed are not points on the happy path. Rendering them
 // as timeline progress would imply the order is still moving toward delivery.
 describe('OrderStatusTimeline — exception states', () => {

@@ -64,7 +64,21 @@ export default function OrderStatusTimeline({ status }: { status: OrderStatus })
               aria-hidden="true"
               className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold ${STATE_STYLES[state]}`}
             >
-              {index + 1}
+              {state === 'complete' ? (
+                <svg
+                  aria-hidden="true"
+                  data-testid="step-complete-icon"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  strokeWidth={3}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              ) : (
+                index + 1
+              )}
             </span>
             <span
               className={
