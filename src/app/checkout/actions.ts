@@ -6,6 +6,7 @@ import { getSession } from '@/lib/session'
 import { validateShippingAddress } from '@/lib/validation'
 import { regionForCountry } from '@/lib/region'
 import { getProductById } from '@/lib/products'
+import { getPrescriptionsByCustomer } from '@/lib/prescriptions'
 import {
   isServiceableRegion,
   UNSERVICEABLE_REGION_MESSAGE,
@@ -25,7 +26,7 @@ interface CartItemInput {
 
 export type CheckoutResult =
   | { orderId: string; totalAmount: number; priceAdjusted: boolean }
-  | { error: string }
+  | { error: string; requiresPrescriptionUpload?: boolean }
 
 const PRICE_DRIFT_EPSILON = 0.01
 
@@ -74,6 +75,26 @@ export async function checkoutAction(formData: FormData): Promise<CheckoutResult
     }
   }
 
+  // MVP bar: "does this customer have at least one approved prescription on
+  // file" — not a per-product match. There is no product-to-prescription
+  // linkage anywhere in the schema today, so a stricter per-item check isn't
+  // supported by the current data model. Reject the whole checkout rather
+  // than partially process if any Rx-required item lacks coverage.
+  const requiresPrescription = resolvedItems.some((item) => item.product!.requiresPrescription)
+  let approvedPrescription = null as Awaited<ReturnType<typeof getPrescriptionsByCustomer>>[number] | null
+  if (requiresPrescription) {
+    const prescriptions = await getPrescriptionsByCustomer(session.customerId)
+    approvedPrescription = prescriptions.find((p) => p.status === 'approved') ?? null
+
+    if (!approvedPrescription) {
+      return {
+        error:
+          'One or more items require an approved prescription. Please upload and complete prescription review before checkout.',
+        requiresPrescriptionUpload: true,
+      }
+    }
+  }
+
   const priceAdjusted = resolvedItems.some(
     (item) => Math.abs(item.product!.price - item.assumedPrice) > PRICE_DRIFT_EPSILON
   )
@@ -96,6 +117,9 @@ export async function checkoutAction(formData: FormData): Promise<CheckoutResult
         productId: item.product!.id,
         quantity: item.quantity,
         unitPrice: item.product!.price,
+        prescriptionId: item.product!.requiresPrescription
+          ? approvedPrescription!.id
+          : undefined,
       })
     )
   )

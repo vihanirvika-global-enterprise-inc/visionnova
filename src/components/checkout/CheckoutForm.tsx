@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { getClientStripe } from '@/lib/stripe'
 import { createPayment } from '@/app/checkout/payment-actions'
@@ -19,7 +20,15 @@ import type { CheckoutStep } from '@/types/stripe'
 
 // role="alert" so a failure is spoken. Without it a screen-reader user submits,
 // the request fails, and nothing is announced at all.
-function ErrorCard({ message }: { message: string }) {
+function ErrorCard({
+  message,
+  actionHref,
+  actionLabel,
+}: {
+  message: string
+  actionHref?: string
+  actionLabel?: string
+}) {
   return (
     <div role="alert" className="card bg-red-50 border-red-200 p-3 mb-4">
       <div className="flex items-start gap-2">
@@ -36,7 +45,14 @@ function ErrorCard({ message }: { message: string }) {
             d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
           />
         </svg>
-        <p className="text-red-700 text-sm">{message}</p>
+        <div>
+          <p className="text-red-700 text-sm">{message}</p>
+          {actionHref && actionLabel && (
+            <Link href={actionHref} className="text-sm font-medium text-red-700 underline hover:text-red-900">
+              {actionLabel}
+            </Link>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -66,12 +82,21 @@ interface AddressFormProps {
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void
   isLoading: boolean
   error: string | null
+  requiresPrescriptionUpload?: boolean
 }
 
-function AddressForm({ formData, onChange, onSubmit, isLoading, error }: AddressFormProps) {
+function AddressForm({
+  formData, onChange, onSubmit, isLoading, error, requiresPrescriptionUpload,
+}: AddressFormProps) {
   return (
     <form onSubmit={onSubmit} noValidate>
-      {error && <ErrorCard message={error} />}
+      {error && (
+        <ErrorCard
+          message={error}
+          actionHref={requiresPrescriptionUpload ? '/prescription-upload' : undefined}
+          actionLabel={requiresPrescriptionUpload ? 'Upload your prescription →' : undefined}
+        />
+      )}
 
       <div className="mb-4">
         <label htmlFor="fullName" className="mb-1 block text-sm font-medium text-dark">
@@ -268,6 +293,7 @@ export default function CheckoutForm() {
   const [provider, setProvider] = useState<PaymentProviderName | null>(null)
   const [razorpayKeyId, setRazorpayKeyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [requiresPrescriptionUpload, setRequiresPrescriptionUpload] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState<AddressFormData>(INITIAL_FORM)
   // The server-recomputed total from checkoutAction — this, never the client
@@ -319,11 +345,13 @@ export default function CheckoutForm() {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
+    setRequiresPrescriptionUpload(false)
 
     const orderResult = await checkoutAction(buildOrderFormData())
 
     if ('error' in orderResult) {
       setError(orderResult.error)
+      setRequiresPrescriptionUpload(orderResult.requiresPrescriptionUpload ?? false)
       setIsLoading(false)
       return
     }
@@ -390,6 +418,7 @@ export default function CheckoutForm() {
           onSubmit={handleAddressSubmit}
           isLoading={isLoading}
           error={error}
+          requiresPrescriptionUpload={requiresPrescriptionUpload}
         />
       )}
 
