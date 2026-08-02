@@ -54,7 +54,7 @@ function setupDefaultMocks() {
     confirmPayment: vi.fn().mockResolvedValue({}),
   } as any)
   vi.mocked(useElements).mockReturnValue({} as any)
-  vi.mocked(checkoutAction).mockResolvedValue({ orderId: 'order-1' })
+  vi.mocked(checkoutAction).mockResolvedValue({ orderId: 'order-1', totalAmount: 999, priceAdjusted: false })
   // Default country is IN, so the default provider is Razorpay.
   vi.mocked(createPayment).mockResolvedValue({
     provider: 'razorpay',
@@ -156,8 +156,50 @@ describe('CheckoutForm', () => {
     await fillNameAndEmail(user)
     await user.click(screen.getByRole('button', { name: /continue to payment/i }))
 
-    // total = 999 rupees → 99900 paise
+    // totalAmount = 999 (from checkoutAction's server response) → 99900 paise
     await waitFor(() => expect(createPayment).toHaveBeenCalledWith(99900, 'order-1', 'IN'))
+  })
+
+  // The actual client-side half of the pricing fix: createPayment must use
+  // checkoutAction's server-computed totalAmount, never the client cart's own
+  // total — otherwise a tampered/stale client total still reaches the payment
+  // gateway even though the order itself was priced correctly server-side.
+  it('uses the server-computed total from checkoutAction for the payment amount, not the client cart total', async () => {
+    vi.mocked(checkoutAction).mockResolvedValue({
+      orderId: 'order-1', totalAmount: 1299, priceAdjusted: true,
+    })
+    render(<CheckoutForm />)
+
+    const user = userEvent.setup()
+    await fillNameAndEmail(user)
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+
+    // client cart total is 999 (99900 paise) — must NOT be what's charged
+    await waitFor(() => expect(createPayment).toHaveBeenCalledWith(129900, 'order-1', 'IN'))
+  })
+
+  it('shows a notice, not silence, when the server adjusts the price', async () => {
+    vi.mocked(checkoutAction).mockResolvedValue({
+      orderId: 'order-1', totalAmount: 1299, priceAdjusted: true,
+    })
+    render(<CheckoutForm />)
+
+    const user = userEvent.setup()
+    await fillNameAndEmail(user)
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/1299|price/i))
+  })
+
+  it('does not show a price-adjusted notice when the price did not change', async () => {
+    render(<CheckoutForm />)
+
+    const user = userEvent.setup()
+    await fillNameAndEmail(user)
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+
+    await waitFor(() => expect(createPayment).toHaveBeenCalled())
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('stays on the address step and shows the error when order creation fails', async () => {

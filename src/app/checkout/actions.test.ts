@@ -4,13 +4,15 @@ import * as NextNavigation from 'next/navigation'
 import * as Orders from '@/lib/orders'
 import * as OrderItems from '@/lib/orderItems'
 import * as Session from '@/lib/session'
+import * as Products from '@/lib/products'
 import { checkoutAction } from './actions'
-import type { ShippingAddress } from '@/types'
+import type { ShippingAddress, Product } from '@/types'
 
 vi.mock('@/lib/orders', () => ({ createOrder: vi.fn() }))
 vi.mock('@/lib/orderItems', () => ({ addOrderItem: vi.fn() }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
+vi.mock('@/lib/products', () => ({ getProductById: vi.fn() }))
 
 let mockSet: ReturnType<typeof vi.fn>
 let mockGet: ReturnType<typeof vi.fn>
@@ -18,7 +20,15 @@ let mockDelete: ReturnType<typeof vi.fn>
 
 const SESSION_CUSTOMER = 'cust-abc'
 
+const realProduct: Product = {
+  id: 'prod-1', name: 'Classic Frame', description: null,
+  price: 99.99, category: 'frames', sku: 'CF-001',
+  stockQuantity: 10, imageUrl: null, requiresPrescription: false,
+  createdAt: new Date(), updatedAt: new Date(),
+}
+
 beforeEach(() => {
+  vi.clearAllMocks()
   mockSet = vi.fn()
   mockGet = vi.fn()
   mockDelete = vi.fn()
@@ -26,6 +36,13 @@ beforeEach(() => {
     { set: mockSet, get: mockGet, delete: mockDelete } as any
   )
   vi.mocked(Session.getSession).mockReturnValue({ customerId: SESSION_CUSTOMER, role: 'customer' })
+  vi.mocked(Products.getProductById).mockResolvedValue(realProduct)
+  vi.mocked(Orders.createOrder).mockImplementation(async (input: any) => ({
+    id: 'order-1', customerId: input.customerId, status: 'pending',
+    totalAmount: input.totalAmount, shippingAddress: input.shippingAddress,
+    createdAt: new Date(), updatedAt: new Date(),
+  }) as any)
+  vi.mocked(OrderItems.addOrderItem).mockResolvedValue({} as any)
 })
 
 afterEach(() => { vi.restoreAllMocks() })
@@ -48,14 +65,18 @@ const address: ShippingAddress = {
   state: 'KA', postalCode: '560001', country: 'IN',
 }
 
-const cartItems = [
-  { product: { id: 'prod-1', price: 99.99 }, quantity: 2 },
-]
+// The wire format only ever carries productId + quantity as trusted data.
+// assumedPrice travels along too, but only to detect drift between what the
+// client's cart UI believed and what the server's real price is — it is
+// never used to compute the actual total or unit_price.
+function cartPayload(items: { productId: string; quantity: number; assumedPrice: number }[]) {
+  return JSON.stringify(items)
+}
 
 describe('checkoutAction', () => {
   it('returns an error when the address is incomplete', async () => {
     const fd = new FormData()
-    fd.append('cart', JSON.stringify(cartItems))
+    fd.append('cart', cartPayload([{ productId: 'prod-1', quantity: 2, assumedPrice: 99.99 }]))
 
     const result = await checkoutAction(fd)
 
@@ -66,7 +87,9 @@ describe('checkoutAction', () => {
   it('returns an error when there is no session', async () => {
     vi.mocked(Session.getSession).mockReturnValue(null)
 
-    const result = await checkoutAction(makeFormData(address, JSON.stringify(cartItems)))
+    const result = await checkoutAction(
+      makeFormData(address, cartPayload([{ productId: 'prod-1', quantity: 2, assumedPrice: 99.99 }]))
+    )
 
     expect(result).toEqual({ error: expect.any(String) })
     expect(Orders.createOrder).not.toHaveBeenCalled()
@@ -76,7 +99,10 @@ describe('checkoutAction', () => {
   // customers we cannot serve.
   it('refuses a non-Indian shipping address before creating an order', async () => {
     const result = await checkoutAction(
-      makeFormData({ ...address, country: 'US' }, JSON.stringify(cartItems))
+      makeFormData(
+        { ...address, country: 'US' },
+        cartPayload([{ productId: 'prod-1', quantity: 2, assumedPrice: 99.99 }])
+      )
     )
 
     expect(result).toEqual({ error: expect.stringMatching(/india/i) })
@@ -84,46 +110,93 @@ describe('checkoutAction', () => {
     expect(OrderItems.addOrderItem).not.toHaveBeenCalled()
   })
 
-  it('creates an order with items and returns its orderId', async () => {
-    const mockOrder = {
-      id: 'order-1', customerId: SESSION_CUSTOMER, status: 'pending',
-      totalAmount: 199.98, shippingAddress: address,
-      createdAt: new Date(), updatedAt: new Date(),
-    }
-    vi.mocked(Orders.createOrder).mockResolvedValue(mockOrder as any)
-    vi.mocked(OrderItems.addOrderItem).mockResolvedValue({} as any)
+  it('creates an order priced from the server-fetched product, not the client payload', async () => {
+    const result = await checkoutAction(
+      makeFormData(address, cartPayload([{ productId: 'prod-1', quantity: 2, assumedPrice: 99.99 }]))
+    )
 
-    const result = await checkoutAction(makeFormData(address, JSON.stringify(cartItems)))
-
+    expect(Products.getProductById).toHaveBeenCalledWith('prod-1')
     expect(Orders.createOrder).toHaveBeenCalledWith(expect.objectContaining({
       customerId: SESSION_CUSTOMER,
       shippingAddress: address,
+      totalAmount: 199.98, // 99.99 * 2, from the server-fetched price
     }))
     expect(OrderItems.addOrderItem).toHaveBeenCalledWith(expect.objectContaining({
       orderId: 'order-1',
       productId: 'prod-1',
       quantity: 2,
-      unitPrice: 99.99,
+      unitPrice: 99.99, // server-fetched, not client-supplied
     }))
-    expect(result).toEqual({ orderId: 'order-1' })
+    expect(result).toEqual({ orderId: 'order-1', totalAmount: 199.98, priceAdjusted: false })
+  })
+
+  // The actual attack: a tampered client payload claims a fabricated low price.
+  // The real price (99.99) must be what's actually charged, never the
+  // attacker's claimed price (0.01).
+  it('ignores a tampered client price and charges the real server-fetched price', async () => {
+    const result = await checkoutAction(
+      makeFormData(address, cartPayload([{ productId: 'prod-1', quantity: 1, assumedPrice: 0.01 }]))
+    )
+
+    expect(Orders.createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ totalAmount: 99.99 })
+    )
+    expect(OrderItems.addOrderItem).toHaveBeenCalledWith(
+      expect.objectContaining({ unitPrice: 99.99 })
+    )
+    expect(result).toEqual({ orderId: 'order-1', totalAmount: 99.99, priceAdjusted: true })
+  })
+
+  // Legitimate case: the price genuinely changed between add-to-cart and
+  // checkout. Same mechanism as the tamper case (server price always wins),
+  // but this proves the "signal, don't silently charge a different number"
+  // requirement: priceAdjusted is surfaced so the client can tell the user.
+  it('surfaces priceAdjusted when the real price differs from what the cart assumed, without blocking checkout', async () => {
+    vi.mocked(Products.getProductById).mockResolvedValue({ ...realProduct, price: 129.99 })
+
+    const result = await checkoutAction(
+      makeFormData(address, cartPayload([{ productId: 'prod-1', quantity: 1, assumedPrice: 99.99 }]))
+    )
+
+    expect(result).toEqual({ orderId: 'order-1', totalAmount: 129.99, priceAdjusted: true })
+    expect(OrderItems.addOrderItem).toHaveBeenCalledWith(
+      expect.objectContaining({ unitPrice: 129.99 })
+    )
+  })
+
+  it('rejects checkout when a cart item references a product that no longer exists', async () => {
+    vi.mocked(Products.getProductById).mockResolvedValue(null)
+
+    const result = await checkoutAction(
+      makeFormData(address, cartPayload([{ productId: 'prod-deleted', quantity: 1, assumedPrice: 49.99 }]))
+    )
+
+    expect(result).toEqual({ error: expect.any(String) })
+    expect(Orders.createOrder).not.toHaveBeenCalled()
+    expect(OrderItems.addOrderItem).not.toHaveBeenCalled()
+  })
+
+  it('returns an error rather than proceeding when the cart is empty', async () => {
+    const result = await checkoutAction(makeFormData(address, cartPayload([])))
+
+    expect(result).toEqual({ error: expect.any(String) })
+    expect(Orders.createOrder).not.toHaveBeenCalled()
   })
 
   // The payment step needs the orderId in hand, so checkout must not redirect away
   // before the caller can read it.
   it('does not redirect — the caller drives the transition to payment', async () => {
-    vi.mocked(Orders.createOrder).mockResolvedValue({ id: 'order-1' } as any)
-    vi.mocked(OrderItems.addOrderItem).mockResolvedValue({} as any)
-
-    await checkoutAction(makeFormData(address, JSON.stringify(cartItems)))
+    await checkoutAction(
+      makeFormData(address, cartPayload([{ productId: 'prod-1', quantity: 2, assumedPrice: 99.99 }]))
+    )
 
     expect(NextNavigation.redirect).not.toHaveBeenCalled()
   })
 
   it('leaves status to the schema default so the order starts pre-payment', async () => {
-    vi.mocked(Orders.createOrder).mockResolvedValue({ id: 'order-1' } as any)
-    vi.mocked(OrderItems.addOrderItem).mockResolvedValue({} as any)
-
-    await checkoutAction(makeFormData(address, JSON.stringify(cartItems)))
+    await checkoutAction(
+      makeFormData(address, cartPayload([{ productId: 'prod-1', quantity: 2, assumedPrice: 99.99 }]))
+    )
 
     expect(Orders.createOrder).toHaveBeenCalledWith(
       expect.not.objectContaining({ status: expect.anything() })
