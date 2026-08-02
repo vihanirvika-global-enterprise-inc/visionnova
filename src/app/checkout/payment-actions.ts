@@ -8,6 +8,7 @@ import {
 } from '@/lib/serviceableRegions'
 import { selectProvider } from '@/lib/payments/select-provider'
 import type { PaymentProviderName } from '@/lib/payments/provider'
+import { capturePaymentError } from '@/lib/sentry'
 
 export type CreatePaymentResult =
   | {
@@ -41,7 +42,13 @@ export async function createPayment(
 
   const result = await provider.createIntent(amountInPaise, orderId, currency)
 
-  if (result.error) return { error: result.error }
+  if (result.error) {
+    // Checkout is blocked here and no payment exists anywhere yet — this must
+    // be visible to ops, not just returned as a string the user reads and
+    // moves on from.
+    capturePaymentError(new Error(result.error), { amount: amountInPaise })
+    return { error: result.error }
+  }
 
   return provider.name === 'razorpay'
     ? {

@@ -43,7 +43,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               className="h-full w-full object-cover"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary to-cyan-400">
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary to-teal">
               <svg aria-hidden="true"
                 className="h-24 w-24 text-white opacity-40"
                 fill="none"

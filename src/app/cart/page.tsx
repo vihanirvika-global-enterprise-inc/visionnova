@@ -54,7 +54,7 @@ export default function CartPage() {
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary to-cyan-400">
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary to-teal">
                       <svg aria-hidden="true"
                         className="h-8 w-8 text-white opacity-50"
                         fill="none"

@@ -72,16 +72,6 @@ CREATE TABLE IF NOT EXISTS order_items (
   unit_price      NUMERIC(10, 2) NOT NULL CHECK (unit_price >= 0)
 );
 
-CREATE TABLE IF NOT EXISTS optometrist_reviews (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  prescription_id UUID NOT NULL REFERENCES prescriptions(id),
-  reviewer_name   TEXT NOT NULL,
-  status          TEXT NOT NULL CHECK (status IN ('approved', 'rejected')),
-  notes           TEXT,
-  reviewed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 -- Access audit for prescription files — who read which prescription, and when.
 -- Distinct from the review logs above, which record approve/reject decisions:
 -- this records reads, including a customer viewing their own file.
@@ -103,4 +93,3 @@ CREATE INDEX IF NOT EXISTS idx_order_items_order_id      ON order_items(order_id
 CREATE INDEX IF NOT EXISTS idx_order_items_product_id    ON order_items(product_id);
 CREATE INDEX IF NOT EXISTS idx_prescriptions_customer_id ON prescriptions(customer_id);
 CREATE INDEX IF NOT EXISTS idx_prescriptions_status      ON prescriptions(status);
-CREATE INDEX IF NOT EXISTS idx_optometrist_reviews_prescription_id ON optometrist_reviews(prescription_id);

@@ -146,7 +146,7 @@ export default function PrescriptionUploadPage() {
           <button
             type="button"
             onClick={() => setManualOpen((o) => !o)}
-            className="flex w-full items-center justify-between text-sm text-primary transition-colors hover:text-cyan-800"
+            className="flex w-full items-center justify-between text-sm text-primary transition-colors hover:text-teal"
           >
             <span>Enter prescription manually instead</span>
             <svg aria-hidden="true"
@@ -196,7 +196,7 @@ export default function PrescriptionUploadPage() {
                 <input id="pd" type="text" name="pd" placeholder="e.g. 63" className="input-field" />
               </div>
 
-              <Link href="/help" className="mt-2 inline-block text-xs text-primary hover:text-cyan-800">
+              <Link href="/help" className="mt-2 inline-block text-xs text-primary hover:text-teal">
                 What do these mean?
               </Link>
             </div>

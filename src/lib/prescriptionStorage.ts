@@ -33,6 +33,16 @@ export function contentTypeForKey(key: string): string {
 // Keys come from the database, so a corrupted or legacy row must not be able to
 // read arbitrary files off disk.
 export function resolvePrescriptionPath(key: string): string {
+  // Reject backslashes outright rather than relying on path.resolve to catch
+  // them: Node's path module only treats '\' as a separator on Windows, so a
+  // key like '..\secret.env' is a real traversal attempt there but is just a
+  // literal (harmless-looking) filename on POSIX — where this app actually
+  // runs in production and in CI. A legitimate key (a UUID + extension, or
+  // the legacy /uploads/ prefix) never contains one.
+  if (key.includes('\\')) {
+    throw new Error(`Invalid prescription storage key: ${key}`)
+  }
+
   const withoutLegacyPrefix = key.replace(/^\/?uploads\//, '')
   const resolved = resolve(PRESCRIPTION_UPLOAD_DIR, withoutLegacyPrefix)
   const root = resolve(PRESCRIPTION_UPLOAD_DIR)
