@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useCart } from '@/components/cart/CartContext'
 
 export default function CartPage() {
-  const { items, total, removeFromCart } = useCart()
+  const { items, total, removeFromCart, updateQuantity } = useCart()
   const itemCount = items.reduce((sum, i) => sum + i.quantity, 0)
 
   if (items.length === 0) {
@@ -71,9 +71,8 @@ export default function CartPage() {
 
                 {/* Details */}
                 <div className="flex flex-1 flex-col gap-1">
-                  {/* name × qty kept as one text node — required by tests */}
                   <p className="font-semibold text-dark">
-                    {item.product.name} × {item.quantity}
+                    {item.product.name}
                   </p>
                   <p className="font-bold text-primary">
                     ${item.product.price.toFixed(2)}
@@ -83,6 +82,31 @@ export default function CartPage() {
                       Requires Prescription
                     </span>
                   )}
+
+                  {/* Decrementing to 0 removes the item — same end state as
+                      the Remove button, not a separate zero-quantity state. */}
+                  <div className="mt-1 flex items-center gap-3">
+                    <button
+                      type="button"
+                      aria-label={`Decrease quantity of ${item.product.name}`}
+                      onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                      className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-dark transition-colors hover:bg-slate-50"
+                    >
+                      −
+                    </button>
+                    <span aria-live="polite" className="w-6 text-center font-medium text-dark">
+                      {item.quantity}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Increase quantity of ${item.product.name}`}
+                      onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                      className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-dark transition-colors hover:bg-slate-50"
+                    >
+                      +
+                    </button>
+                  </div>
+
                   <button
                     onClick={() => removeFromCart(item.product.id)}
                     className="mt-1 w-fit text-sm text-red-500 transition-colors hover:text-red-700"

@@ -55,4 +55,65 @@ describe('useCart', () => {
 
     expect(result.current.total).toBe(179.98)
   })
+
+  describe('updateQuantity', () => {
+    it('sets the quantity of an item already in the cart', () => {
+      const { result } = renderHook(() => useCart(), { wrapper: CartProvider })
+
+      act(() => result.current.addToCart(mockProduct))
+      act(() => result.current.updateQuantity('prod-001', 5))
+
+      expect(result.current.items[0].quantity).toBe(5)
+    })
+
+    it('recalculates the total when quantity changes', () => {
+      const { result } = renderHook(() => useCart(), { wrapper: CartProvider })
+
+      act(() => result.current.addToCart(mockProduct))
+      act(() => result.current.updateQuantity('prod-001', 3))
+
+      expect(result.current.total).toBeCloseTo(269.97) // 89.99 * 3
+    })
+
+    it('removes the item entirely when quantity is set to 0', () => {
+      const { result } = renderHook(() => useCart(), { wrapper: CartProvider })
+
+      act(() => result.current.addToCart(mockProduct))
+      act(() => result.current.updateQuantity('prod-001', 0))
+
+      expect(result.current.items).toHaveLength(0)
+    })
+
+    it('removes the item entirely when quantity is set below 0', () => {
+      const { result } = renderHook(() => useCart(), { wrapper: CartProvider })
+
+      act(() => result.current.addToCart(mockProduct))
+      act(() => result.current.updateQuantity('prod-001', -1))
+
+      expect(result.current.items).toHaveLength(0)
+    })
+
+    // mockProduct.stockQuantity is 10 — the cart has no live stock awareness
+    // beyond this snapshot from whenever the item was added, so it's a soft
+    // cap, not a real-time check.
+    it('caps quantity at the product\'s stockQuantity rather than accepting an arbitrary number', () => {
+      const { result } = renderHook(() => useCart(), { wrapper: CartProvider })
+
+      act(() => result.current.addToCart(mockProduct))
+      act(() => result.current.updateQuantity('prod-001', 999))
+
+      expect(result.current.items[0].quantity).toBe(10)
+    })
+
+    it('is a no-op for a product not currently in the cart', () => {
+      const { result } = renderHook(() => useCart(), { wrapper: CartProvider })
+
+      act(() => result.current.addToCart(mockProduct))
+      act(() => result.current.updateQuantity('some-other-product', 5))
+
+      expect(result.current.items).toHaveLength(1)
+      expect(result.current.items[0].product.id).toBe('prod-001')
+      expect(result.current.items[0].quantity).toBe(1)
+    })
+  })
 })
