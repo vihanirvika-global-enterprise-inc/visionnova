@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import type { Product } from '@/types'
 import { AddToCartButton } from './AddToCartButton'
+import { formatPrice } from '@/lib/formatters'
 
 interface ProductCardProps {
   product: Product
@@ -40,7 +41,7 @@ export function ProductCard({ product }: ProductCardProps) {
       {/* Body */}
       <div className="flex flex-1 flex-col gap-2 p-4">
         <p className="truncate text-base font-semibold text-dark">{product.name}</p>
-        <p className="text-lg font-bold text-primary">${product.price.toFixed(2)}</p>
+        <p className="text-lg font-bold text-primary">{formatPrice(product.price)}</p>
 
         {product.requiresPrescription && (
           <span className="w-fit rounded-full bg-gold px-2 py-0.5 text-xs text-white">

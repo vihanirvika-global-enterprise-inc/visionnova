@@ -1,4 +1,5 @@
 import { Html, Body, Container, Heading, Text, Hr } from '@react-email/components'
+import { formatPrice } from '@/lib/formatters'
 
 interface Props {
   firstName: string
@@ -21,7 +22,7 @@ export function OrderConfirmationEmail({ firstName, orderId, totalAmount }: Prop
           </Text>
           <Hr />
           <Text style={{ fontSize: '18px' }}>
-            Total: <strong>${totalAmount.toFixed(2)}</strong>
+            Total: <strong>{formatPrice(totalAmount)}</strong>
           </Text>
           <Hr />
           <Text style={{ color: '#666', fontSize: '13px' }}>

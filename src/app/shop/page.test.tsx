@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { formatPrice } from '@/lib/formatters'
 
 vi.mock('@/lib/products', () => ({ getInStockProducts: vi.fn() }))
 
@@ -22,7 +23,7 @@ describe('CatalogPage', () => {
     render(<CartProvider>{await CatalogPage()}</CartProvider>)
 
     expect(screen.getByText('Classic Frame')).toBeInTheDocument()
-    expect(screen.getByText('$89.99')).toBeInTheDocument()
+    expect(screen.getByText(formatPrice(89.99))).toBeInTheDocument()
   })
 
   it('shows an empty state when there are no products', async () => {

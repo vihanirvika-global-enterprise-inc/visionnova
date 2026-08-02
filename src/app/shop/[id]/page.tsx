@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { getProductById } from '@/lib/products'
 import { AddToCartButton } from '@/components/ui/AddToCartButton'
+import { formatPrice } from '@/lib/formatters'
 
 interface ProductPageProps {
   params: { id: string }
@@ -62,7 +63,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <div className="flex flex-col">
 
           <h1 className="text-3xl font-bold text-dark">{product.name}</h1>
-          <p className="mt-2 text-2xl font-bold text-primary">${product.price.toFixed(2)}</p>
+          <p className="mt-2 text-2xl font-bold text-primary">{formatPrice(product.price)}</p>
 
           {product.requiresPrescription && (
             <span className="mt-3 inline-block w-fit rounded-full bg-gold px-3 py-1 text-xs text-white">
