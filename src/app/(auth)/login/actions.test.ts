@@ -2,10 +2,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import * as NextHeaders from 'next/headers'
 import * as NextNavigation from 'next/navigation'
 import * as Auth from '@/lib/auth'
+import { getSession } from '@/lib/session'
+import { checkRateLimit } from '@/lib/rateLimit'
 import { loginAction } from './actions'
 
 vi.mock('@/lib/auth', () => ({
   loginUser: vi.fn(),
+}))
+
+vi.mock('@/lib/getClientIp', () => ({
+  getClientIp: vi.fn().mockReturnValue('203.0.113.5'),
+}))
+
+vi.mock('@/lib/rateLimit', () => ({
+  checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -23,6 +33,7 @@ beforeEach(() => {
   vi.spyOn(NextHeaders, 'cookies').mockReturnValue(
     { set: mockSet, get: mockGet, delete: mockDelete } as any
   )
+  vi.mocked(checkRateLimit).mockReset().mockResolvedValue({ allowed: true })
 })
 
 afterEach(() => {
@@ -36,6 +47,23 @@ function makeFormData(fields: Record<string, string>): FormData {
 }
 
 describe('loginAction', () => {
+  it('checks the rate limit for the caller IP under the "login" key before anything else', async () => {
+    await loginAction(makeFormData({ email: 'not-an-email', password: 'password123' }))
+    expect(checkRateLimit).toHaveBeenCalledWith('203.0.113.5', 'login')
+  })
+
+  it('returns a friendly error and never calls loginUser when rate limited', async () => {
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, retryAfterSeconds: 12 })
+
+    const result = await loginAction(
+      makeFormData({ email: 'user@example.com', password: 'correctpass' })
+    )
+
+    expect(result).toEqual({ error: expect.stringContaining('12') })
+    expect(Auth.loginUser).not.toHaveBeenCalled()
+    expect(mockSet).not.toHaveBeenCalled()
+  })
+
   it('returns a field error when email is invalid', async () => {
     const result = await loginAction(
       makeFormData({ email: 'not-an-email', password: 'password123' })
@@ -72,4 +100,35 @@ describe('loginAction', () => {
     )
     expect(NextNavigation.redirect).toHaveBeenCalledWith('/account')
   })
+
+  // Regression proof for a live bug: createSession(customer.id) was called
+  // without customer.role, so every session silently defaulted to
+  // role: 'customer' regardless of the account's real role — bouncing real
+  // optometrist/admin accounts off every /admin/* route at login time.
+  describe.each(['customer', 'optometrist', 'ops', 'admin'] as const)(
+    'when logging in as a %s',
+    (role) => {
+      it(`sets the session role to ${role}`, async () => {
+        vi.mocked(Auth.loginUser).mockResolvedValue({
+          id: 'cust-1', email: 'user@example.com',
+          firstName: 'Ada', lastName: 'Lovelace',
+          passwordHash: 'hash', phone: null, role,
+          createdAt: new Date(), updatedAt: new Date(),
+        })
+
+        await loginAction(
+          makeFormData({ email: 'user@example.com', password: 'correctpass' })
+        )
+
+        // Decode via the real (unmocked) getSession, feeding it the token
+        // createSession actually wrote — proves the value round-trips
+        // correctly through signing/encoding, not just that some argument
+        // was passed somewhere.
+        const [, token] = mockSet.mock.calls[0]
+        mockGet.mockReturnValue({ value: token })
+
+        expect(getSession()?.role).toBe(role)
+      })
+    }
+  )
 })

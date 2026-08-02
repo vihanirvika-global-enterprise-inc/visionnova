@@ -24,7 +24,7 @@ export interface ShippingAddress {
   country: string
 }
 
-export type CustomerRole = 'customer' | 'optometrist' | 'admin'
+export type CustomerRole = 'customer' | 'optometrist' | 'ops' | 'admin'
 
 export interface Customer {
   id: string

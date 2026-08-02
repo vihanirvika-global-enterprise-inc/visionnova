@@ -4,6 +4,24 @@ import type { Customer } from '@/types'
 
 const SALT_ROUNDS = 10
 
+export class DuplicateEmailError extends Error {
+  constructor() {
+    super('Email already registered')
+    this.name = 'DuplicateEmailError'
+  }
+}
+
+function isEmailUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code: unknown }).code === '23505' &&
+    'constraint_name' in error &&
+    (error as { constraint_name: unknown }).constraint_name === 'customers_email_key'
+  )
+}
+
 export async function hashPassword(plaintext: string): Promise<string> {
   return bcrypt.hash(plaintext, SALT_ROUNDS)
 }
@@ -21,12 +39,22 @@ interface RegisterInput {
 
 export async function registerUser(input: RegisterInput): Promise<Customer> {
   const passwordHash = await hashPassword(input.password)
-  return createCustomer({
-    email: input.email,
-    passwordHash,
-    firstName: input.firstName,
-    lastName: input.lastName,
-  })
+  try {
+    return await createCustomer({
+      email: input.email,
+      passwordHash,
+      firstName: input.firstName,
+      lastName: input.lastName,
+    })
+  } catch (error) {
+    // Backstop for the race condition validateRegistration's precheck can't
+    // close on its own: two near-simultaneous registrations for the same
+    // email can both pass the precheck before either has been inserted.
+    if (isEmailUniqueViolation(error)) {
+      throw new DuplicateEmailError()
+    }
+    throw error
+  }
 }
 
 export async function loginUser(email: string, password: string): Promise<Customer | null> {
