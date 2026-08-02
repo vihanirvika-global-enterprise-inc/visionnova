@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useCart } from '@/components/cart/CartContext'
 import { logoutAction } from '@/app/actions/logout'
+import { MobileBottomNav } from './MobileBottomNav'
 
 interface NavbarProps {
   isLoggedIn?: boolean
@@ -15,7 +16,8 @@ export function Navbar({ isLoggedIn = false }: NavbarProps) {
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0)
 
   return (
-    <nav className="sticky top-0 z-50 w-full bg-dark shadow-md">
+    <>
+    <nav aria-label="main navigation" className="sticky top-0 z-50 w-full bg-dark shadow-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
 
         {/* Wordmark */}
@@ -138,5 +140,7 @@ export function Navbar({ isLoggedIn = false }: NavbarProps) {
         </div>
       )}
     </nav>
+    <MobileBottomNav isLoggedIn={isLoggedIn} />
+    </>
   )
 }

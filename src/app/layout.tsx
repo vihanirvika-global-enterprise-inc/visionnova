@@ -1,20 +1,21 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
+import { Plus_Jakarta_Sans, IBM_Plex_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { CartProvider } from "@/components/cart/CartContext";
 import { AuthNavbar } from "@/components/layout/AuthNavbar";
+import { Footer } from "@/components/layout/Footer";
 import { PostHogProvider } from "@/components/analytics/PostHogProvider";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-plus-jakarta-sans",
+  weight: ["400", "500", "600", "700"],
 });
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  variable: "--font-ibm-plex-mono",
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
@@ -40,7 +41,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${plusJakartaSans.variable} ${ibmPlexMono.variable} antialiased`}
       >
         {/* WCAG 2.4.1 Bypass Blocks: first focusable element on every page, so
             keyboard users can jump the navigation instead of tabbing it. */}
@@ -58,6 +59,7 @@ export default function RootLayout({
             <div id="main-content" tabIndex={-1}>
               {children}
             </div>
+            <Footer />
           </CartProvider>
         </PostHogProvider>
 

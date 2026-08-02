@@ -23,6 +23,7 @@ const VALID_TOKEN = 'dGVzdA.fakesig'
 const CUSTOMER_TOKEN = makeSignedSession({ customerId: 'cust-001', role: 'customer' })
 const OPTOMETRIST_TOKEN = makeSignedSession({ customerId: 'cust-002', role: 'optometrist' })
 const ADMIN_TOKEN = makeSignedSession({ customerId: 'cust-003', role: 'admin' })
+const OPS_TOKEN = makeSignedSession({ customerId: 'cust-004', role: 'ops' })
 
 describe('middleware', () => {
   it('redirects unauthenticated requests to /account to /login', () => {
@@ -86,5 +87,16 @@ describe('middleware — admin guard', () => {
     const res = middleware(req)
 
     expect(res.status).toBe(200)
+  })
+
+  // Deliberate, not an oversight: no /ops/* surface exists yet in this app,
+  // so ops does not get /admin/* access as a side effect of this fix. When a
+  // real ops-scoped area gets built, it needs its own explicit gate.
+  it('redirects ops role away from /admin/* — no ops-scoped area exists yet', () => {
+    const req = makeRequest('/admin/prescriptions', OPS_TOKEN)
+    const res = middleware(req)
+
+    expect(res.status).toBe(307)
+    expect(res.headers.get('location')).toContain('/unauthorized')
   })
 })

@@ -13,6 +13,14 @@ describe('auth utilities', () => {
     expect(hash.length).toBeGreaterThan(20)
   })
 
+  it('produces a different hash each time for the same input, proving salting is active', async () => {
+    const [hashA, hashB] = await Promise.all([
+      hashPassword('secret123'),
+      hashPassword('secret123'),
+    ])
+    expect(hashA).not.toBe(hashB)
+  })
+
   it('verifyPassword returns true for the correct password', async () => {
     const hash = await hashPassword('secret123')
     expect(await verifyPassword('secret123', hash)).toBe(true)
@@ -43,6 +51,56 @@ describe('registerUser', () => {
 
     expect(vi.mocked(createCustomer).mock.calls[0][0].passwordHash).not.toBe('secret123')
     expect(result.email).toBe('jane@example.com')
+  })
+
+  // The DB-level backstop for the race condition: two near-simultaneous
+  // registrations for the same email can both pass validateRegistration's
+  // precheck (neither has been inserted yet when the other checks), so the
+  // second INSERT hitting the unique constraint has to be caught here too —
+  // not just left to crash as a raw PostgresError.
+  it('throws DuplicateEmailError when createCustomer hits the email unique constraint', async () => {
+    const { createCustomer } = await import('./customers')
+    vi.mocked(createCustomer).mockRejectedValueOnce(
+      Object.assign(new Error('duplicate key value violates unique constraint "customers_email_key"'), {
+        name: 'PostgresError',
+        code: '23505',
+        constraint_name: 'customers_email_key',
+      })
+    )
+
+    // DuplicateEmailError destructured from this same dynamic import, not
+    // the static top-level one: vi.resetModules() means the static import
+    // and this fresh one are different module instances, so registerUser's
+    // thrown error would fail instanceof against the "wrong" class object
+    // even though both are genuinely DuplicateEmailError.
+    const { registerUser, DuplicateEmailError: FreshDuplicateEmailError } = await import('./auth')
+    await expect(
+      registerUser({
+        email: 'jane@example.com', password: 'secret123',
+        firstName: 'Jane', lastName: 'Doe',
+      })
+      // toBeInstanceOf, not toThrow(DuplicateEmailError): toThrow() with an
+      // undefined class reference silently degrades to "threw something,
+      // don't care what" instead of failing — exactly the false-negative
+      // trap this needs to avoid while DuplicateEmailError doesn't exist yet.
+    ).rejects.toBeInstanceOf(FreshDuplicateEmailError)
+  })
+
+  it('does not misclassify an unrelated database error as DuplicateEmailError', async () => {
+    const { createCustomer } = await import('./customers')
+    const unrelatedError = Object.assign(new Error('connection terminated'), {
+      name: 'PostgresError',
+      code: '57P01',
+    })
+    vi.mocked(createCustomer).mockRejectedValueOnce(unrelatedError)
+
+    const { registerUser } = await import('./auth')
+    await expect(
+      registerUser({
+        email: 'jane@example.com', password: 'secret123',
+        firstName: 'Jane', lastName: 'Doe',
+      })
+    ).rejects.toBe(unrelatedError)
   })
 })
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { mkdtempSync, writeFileSync, rmSync } from 'fs'
+import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { listMigrationFiles, applyMigrations } from './migrations.js'
@@ -147,5 +147,104 @@ describe('the real migrations directory', () => {
     expect(listMigrationFiles(MIGRATIONS_DIR)).toContain(
       'allow-payment-order-statuses.sql'
     )
+  })
+
+  it('contains a product_images migration with the PRD-specified columns', async () => {
+    const { MIGRATIONS_DIR } = await import('./migrations.js')
+    expect(listMigrationFiles(MIGRATIONS_DIR)).toContain('create-product-images.sql')
+
+    const sql = readFileSync(join(MIGRATIONS_DIR, 'create-product-images.sql'), 'utf8')
+    expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS product_images/)
+    expect(sql).toMatch(/product_id\s+UUID NOT NULL REFERENCES products\(id\)/)
+    expect(sql).toMatch(/url\s+TEXT NOT NULL/)
+    expect(sql).toMatch(/alt\s+TEXT/)
+    expect(sql).toMatch(/sort_order\s+INTEGER NOT NULL DEFAULT 0/)
+  })
+
+  it('contains a coupons migration with the PRD-specified columns', async () => {
+    const { MIGRATIONS_DIR } = await import('./migrations.js')
+    expect(listMigrationFiles(MIGRATIONS_DIR)).toContain('create-coupons.sql')
+
+    const sql = readFileSync(join(MIGRATIONS_DIR, 'create-coupons.sql'), 'utf8')
+    expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS coupons/)
+    expect(sql).toMatch(/code\s+TEXT NOT NULL UNIQUE/)
+    expect(sql).toMatch(/type\s+TEXT NOT NULL CHECK \(type IN \('percent', 'fixed'\)\)/)
+    expect(sql).toMatch(/value\s+NUMERIC\(10, 2\) NOT NULL/)
+    expect(sql).toMatch(/valid_from\s+TIMESTAMPTZ NOT NULL/)
+    expect(sql).toMatch(/valid_to\s+TIMESTAMPTZ NOT NULL/)
+    expect(sql).toMatch(/max_uses\s+INTEGER NOT NULL/)
+    expect(sql).toMatch(/current_uses\s+INTEGER NOT NULL DEFAULT 0/)
+  })
+
+  it('contains a product_variants migration with the PRD-specified columns', async () => {
+    const { MIGRATIONS_DIR } = await import('./migrations.js')
+    expect(listMigrationFiles(MIGRATIONS_DIR)).toContain('create-product-variants.sql')
+
+    const sql = readFileSync(join(MIGRATIONS_DIR, 'create-product-variants.sql'), 'utf8')
+    expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS product_variants/)
+    expect(sql).toMatch(/product_id\s+UUID NOT NULL REFERENCES products\(id\)/)
+    expect(sql).toMatch(/color\s+TEXT NOT NULL/)
+    expect(sql).toMatch(/sku\s+TEXT NOT NULL UNIQUE/)
+    expect(sql).toMatch(/stock_qty\s+INTEGER NOT NULL DEFAULT 0 CHECK \(stock_qty >= 0\)/)
+  })
+
+  it('contains a carts migration with the PRD-specified Cart and CartItem columns', async () => {
+    const { MIGRATIONS_DIR } = await import('./migrations.js')
+    expect(listMigrationFiles(MIGRATIONS_DIR)).toContain('create-carts.sql')
+
+    const sql = readFileSync(join(MIGRATIONS_DIR, 'create-carts.sql'), 'utf8')
+
+    expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS carts/)
+    expect(sql).toMatch(/user_id\s+UUID REFERENCES customers\(id\)/)
+    expect(sql).toMatch(/session_id\s+TEXT NOT NULL/)
+
+    expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS cart_items/)
+    expect(sql).toMatch(/cart_id\s+UUID NOT NULL REFERENCES carts\(id\)/)
+    expect(sql).toMatch(/product_id\s+UUID NOT NULL REFERENCES products\(id\)/)
+    expect(sql).toMatch(/variant_id\s+UUID REFERENCES product_variants\(id\)/)
+    expect(sql).toMatch(/qty\s+INTEGER NOT NULL CHECK \(qty > 0\)/)
+    expect(sql).toMatch(/unit_price\s+NUMERIC\(10, 2\) NOT NULL CHECK \(unit_price >= 0\)/)
+
+    // carts must be created before cart_items in file order, since cart_items
+    // references carts(id) and migrations apply top-to-bottom in one file
+    expect(sql.indexOf('CREATE TABLE IF NOT EXISTS carts')).toBeLessThan(
+      sql.indexOf('CREATE TABLE IF NOT EXISTS cart_items')
+    )
+  })
+
+  it('contains a migration that allows the ops role on customers', async () => {
+    const { MIGRATIONS_DIR } = await import('./migrations.js')
+    expect(listMigrationFiles(MIGRATIONS_DIR)).toContain('allow-ops-role.sql')
+
+    const sql = readFileSync(join(MIGRATIONS_DIR, 'allow-ops-role.sql'), 'utf8')
+    expect(sql).toMatch(/DROP CONSTRAINT IF EXISTS customers_role_check/)
+    expect(sql).toMatch(
+      /CHECK \(role IN \('customer', 'optometrist', 'ops', 'admin'\)\)/
+    )
+  })
+
+  it('contains an audit_logs migration with the PRD-specified columns', async () => {
+    const { MIGRATIONS_DIR } = await import('./migrations.js')
+    expect(listMigrationFiles(MIGRATIONS_DIR)).toContain('create-audit-logs.sql')
+
+    const sql = readFileSync(join(MIGRATIONS_DIR, 'create-audit-logs.sql'), 'utf8')
+    expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS audit_logs/)
+
+    // actor_user_id: nullable — automated/system writes (stock decrement on
+    // order-paid, webhook-driven status change, coupon-expiry job) have no
+    // human actor, and forcing one would mean fabricating a fake user row.
+    expect(sql).toMatch(/actor_user_id\s+UUID REFERENCES customers\(id\),/)
+
+    // entity_type/entity_id/action must never be ambiguous, regardless of actor.
+    expect(sql).toMatch(/entity_type\s+TEXT NOT NULL/)
+    expect(sql).toMatch(/entity_id\s+UUID NOT NULL/)
+    expect(sql).toMatch(/action\s+TEXT NOT NULL/)
+
+    // before_json: nullable — a create action has no prior state.
+    expect(sql).toMatch(/before_json\s+JSONB,/)
+    // after_json: nullable — a delete action has no resulting state.
+    expect(sql).toMatch(/after_json\s+JSONB,/)
+
+    expect(sql).toMatch(/timestamp\s+TIMESTAMPTZ NOT NULL DEFAULT NOW\(\)/)
   })
 })

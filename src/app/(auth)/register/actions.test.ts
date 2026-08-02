@@ -2,10 +2,39 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import * as NextHeaders from 'next/headers'
 import * as NextNavigation from 'next/navigation'
 import * as Auth from '@/lib/auth'
+import { getSession } from '@/lib/session'
+import { checkRateLimit } from '@/lib/rateLimit'
 import { registerAction } from './actions'
 
-vi.mock('@/lib/auth', () => ({
-  registerUser: vi.fn(),
+// DuplicateEmailError is re-exported from the real module (not stubbed) so
+// registerAction's `instanceof DuplicateEmailError` check works against the
+// same class reference the test constructs instances of.
+vi.mock('@/lib/auth', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/auth')>('@/lib/auth')
+  return {
+    registerUser: vi.fn(),
+    DuplicateEmailError: actual.DuplicateEmailError,
+  }
+})
+
+// Without this, validateRegistration's real breach-check would make a live
+// network call to HIBP on every test run.
+vi.mock('@/lib/breachCheck', () => ({
+  checkBreached: vi.fn().mockResolvedValue(false),
+}))
+
+// Without this, validateRegistration's real email-uniqueness precheck would
+// hit the real DB (and fail outright — no DATABASE_URL in the test env).
+vi.mock('@/lib/customers', () => ({
+  getCustomerByEmail: vi.fn().mockResolvedValue(null),
+}))
+
+vi.mock('@/lib/getClientIp', () => ({
+  getClientIp: vi.fn().mockReturnValue('203.0.113.5'),
+}))
+
+vi.mock('@/lib/rateLimit', () => ({
+  checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -23,6 +52,7 @@ beforeEach(() => {
   vi.spyOn(NextHeaders, 'cookies').mockReturnValue(
     { set: mockSet, get: mockGet, delete: mockDelete } as any
   )
+  vi.mocked(checkRateLimit).mockReset().mockResolvedValue({ allowed: true })
 })
 
 afterEach(() => {
@@ -41,6 +71,21 @@ const validFields = {
 }
 
 describe('registerAction', () => {
+  it('checks the rate limit for the caller IP under the "register" key before anything else', async () => {
+    await registerAction(makeFormData({ ...validFields, email: 'not-an-email' }))
+    expect(checkRateLimit).toHaveBeenCalledWith('203.0.113.5', 'register')
+  })
+
+  it('returns a friendly error and never calls registerUser when rate limited', async () => {
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, retryAfterSeconds: 37 })
+
+    const result = await registerAction(makeFormData(validFields))
+
+    expect(result).toEqual({ error: expect.stringContaining('37') })
+    expect(Auth.registerUser).not.toHaveBeenCalled()
+    expect(mockSet).not.toHaveBeenCalled()
+  })
+
   it('returns a field error when email is invalid', async () => {
     const result = await registerAction(
       makeFormData({ ...validFields, email: 'not-an-email' })
@@ -59,6 +104,20 @@ describe('registerAction', () => {
     expect(Auth.registerUser).not.toHaveBeenCalled()
   })
 
+  // validateRegistration's own precheck normally catches this before
+  // registerUser is ever called (covered in validation.test.ts) — this test
+  // is specifically for the DB-constraint backstop path: registerUser
+  // reached the DB and got a DuplicateEmailError back.
+  it('returns a friendly error, not a crash, when registerUser throws DuplicateEmailError', async () => {
+    vi.mocked(Auth.registerUser).mockRejectedValue(new Auth.DuplicateEmailError())
+
+    const result = await registerAction(makeFormData(validFields))
+
+    expect(result).toEqual({ error: 'Email already registered' })
+    expect(NextNavigation.redirect).not.toHaveBeenCalled()
+    expect(mockSet).not.toHaveBeenCalled()
+  })
+
   it('sets a session cookie and redirects on successful registration', async () => {
     vi.mocked(Auth.registerUser).mockResolvedValue({
       id: 'cust-1', email: 'ada@example.com',
@@ -74,4 +133,31 @@ describe('registerAction', () => {
     )
     expect(NextNavigation.redirect).toHaveBeenCalledWith('/account')
   })
+
+  // Regression-proofing, not a currently-observable bug: self-registration
+  // can only ever produce role: 'customer' today (createCustomer has no role
+  // input), so this can't fail for a real user yet. But registerAction
+  // itself should still pass through whatever role registerUser returns —
+  // "harmless today" stops being true the moment an admin-invite or
+  // optometrist-onboarding flow starts producing non-customer accounts here.
+  describe.each(['customer', 'optometrist', 'ops', 'admin'] as const)(
+    'when registerUser resolves with role %s',
+    (role) => {
+      it(`sets the session role to ${role}`, async () => {
+        vi.mocked(Auth.registerUser).mockResolvedValue({
+          id: 'cust-1', email: 'ada@example.com',
+          firstName: 'Ada', lastName: 'Lovelace',
+          passwordHash: 'hash', phone: null, role,
+          createdAt: new Date(), updatedAt: new Date(),
+        })
+
+        await registerAction(makeFormData(validFields))
+
+        const [, token] = mockSet.mock.calls[0]
+        mockGet.mockReturnValue({ value: token })
+
+        expect(getSession()?.role).toBe(role)
+      })
+    }
+  )
 })
