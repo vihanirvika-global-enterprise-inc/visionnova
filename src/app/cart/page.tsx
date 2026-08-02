@@ -1,12 +1,43 @@
 'use client'
 
+import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useCart } from '@/components/cart/CartContext'
+import { applyCouponAction } from './actions'
+import type { CouponValidationResult, CouponRejectionReason } from '@/lib/coupons'
+
+const COUPON_REJECTION_MESSAGES: Record<CouponRejectionReason, string> = {
+  not_found: "This coupon code doesn't exist.",
+  not_yet_valid: "This coupon isn't active yet.",
+  expired: 'This coupon has expired.',
+  usage_limit_reached: 'This coupon has reached its usage limit.',
+}
 
 export default function CartPage() {
-  const { items, total, removeFromCart, updateQuantity } = useCart()
+  const { items, total, removeFromCart, updateQuantity, setCouponCode } = useCart()
   const itemCount = items.reduce((sum, i) => sum + i.quantity, 0)
+
+  const [couponInput, setCouponInput] = useState('')
+  const [couponResult, setCouponResult] = useState<CouponValidationResult | null>(null)
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false)
+
+  // Preview only — checkoutAction re-validates and recomputes the discount
+  // server-side regardless of what's shown here, since this is client state
+  // a user could tamper with just as easily as the cart price/total.
+  async function handleApplyCoupon() {
+    const code = couponInput.trim()
+    if (!code) return
+
+    setIsApplyingCoupon(true)
+    const result = await applyCouponAction(code, total)
+    setCouponResult(result)
+    setCouponCode(result.valid ? code : null)
+    setIsApplyingCoupon(false)
+  }
+
+  const discount = couponResult?.valid ? couponResult.discount : 0
+  const adjustedTotal = Math.max(0, total - discount)
 
   if (items.length === 0) {
     return (
@@ -130,6 +161,42 @@ export default function CartPage() {
               <span>${total.toFixed(2)}</span>
             </div>
 
+            {couponResult?.valid && (
+              <div className="mt-2 flex items-center justify-between text-sm text-teal">
+                <span>Coupon applied</span>
+                <span>-${discount.toFixed(2)}</span>
+              </div>
+            )}
+
+            <div className="mt-3">
+              <label htmlFor="coupon-code" className="mb-1 block text-xs font-medium text-dark">
+                Coupon code
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="coupon-code"
+                  type="text"
+                  value={couponInput}
+                  onChange={(e) => setCouponInput(e.target.value)}
+                  className="input-field flex-1 text-sm"
+                  placeholder="Enter code"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyCoupon}
+                  disabled={isApplyingCoupon}
+                  className="btn-secondary px-4 text-sm"
+                >
+                  Apply
+                </button>
+              </div>
+              {couponResult && !couponResult.valid && (
+                <p role="alert" className="mt-1 text-xs text-red-600">
+                  {COUPON_REJECTION_MESSAGES[couponResult.reason]}
+                </p>
+              )}
+            </div>
+
             <hr className="my-3 border-slate-100" />
 
             <div className="flex items-center justify-between text-sm text-muted">
@@ -141,7 +208,7 @@ export default function CartPage() {
 
             {/* single text node — getByText('Total: $X') requires no child elements */}
             <p className="font-bold text-primary">
-              Total: ${total.toFixed(2)}
+              Total: ${adjustedTotal.toFixed(2)}
             </p>
 
             <Link href="/checkout" className="btn-primary mt-6 w-full">

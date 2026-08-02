@@ -287,7 +287,7 @@ const INITIAL_FORM: AddressFormData = {
 }
 
 export default function CheckoutForm() {
-  const { items, total } = useCart()
+  const { items, total, couponCode } = useCart()
   const [step, setStep] = useState<CheckoutStep>('address')
   const [clientRef, setClientRef] = useState<string | null>(null)
   const [provider, setProvider] = useState<PaymentProviderName | null>(null)
@@ -338,6 +338,7 @@ export default function CheckoutForm() {
         }))
       )
     )
+    if (couponCode) fd.append('couponCode', couponCode)
     return fd
   }
 

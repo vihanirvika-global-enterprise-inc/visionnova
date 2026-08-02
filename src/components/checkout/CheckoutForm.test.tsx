@@ -50,12 +50,16 @@ function setupDefaultMocks() {
     addToCart: vi.fn(),
     removeFromCart: vi.fn(),
     updateQuantity: vi.fn(),
+    couponCode: null,
+    setCouponCode: vi.fn(),
   })
   vi.mocked(useStripe).mockReturnValue({
     confirmPayment: vi.fn().mockResolvedValue({}),
   } as any)
   vi.mocked(useElements).mockReturnValue({} as any)
-  vi.mocked(checkoutAction).mockResolvedValue({ orderId: 'order-1', totalAmount: 999, priceAdjusted: false })
+  vi.mocked(checkoutAction).mockResolvedValue({
+    orderId: 'order-1', totalAmount: 999, priceAdjusted: false, discount: 0,
+  })
   // Default country is IN, so the default provider is Razorpay.
   vi.mocked(createPayment).mockResolvedValue({
     provider: 'razorpay',
@@ -137,6 +141,29 @@ describe('CheckoutForm', () => {
     expect(submitted.get('country')).not.toBe('India')
   })
 
+  // The coupon code lives in CartContext (so it survives the /cart ->
+  // /checkout client-side navigation) — checkoutAction is the only place
+  // that re-validates it, so it has to actually reach the submitted form.
+  it('includes the coupon code from CartContext in the submitted form data', async () => {
+    vi.mocked(useCart).mockReturnValue({
+      items: [{ product: { id: '1', name: 'Classic Frame', price: 999 }, quantity: 1 }] as any,
+      total: 999,
+      addToCart: vi.fn(),
+      removeFromCart: vi.fn(),
+      updateQuantity: vi.fn(),
+      couponCode: 'SAVE10',
+      setCouponCode: vi.fn(),
+    })
+    render(<CheckoutForm />)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+
+    await waitFor(() => expect(checkoutAction).toHaveBeenCalled())
+    const submitted = vi.mocked(checkoutAction).mock.calls[0][0] as FormData
+    expect(submitted.get('couponCode')).toBe('SAVE10')
+  })
+
   it('creates the order before the payment', async () => {
     render(<CheckoutForm />)
 
@@ -167,7 +194,7 @@ describe('CheckoutForm', () => {
   // gateway even though the order itself was priced correctly server-side.
   it('uses the server-computed total from checkoutAction for the payment amount, not the client cart total', async () => {
     vi.mocked(checkoutAction).mockResolvedValue({
-      orderId: 'order-1', totalAmount: 1299, priceAdjusted: true,
+      orderId: 'order-1', totalAmount: 1299, priceAdjusted: true, discount: 0,
     })
     render(<CheckoutForm />)
 
@@ -181,7 +208,7 @@ describe('CheckoutForm', () => {
 
   it('shows a notice, not silence, when the server adjusts the price', async () => {
     vi.mocked(checkoutAction).mockResolvedValue({
-      orderId: 'order-1', totalAmount: 1299, priceAdjusted: true,
+      orderId: 'order-1', totalAmount: 1299, priceAdjusted: true, discount: 0,
     })
     render(<CheckoutForm />)
 

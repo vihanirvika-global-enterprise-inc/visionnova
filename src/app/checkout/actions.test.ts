@@ -6,6 +6,7 @@ import * as OrderItems from '@/lib/orderItems'
 import * as Session from '@/lib/session'
 import * as Products from '@/lib/products'
 import * as Prescriptions from '@/lib/prescriptions'
+import * as Coupons from '@/lib/coupons'
 import { checkoutAction } from './actions'
 import type { ShippingAddress, Product, Prescription } from '@/types'
 
@@ -15,6 +16,7 @@ vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/products', () => ({ getProductById: vi.fn() }))
 vi.mock('@/lib/prescriptions', () => ({ getPrescriptionsByCustomer: vi.fn() }))
+vi.mock('@/lib/coupons', () => ({ validateCoupon: vi.fn(), incrementCouponUsage: vi.fn() }))
 
 let mockSet: ReturnType<typeof vi.fn>
 let mockGet: ReturnType<typeof vi.fn>
@@ -63,11 +65,17 @@ beforeEach(() => {
     createdAt: new Date(), updatedAt: new Date(),
   }) as any)
   vi.mocked(OrderItems.addOrderItem).mockResolvedValue({} as any)
+  vi.mocked(Coupons.validateCoupon).mockResolvedValue({ valid: false, reason: 'not_found' })
+  vi.mocked(Coupons.incrementCouponUsage).mockResolvedValue(true)
 })
 
 afterEach(() => { vi.restoreAllMocks() })
 
-function makeFormData(address: ShippingAddress, cartJson: string): FormData {
+function makeFormData(
+  address: ShippingAddress,
+  cartJson: string,
+  couponCode?: string
+): FormData {
   const fd = new FormData()
   fd.append('line1', address.line1)
   fd.append('city', address.city)
@@ -75,6 +83,7 @@ function makeFormData(address: ShippingAddress, cartJson: string): FormData {
   fd.append('postalCode', address.postalCode)
   fd.append('country', address.country)
   fd.append('cart', cartJson)
+  if (couponCode) fd.append('couponCode', couponCode)
   return fd
 }
 
@@ -147,7 +156,7 @@ describe('checkoutAction', () => {
       quantity: 2,
       unitPrice: 99.99, // server-fetched, not client-supplied
     }))
-    expect(result).toEqual({ orderId: 'order-1', totalAmount: 199.98, priceAdjusted: false })
+    expect(result).toEqual({ orderId: 'order-1', totalAmount: 199.98, priceAdjusted: false, discount: 0 })
   })
 
   // The actual attack: a tampered client payload claims a fabricated low price.
@@ -164,7 +173,7 @@ describe('checkoutAction', () => {
     expect(OrderItems.addOrderItem).toHaveBeenCalledWith(
       expect.objectContaining({ unitPrice: 99.99 })
     )
-    expect(result).toEqual({ orderId: 'order-1', totalAmount: 99.99, priceAdjusted: true })
+    expect(result).toEqual({ orderId: 'order-1', totalAmount: 99.99, priceAdjusted: true, discount: 0 })
   })
 
   // Legitimate case: the price genuinely changed between add-to-cart and
@@ -178,7 +187,7 @@ describe('checkoutAction', () => {
       makeFormData(address, cartPayload([{ productId: 'prod-1', quantity: 1, assumedPrice: 99.99 }]))
     )
 
-    expect(result).toEqual({ orderId: 'order-1', totalAmount: 129.99, priceAdjusted: true })
+    expect(result).toEqual({ orderId: 'order-1', totalAmount: 129.99, priceAdjusted: true, discount: 0 })
     expect(OrderItems.addOrderItem).toHaveBeenCalledWith(
       expect.objectContaining({ unitPrice: 129.99 })
     )
@@ -289,5 +298,129 @@ describe('checkoutAction — prescription-confirmation gate', () => {
 
     expect('error' in result).toBe(false)
     expect(Prescriptions.getPrescriptionsByCustomer).not.toHaveBeenCalled()
+  })
+})
+
+describe('checkoutAction — coupon re-validation', () => {
+  it('does not touch coupon logic at all when no code is submitted', async () => {
+    await checkoutAction(
+      makeFormData(address, cartPayload([{ productId: 'prod-1', quantity: 1, assumedPrice: 99.99 }]))
+    )
+
+    expect(Coupons.validateCoupon).not.toHaveBeenCalled()
+    expect(Coupons.incrementCouponUsage).not.toHaveBeenCalled()
+  })
+
+  it('applies the discount and increments usage for a valid coupon', async () => {
+    vi.mocked(Coupons.validateCoupon).mockResolvedValue({
+      valid: true,
+      coupon: {
+        id: 'coupon-1', code: 'SAVE10', type: 'percent', value: 10,
+        validFrom: new Date(), validTo: new Date(),
+        maxUses: 100, currentUses: 5, createdAt: new Date(),
+      },
+      discount: 9.999, // 10% of 99.99
+    })
+
+    const result = await checkoutAction(
+      makeFormData(
+        address,
+        cartPayload([{ productId: 'prod-1', quantity: 1, assumedPrice: 99.99 }]),
+        'SAVE10'
+      )
+    )
+
+    expect(Coupons.validateCoupon).toHaveBeenCalledWith('SAVE10', 99.99)
+    expect(Coupons.incrementCouponUsage).toHaveBeenCalledWith('coupon-1')
+    expect(Orders.createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ totalAmount: 89.991 }) // 99.99 - 9.999
+    )
+    expect(result).toEqual(expect.objectContaining({
+      orderId: 'order-1', totalAmount: 89.991, discount: 9.999,
+    }))
+  })
+
+  it.each([
+    ['not_found', 'nonexistent code'],
+    ['not_yet_valid', 'a code not yet active'],
+    ['expired', 'an expired code'],
+    ['usage_limit_reached', 'a maxed-out code'],
+  ] as const)(
+    'proceeds without a discount and surfaces the %s reason for %s, rather than blocking checkout',
+    async (reason, _description) => {
+      vi.mocked(Coupons.validateCoupon).mockResolvedValue({ valid: false, reason })
+
+      const result = await checkoutAction(
+        makeFormData(
+          address,
+          cartPayload([{ productId: 'prod-1', quantity: 1, assumedPrice: 99.99 }]),
+          'SOMECODE'
+        )
+      )
+
+      expect(Coupons.incrementCouponUsage).not.toHaveBeenCalled()
+      expect(Orders.createOrder).toHaveBeenCalledWith(
+        expect.objectContaining({ totalAmount: 99.99 })
+      )
+      expect(result).toEqual(expect.objectContaining({
+        orderId: 'order-1', totalAmount: 99.99, discount: 0, couponRejectionReason: reason,
+      }))
+    }
+  )
+
+  // The real re-validation case: the client's cart applied a coupon that
+  // looked valid at the time, but by checkout it's no longer valid (someone
+  // else used the last slot in between). checkoutAction must not honor
+  // stale client state — it only ever trusts the coupon CODE string, never
+  // a "this was valid" flag, and re-validates against the DB independently.
+  it('does not honor a coupon that became invalid between cart-apply and checkout', async () => {
+    vi.mocked(Coupons.validateCoupon).mockResolvedValue({
+      valid: false, reason: 'usage_limit_reached',
+    })
+
+    const result = await checkoutAction(
+      makeFormData(
+        address,
+        cartPayload([{ productId: 'prod-1', quantity: 1, assumedPrice: 99.99 }]),
+        'SAVE10'
+      )
+    )
+
+    expect(result).toEqual(expect.objectContaining({
+      totalAmount: 99.99, discount: 0, couponRejectionReason: 'usage_limit_reached',
+    }))
+  })
+
+  // The race itself: validateCoupon's read says valid (it was, a moment
+  // ago), but the atomic increment loses the race against a concurrent
+  // checkout and returns false. The order must still be created at the
+  // undiscounted price — the increment result, not the earlier read, is
+  // what actually governs whether the discount applies.
+  it('does not apply the discount when the atomic usage increment loses the race', async () => {
+    vi.mocked(Coupons.validateCoupon).mockResolvedValue({
+      valid: true,
+      coupon: {
+        id: 'coupon-1', code: 'SAVE10', type: 'percent', value: 10,
+        validFrom: new Date(), validTo: new Date(),
+        maxUses: 1, currentUses: 1, createdAt: new Date(),
+      },
+      discount: 9.999,
+    })
+    vi.mocked(Coupons.incrementCouponUsage).mockResolvedValue(false)
+
+    const result = await checkoutAction(
+      makeFormData(
+        address,
+        cartPayload([{ productId: 'prod-1', quantity: 1, assumedPrice: 99.99 }]),
+        'SAVE10'
+      )
+    )
+
+    expect(Orders.createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ totalAmount: 99.99 })
+    )
+    expect(result).toEqual(expect.objectContaining({
+      totalAmount: 99.99, discount: 0, couponRejectionReason: 'usage_limit_reached',
+    }))
   })
 })

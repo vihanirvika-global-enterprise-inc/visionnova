@@ -20,6 +20,8 @@ function setupCart(items: ReturnType<typeof makeItem>[]) {
     addToCart: vi.fn(),
     removeFromCart: vi.fn(),
     updateQuantity: vi.fn(),
+    couponCode: null,
+    setCouponCode: vi.fn(),
   })
 }
 
