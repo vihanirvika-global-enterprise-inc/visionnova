@@ -37,6 +37,11 @@ describe('ProductCard', () => {
     expect(screen.queryByText('Requires Prescription')).not.toBeInTheDocument()
   })
 
+  it('does not render an Add to Cart button when the product is out of stock', () => {
+    render(<CartProvider><ProductCard product={{ ...mockProduct, stockQuantity: 0 }} /></CartProvider>)
+    expect(screen.queryByRole('button', { name: /add to cart/i })).not.toBeInTheDocument()
+  })
+
   it('adds the product to the cart when Add to Cart is clicked', async () => {
     let itemCount = 0
 

@@ -60,9 +60,11 @@ export function ProductCard({ product }: ProductCardProps) {
           )}
         </div>
 
-        <div className="mt-auto pt-2">
-          <AddToCartButton product={product} />
-        </div>
+        {product.stockQuantity > 0 && (
+          <div className="mt-auto pt-2">
+            <AddToCartButton product={product} />
+          </div>
+        )}
       </div>
 
     </div>
