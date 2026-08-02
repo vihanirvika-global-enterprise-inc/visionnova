@@ -84,3 +84,51 @@ describe('RazorpayClient.createOrder', () => {
     ).rejects.toThrow(/amount must be an integer/)
   })
 })
+
+describe('RazorpayClient.fetchPayment', () => {
+  it('gets a payment by id with basic auth', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'pay_123',
+        order_id: 'order_razorpay_1',
+        amount: 99900,
+        currency: 'INR',
+        status: 'captured',
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const payment = await getServerRazorpay().fetchPayment('pay_123')
+
+    expect(payment).toEqual({
+      id: 'pay_123',
+      order_id: 'order_razorpay_1',
+      amount: 99900,
+      currency: 'INR',
+      status: 'captured',
+    })
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://api.razorpay.com/v1/payments/pay_123')
+    expect(init.method).toBe('GET')
+    expect(init.headers.Authorization).toBe(
+      `Basic ${Buffer.from('rzp_test_key:test_secret').toString('base64')}`
+    )
+  })
+
+  it('throws with the API error description when Razorpay rejects the request', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ error: { description: 'The id provided does not exist' } }),
+      })
+    )
+
+    await expect(getServerRazorpay().fetchPayment('pay_bad')).rejects.toThrow(
+      /does not exist/
+    )
+  })
+})

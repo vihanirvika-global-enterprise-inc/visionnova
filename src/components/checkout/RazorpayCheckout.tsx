@@ -15,6 +15,12 @@ interface RazorpayInstance {
   open: () => void
 }
 
+interface RazorpaySuccessResponse {
+  razorpay_payment_id: string
+  razorpay_order_id: string
+  razorpay_signature: string
+}
+
 type RazorpayConstructor = new (options: Record<string, unknown>) => RazorpayInstance
 
 declare global {
@@ -58,8 +64,12 @@ export default function RazorpayCheckout({
       name: 'VisionNova',
       // UX only. The webhook is the sole authority on order state — this must
       // never mark anything paid, or a closed browser would lose the order.
-      handler: () => {
-        window.location.assign('/order/confirmation')
+      // The confirmation page independently re-verifies this payment_id
+      // against Razorpay's API before showing success.
+      handler: (response: RazorpaySuccessResponse) => {
+        window.location.assign(
+          `/order/confirmation?razorpay_payment_id=${encodeURIComponent(response.razorpay_payment_id)}`
+        )
       },
       modal: {
         ondismiss: () => {
