@@ -116,4 +116,28 @@ describe('useCart', () => {
       expect(result.current.items[0].quantity).toBe(1)
     })
   })
+
+  describe('couponCode', () => {
+    it('starts with no coupon applied', () => {
+      const { result } = renderHook(() => useCart(), { wrapper: CartProvider })
+      expect(result.current.couponCode).toBeNull()
+    })
+
+    it('sets the coupon code so it can be threaded through to checkout', () => {
+      const { result } = renderHook(() => useCart(), { wrapper: CartProvider })
+
+      act(() => result.current.setCouponCode('SAVE10'))
+
+      expect(result.current.couponCode).toBe('SAVE10')
+    })
+
+    it('clears the coupon code', () => {
+      const { result } = renderHook(() => useCart(), { wrapper: CartProvider })
+
+      act(() => result.current.setCouponCode('SAVE10'))
+      act(() => result.current.setCouponCode(null))
+
+      expect(result.current.couponCode).toBeNull()
+    })
+  })
 })

@@ -7,6 +7,8 @@ import { validateShippingAddress } from '@/lib/validation'
 import { regionForCountry } from '@/lib/region'
 import { getProductById } from '@/lib/products'
 import { getPrescriptionsByCustomer } from '@/lib/prescriptions'
+import { validateCoupon, incrementCouponUsage } from '@/lib/coupons'
+import type { CouponRejectionReason } from '@/lib/coupons'
 import {
   isServiceableRegion,
   UNSERVICEABLE_REGION_MESSAGE,
@@ -25,7 +27,13 @@ interface CartItemInput {
 }
 
 export type CheckoutResult =
-  | { orderId: string; totalAmount: number; priceAdjusted: boolean }
+  | {
+      orderId: string
+      totalAmount: number
+      priceAdjusted: boolean
+      discount: number
+      couponRejectionReason?: CouponRejectionReason
+    }
   | { error: string; requiresPrescriptionUpload?: boolean }
 
 const PRICE_DRIFT_EPSILON = 0.01
@@ -104,9 +112,38 @@ export async function checkoutAction(formData: FormData): Promise<CheckoutResult
     0
   )
 
+  // The client only ever sends the coupon CODE — never a "this was valid"
+  // flag. Re-validate against the DB independently; a coupon that looked
+  // valid when the cart applied it may no longer be by checkout time.
+  const couponCode = (formData.get('couponCode') as string) || null
+  let discount = 0
+  let couponRejectionReason: CouponRejectionReason | undefined
+
+  if (couponCode) {
+    const validation = await validateCoupon(couponCode, totalAmount)
+    if (!validation.valid) {
+      couponRejectionReason = validation.reason
+    } else {
+      // Reserve the usage slot atomically BEFORE creating the order, so the
+      // order is only ever created with a total reflecting whether the
+      // reservation actually succeeded — never the other way around. This
+      // is also what actually closes the race between two near-simultaneous
+      // checkouts against the same coupon: the earlier read above can say
+      // "valid" for both, but only one atomic increment can succeed.
+      const reserved = await incrementCouponUsage(validation.coupon.id)
+      if (reserved) {
+        discount = validation.discount
+      } else {
+        couponRejectionReason = 'usage_limit_reached'
+      }
+    }
+  }
+
+  const finalTotal = Math.max(0, totalAmount - discount)
+
   const order = await createOrder({
     customerId: session.customerId,
-    totalAmount,
+    totalAmount: finalTotal,
     shippingAddress: address,
   })
 
@@ -124,5 +161,5 @@ export async function checkoutAction(formData: FormData): Promise<CheckoutResult
     )
   )
 
-  return { orderId: order.id, totalAmount, priceAdjusted }
+  return { orderId: order.id, totalAmount: finalTotal, priceAdjusted, discount, couponRejectionReason }
 }

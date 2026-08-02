@@ -1,9 +1,16 @@
-import { render, screen, act } from '@testing-library/react'
+import { render, screen, act, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { CartProvider, useCart } from '@/components/cart/CartContext'
+import * as CartActions from './actions'
 import CartPage from './page'
 import type { Product } from '@/types'
+
+vi.mock('./actions', () => ({ applyCouponAction: vi.fn() }))
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 const mockProduct: Product = {
   id: 'prod-001', name: 'Classic Frame', description: null,
@@ -94,6 +101,50 @@ describe('CartPage', () => {
 
       expect(screen.getByText('1')).toBeInTheDocument()
       expect(screen.getByText('Total: $89.99')).toBeInTheDocument()
+    })
+  })
+
+  describe('coupon code', () => {
+    it('shows the discount and adjusted total when a valid code is applied', async () => {
+      vi.mocked(CartActions.applyCouponAction).mockResolvedValue({
+        valid: true,
+        coupon: {
+          id: 'coupon-1', code: 'SAVE10', type: 'percent', value: 10,
+          validFrom: new Date(), validTo: new Date(),
+          maxUses: 100, currentUses: 5, createdAt: new Date(),
+        },
+        discount: 9,
+      })
+      renderCartWithProduct()
+
+      await userEvent.type(screen.getByLabelText(/coupon code/i), 'SAVE10')
+      await userEvent.click(screen.getByRole('button', { name: /apply/i }))
+
+      await waitFor(() => expect(CartActions.applyCouponAction).toHaveBeenCalledWith('SAVE10', 89.99))
+      expect(screen.getByText(/-\$9\.00/)).toBeInTheDocument()
+      expect(screen.getByText('Total: $80.99')).toBeInTheDocument()
+    })
+
+    it('shows the specific rejection reason for an invalid code, not a generic error', async () => {
+      vi.mocked(CartActions.applyCouponAction).mockResolvedValue({
+        valid: false,
+        reason: 'expired',
+      })
+      renderCartWithProduct()
+
+      await userEvent.type(screen.getByLabelText(/coupon code/i), 'OLDCODE')
+      await userEvent.click(screen.getByRole('button', { name: /apply/i }))
+
+      await waitFor(() => expect(screen.getByText(/expired/i)).toBeInTheDocument())
+      expect(screen.getByText('Total: $89.99')).toBeInTheDocument()
+    })
+
+    it('does not call applyCouponAction for an empty code', async () => {
+      renderCartWithProduct()
+
+      await userEvent.click(screen.getByRole('button', { name: /apply/i }))
+
+      expect(CartActions.applyCouponAction).not.toHaveBeenCalled()
     })
   })
 })

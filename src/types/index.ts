@@ -15,6 +15,20 @@ export type PrescriptionStatus = 'pending' | 'approved' | 'rejected'
 
 export type ReviewStatus = 'approved' | 'rejected'
 
+export type CouponType = 'percent' | 'fixed'
+
+export interface Coupon {
+  id: string
+  code: string
+  type: CouponType
+  value: number
+  validFrom: Date
+  validTo: Date
+  maxUses: number
+  currentUses: number
+  createdAt: Date
+}
+
 export interface ShippingAddress {
   line1: string
   line2?: string

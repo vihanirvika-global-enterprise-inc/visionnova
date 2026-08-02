@@ -14,12 +14,19 @@ interface CartContextValue {
   addToCart: (product: Product) => void
   removeFromCart: (productId: string) => void
   updateQuantity: (productId: string, quantity: number) => void
+  // The code the customer said they want to apply — just the raw string, so
+  // it survives client-side navigation from /cart to /checkout. It is never
+  // trusted as "this coupon is valid": checkoutAction re-validates and
+  // recomputes the discount server-side regardless of what's stored here.
+  couponCode: string | null
+  setCouponCode: (code: string | null) => void
 }
 
 const CartContext = createContext<CartContextValue | null>(null)
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([])
+  const [couponCode, setCouponCode] = useState<string | null>(null)
 
   function addToCart(product: Product) {
     setItems((prev) => {
@@ -64,7 +71,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const total = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
 
   return (
-    <CartContext.Provider value={{ items, total, addToCart, removeFromCart, updateQuantity }}>
+    <CartContext.Provider
+      value={{ items, total, addToCart, removeFromCart, updateQuantity, couponCode, setCouponCode }}
+    >
       {children}
     </CartContext.Provider>
   )
