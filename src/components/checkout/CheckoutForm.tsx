@@ -11,7 +11,7 @@ import { currencyForRegion } from '@/lib/currency'
 import { regionForCountry } from '@/lib/region'
 import RazorpayCheckout from './RazorpayCheckout'
 import type { PaymentProviderName } from '@/lib/payments/provider'
-import { formatAmountForStripe } from '@/lib/formatters'
+import { formatAmountForStripe, formatPrice } from '@/lib/formatters'
 import { useCart } from '@/components/cart/CartContext'
 import { trackEvent } from '@/lib/analytics'
 import type { CheckoutStep } from '@/types/stripe'
@@ -440,7 +440,7 @@ export default function CheckoutForm() {
             <div role="status" className="card mb-4 border-amber-200 bg-amber-50 p-3">
               <p className="text-sm text-amber-800">
                 Some prices were updated since you added these items to your cart.
-                Your total is now ${serverTotal.toFixed(2)}.
+                Your total is now {formatPrice(serverTotal)}.
               </p>
             </div>
           )}

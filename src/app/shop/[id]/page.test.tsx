@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { formatPrice } from '@/lib/formatters'
 
 vi.mock('@/lib/products', () => ({ getProductById: vi.fn() }))
 
@@ -20,7 +21,7 @@ describe('ProductPage', () => {
     render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
 
     expect(screen.getByText('Classic Frame')).toBeInTheDocument()
-    expect(screen.getByText('$89.99')).toBeInTheDocument()
+    expect(screen.getByText(formatPrice(89.99))).toBeInTheDocument()
   })
 
   it('shows a not found message when the product does not exist', async () => {

@@ -5,6 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useCart } from '@/components/cart/CartContext'
 import { applyCouponAction } from './actions'
+import { formatPrice } from '@/lib/formatters'
 import type { CouponValidationResult, CouponRejectionReason } from '@/lib/coupons'
 
 const COUPON_REJECTION_MESSAGES: Record<CouponRejectionReason, string> = {
@@ -106,7 +107,7 @@ export default function CartPage() {
                     {item.product.name}
                   </p>
                   <p className="font-bold text-primary">
-                    ${item.product.price.toFixed(2)}
+                    {formatPrice(item.product.price)}
                   </p>
                   {item.product.requiresPrescription && (
                     <span className="w-fit rounded-full bg-gold px-2 py-0.5 text-xs text-white">
@@ -158,13 +159,13 @@ export default function CartPage() {
 
             <div className="flex items-center justify-between text-sm text-muted">
               <span>Subtotal ({itemCount} {itemCount === 1 ? 'item' : 'items'})</span>
-              <span>${total.toFixed(2)}</span>
+              <span>{formatPrice(total)}</span>
             </div>
 
             {couponResult?.valid && (
               <div className="mt-2 flex items-center justify-between text-sm text-teal">
                 <span>Coupon applied</span>
-                <span>-${discount.toFixed(2)}</span>
+                <span>-{formatPrice(discount)}</span>
               </div>
             )}
 
@@ -206,9 +207,9 @@ export default function CartPage() {
 
             <hr className="my-3 border-slate-100" />
 
-            {/* single text node — getByText('Total: $X') requires no child elements */}
+            {/* single text node — getByText('Total: ₹X') requires no child elements */}
             <p className="font-bold text-primary">
-              Total: ${adjustedTotal.toFixed(2)}
+              Total: {formatPrice(adjustedTotal)}
             </p>
 
             <Link href="/checkout" className="btn-primary mt-6 w-full">

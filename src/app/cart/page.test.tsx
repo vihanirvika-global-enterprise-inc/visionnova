@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { CartProvider, useCart } from '@/components/cart/CartContext'
 import * as CartActions from './actions'
 import CartPage from './page'
+import { formatPrice } from '@/lib/formatters'
 import type { Product } from '@/types'
 
 vi.mock('./actions', () => ({ applyCouponAction: vi.fn() }))
@@ -46,7 +47,7 @@ describe('CartPage', () => {
     renderCartWithProduct()
 
     expect(screen.getByText('Classic Frame')).toBeInTheDocument()
-    expect(screen.getByText('Total: $89.99')).toBeInTheDocument()
+    expect(screen.getByText(`Total: ${formatPrice(89.99)}`)).toBeInTheDocument()
   })
 
   it('renders a proceed to checkout link when cart has items', () => {
@@ -71,7 +72,7 @@ describe('CartPage', () => {
       await userEvent.click(screen.getByRole('button', { name: /increase quantity/i }))
 
       expect(screen.getByText('2')).toBeInTheDocument()
-      expect(screen.getByText('Total: $179.98')).toBeInTheDocument()
+      expect(screen.getByText(`Total: ${formatPrice(179.98)}`)).toBeInTheDocument()
     })
 
     it('decrements the quantity and the order total', async () => {
@@ -83,7 +84,7 @@ describe('CartPage', () => {
       await userEvent.click(screen.getByRole('button', { name: /decrease quantity/i }))
 
       expect(screen.getByText('2')).toBeInTheDocument()
-      expect(screen.getByText('Total: $179.98')).toBeInTheDocument()
+      expect(screen.getByText(`Total: ${formatPrice(179.98)}`)).toBeInTheDocument()
     })
 
     it('removes the item and shows the empty-cart state when decremented to 0', async () => {
@@ -100,7 +101,7 @@ describe('CartPage', () => {
       await userEvent.click(screen.getByRole('button', { name: /increase quantity/i }))
 
       expect(screen.getByText('1')).toBeInTheDocument()
-      expect(screen.getByText('Total: $89.99')).toBeInTheDocument()
+      expect(screen.getByText(`Total: ${formatPrice(89.99)}`)).toBeInTheDocument()
     })
   })
 
@@ -121,8 +122,8 @@ describe('CartPage', () => {
       await userEvent.click(screen.getByRole('button', { name: /apply/i }))
 
       await waitFor(() => expect(CartActions.applyCouponAction).toHaveBeenCalledWith('SAVE10', 89.99))
-      expect(screen.getByText(/-\$9\.00/)).toBeInTheDocument()
-      expect(screen.getByText('Total: $80.99')).toBeInTheDocument()
+      expect(screen.getByText(`-${formatPrice(9)}`)).toBeInTheDocument()
+      expect(screen.getByText(`Total: ${formatPrice(80.99)}`)).toBeInTheDocument()
     })
 
     it('shows the specific rejection reason for an invalid code, not a generic error', async () => {
@@ -136,7 +137,7 @@ describe('CartPage', () => {
       await userEvent.click(screen.getByRole('button', { name: /apply/i }))
 
       await waitFor(() => expect(screen.getByText(/expired/i)).toBeInTheDocument())
-      expect(screen.getByText('Total: $89.99')).toBeInTheDocument()
+      expect(screen.getByText(`Total: ${formatPrice(89.99)}`)).toBeInTheDocument()
     })
 
     it('does not call applyCouponAction for an empty code', async () => {

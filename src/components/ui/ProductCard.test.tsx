@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { vi, describe, it, expect } from 'vitest'
 import { CartProvider, useCart } from '@/components/cart/CartContext'
 import { ProductCard } from './ProductCard'
+import { formatPrice } from '@/lib/formatters'
 import type { Product } from '@/types'
 
 const mockProduct: Product = {
@@ -23,7 +24,7 @@ describe('ProductCard', () => {
   it('renders the product name and price', () => {
     render(<CartProvider><ProductCard product={mockProduct} /></CartProvider>)
     expect(screen.getByText('Classic Frame')).toBeInTheDocument()
-    expect(screen.getByText('$89.99')).toBeInTheDocument()
+    expect(screen.getByText(formatPrice(89.99))).toBeInTheDocument()
   })
 
   it('shows a prescription badge when requiresPrescription is true', () => {
