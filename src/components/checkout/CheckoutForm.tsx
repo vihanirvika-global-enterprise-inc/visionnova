@@ -270,6 +270,13 @@ export default function CheckoutForm() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState<AddressFormData>(INITIAL_FORM)
+  // The server-recomputed total from checkoutAction — this, never the client
+  // cart's own `total`, is what actually gets charged. The cart's total can
+  // be stale (a price changed after it was added) or simply wrong (a tampered
+  // client payload), so the payment amount must come from what the server
+  // verified against the real product prices.
+  const [serverTotal, setServerTotal] = useState<number | null>(null)
+  const [priceAdjusted, setPriceAdjusted] = useState(false)
   const paymentRegionRef = useRef<HTMLDivElement>(null)
 
   // The address form unmounts on transition, destroying the focused button and
@@ -297,8 +304,11 @@ export default function CheckoutForm() {
       'cart',
       JSON.stringify(
         items.map((item) => ({
-          product: { id: item.product.id, price: item.product.price },
+          productId: item.product.id,
           quantity: item.quantity,
+          // Only used server-side to detect drift, never trusted as the
+          // actual price — see checkoutAction.
+          assumedPrice: item.product.price,
         }))
       )
     )
@@ -318,10 +328,14 @@ export default function CheckoutForm() {
       return
     }
 
+    setServerTotal(orderResult.totalAmount)
+    setPriceAdjusted(orderResult.priceAdjusted)
+
     // The server decides the gateway from the shipping country, so the routing
-    // rule is not duplicated in the browser.
+    // rule is not duplicated in the browser. orderResult.totalAmount, not the
+    // client cart's `total`, is what's actually charged — see checkoutAction.
     const result = await createPayment(
-      formatAmountForStripe(total),
+      formatAmountForStripe(orderResult.totalAmount),
       orderResult.orderId,
       formData.country
     )
@@ -337,7 +351,7 @@ export default function CheckoutForm() {
     setRazorpayKeyId(result.keyId ?? null)
     setStep('payment')
     setIsLoading(false)
-    trackEvent({ event: 'checkout_started', total, itemCount: items.length })
+    trackEvent({ event: 'checkout_started', total: orderResult.totalAmount, itemCount: items.length })
   }
 
   return (
@@ -390,6 +404,17 @@ export default function CheckoutForm() {
             Payment
           </h3>
 
+          {/* Not an error — role="status" (polite), not role="alert" — but a
+              genuine price change must never be silent. */}
+          {priceAdjusted && serverTotal !== null && (
+            <div role="status" className="card mb-4 border-amber-200 bg-amber-50 p-3">
+              <p className="text-sm text-amber-800">
+                Some prices were updated since you added these items to your cart.
+                Your total is now ${serverTotal.toFixed(2)}.
+              </p>
+            </div>
+          )}
+
           {provider === 'stripe' ? (
             <Elements stripe={getClientStripe()} options={{ clientSecret: clientRef }}>
               <PaymentForm
@@ -407,7 +432,7 @@ export default function CheckoutForm() {
               <RazorpayCheckout
                 razorpayOrderId={clientRef}
                 keyId={razorpayKeyId}
-                amountInPaise={formatAmountForStripe(total)}
+                amountInPaise={formatAmountForStripe(serverTotal ?? total)}
                 currency={currencyForRegion(regionForCountry(formData.country))}
                 onError={setError}
               />
