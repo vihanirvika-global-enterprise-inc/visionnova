@@ -213,6 +213,35 @@ describe('CheckoutForm', () => {
     expect(createPayment).not.toHaveBeenCalled()
     expect(screen.getByLabelText(/full name/i)).toBeInTheDocument()
   })
+
+  // There is currently zero linkage between cart/checkout and
+  // /prescription-upload — a customer blocked here needs an actual next step,
+  // not a dead end that just says "no" with nowhere to go.
+  it('links to prescription upload when checkout is blocked on a missing approved prescription', async () => {
+    vi.mocked(checkoutAction).mockResolvedValue({
+      error: 'One or more items require an approved prescription. Please upload and complete prescription review before checkout.',
+      requiresPrescriptionUpload: true,
+    })
+    render(<CheckoutForm />)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+
+    await waitFor(() => expect(screen.getByText(/approved prescription/i)).toBeInTheDocument())
+    const link = screen.getByRole('link', { name: /upload/i })
+    expect(link).toHaveAttribute('href', '/prescription-upload')
+  })
+
+  it('does not render an upload link for an ordinary checkout error', async () => {
+    vi.mocked(checkoutAction).mockResolvedValue({ error: 'City is required' })
+    render(<CheckoutForm />)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+
+    await waitFor(() => expect(screen.getByText('City is required')).toBeInTheDocument())
+    expect(screen.queryByRole('link', { name: /upload/i })).not.toBeInTheDocument()
+  })
 })
 
 describe('CheckoutForm payment method selection', () => {
