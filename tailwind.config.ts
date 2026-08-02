@@ -9,15 +9,18 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        primary: "#0E7490",
+        primary: "#1E3A8A",
+        teal: "#0E7C7B",
+        terracotta: "#C4643C",
+        canvas: "#FBFAF8",
         gold: "#B45309",
         dark: "#0f172a",
         muted: "#64748b",
         surface: "#f8fafc",
       },
       fontFamily: {
-        sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
-        mono: ["var(--font-geist-mono)", "monospace"],
+        sans: ["Plus Jakarta Sans", "system-ui", "sans-serif"],
+        mono: ["IBM Plex Mono", "monospace"],
       },
     },
   },
