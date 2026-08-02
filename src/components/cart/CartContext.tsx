@@ -28,7 +28,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([])
   const [couponCode, setCouponCode] = useState<string | null>(null)
 
+  // Defense in depth: the catalog/PDP already hide the Add to Cart button for
+  // an out-of-stock product, but this is the actual boundary that owns cart
+  // state, so it must not trust that every caller remembered the UI guard.
   function addToCart(product: Product) {
+    if (product.stockQuantity <= 0) return
+
     setItems((prev) => {
       const existing = prev.find((item) => item.product.id === product.id)
       if (existing) {
@@ -49,18 +54,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   // No live stock check here — the cart is pure in-memory state with no
   // server sync, so product.stockQuantity is only the snapshot from whenever
   // the item was added. It's a soft cap against an arbitrary quantity, not a
-  // real-time availability guarantee.
+  // real-time availability guarantee. A zero-stock snapshot floors to 0 (the
+  // item is removed), never to 1 — stock, unlike a quantity typo, is never a
+  // reason to keep at least one in the cart.
   function updateQuantity(productId: string, quantity: number) {
     setItems((prev) => {
       const existing = prev.find((item) => item.product.id === productId)
       if (!existing) return prev
 
-      if (quantity <= 0) {
+      const capped = Math.min(quantity, existing.product.stockQuantity)
+
+      if (capped <= 0) {
         return prev.filter((item) => item.product.id !== productId)
       }
-
-      const max = Math.max(1, existing.product.stockQuantity)
-      const capped = Math.min(quantity, max)
 
       return prev.map((item) =>
         item.product.id === productId ? { ...item, quantity: capped } : item

@@ -83,6 +83,22 @@ export async function checkoutAction(formData: FormData): Promise<CheckoutResult
     }
   }
 
+  // Stock, like price, is client-supplied state that can drift or be
+  // tampered with between add-to-cart and checkout. Unlike a price
+  // difference, a stock shortfall can't be silently reconciled — there's no
+  // "close enough" when the physical quantity available is less than what
+  // was requested — so this rejects the whole checkout rather than
+  // partially processing or auto-capping the quantity, same all-or-nothing
+  // shape as the prescription gate below.
+  const insufficientStock = resolvedItems.some(
+    (item) => item.quantity > item.product!.stockQuantity
+  )
+  if (insufficientStock) {
+    return {
+      error: 'One or more items in your cart no longer have enough stock available. Please update the quantity and try again.',
+    }
+  }
+
   // MVP bar: "does this customer have at least one approved prescription on
   // file" — not a per-product match. There is no product-to-prescription
   // linkage anywhere in the schema today, so a stricter per-item check isn't

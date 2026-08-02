@@ -301,6 +301,66 @@ describe('checkoutAction — prescription-confirmation gate', () => {
   })
 })
 
+describe('checkoutAction — stock re-validation', () => {
+  // Same principle as the pricing fix: never trust the client cart's
+  // quantity against stock any more than its price. Stock is re-fetched here
+  // and, unlike a price drift, a shortfall blocks checkout entirely rather
+  // than silently adjusting the quantity — there is no "close enough" when
+  // what's actually available is physically less than what was requested.
+  it('rejects checkout when requested quantity exceeds current stock', async () => {
+    vi.mocked(Products.getProductById).mockResolvedValue({ ...realProduct, stockQuantity: 2 })
+
+    const result = await checkoutAction(
+      makeFormData(address, cartPayload([{ productId: 'prod-1', quantity: 5, assumedPrice: 99.99 }]))
+    )
+
+    expect(result).toEqual({ error: expect.any(String) })
+    expect(Orders.createOrder).not.toHaveBeenCalled()
+    expect(OrderItems.addOrderItem).not.toHaveBeenCalled()
+  })
+
+  it('proceeds when the requested quantity exactly matches available stock', async () => {
+    vi.mocked(Products.getProductById).mockResolvedValue({ ...realProduct, stockQuantity: 2 })
+
+    const result = await checkoutAction(
+      makeFormData(address, cartPayload([{ productId: 'prod-1', quantity: 2, assumedPrice: 99.99 }]))
+    )
+
+    expect('error' in result).toBe(false)
+    expect(Orders.createOrder).toHaveBeenCalled()
+  })
+
+  it('rejects the entire checkout for a mixed cart — one item with enough stock, one without — not just the short item', async () => {
+    vi.mocked(Products.getProductById).mockImplementation(async (id: string) => {
+      if (id === 'prod-1') return { ...realProduct, id: 'prod-1', stockQuantity: 5 }
+      if (id === 'prod-2') return { ...realProduct, id: 'prod-2', stockQuantity: 0 }
+      return null
+    })
+
+    const result = await checkoutAction(
+      makeFormData(address, cartPayload([
+        { productId: 'prod-1', quantity: 1, assumedPrice: 99.99 },
+        { productId: 'prod-2', quantity: 1, assumedPrice: 99.99 },
+      ]))
+    )
+
+    expect(result).toEqual({ error: expect.any(String) })
+    expect(Orders.createOrder).not.toHaveBeenCalled()
+    expect(OrderItems.addOrderItem).not.toHaveBeenCalled()
+  })
+
+  // Normal case: stock is adequate throughout, so this check must never
+  // interfere with an ordinary checkout.
+  it('does not block checkout when stock is adequate for every item', async () => {
+    const result = await checkoutAction(
+      makeFormData(address, cartPayload([{ productId: 'prod-1', quantity: 2, assumedPrice: 99.99 }]))
+    )
+
+    expect('error' in result).toBe(false)
+    expect(Orders.createOrder).toHaveBeenCalled()
+  })
+})
+
 describe('checkoutAction — coupon re-validation', () => {
   it('does not touch coupon logic at all when no code is submitted', async () => {
     await checkoutAction(

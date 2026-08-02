@@ -38,6 +38,29 @@ describe('useCart', () => {
     expect(result.current.items[0].quantity).toBe(2)
   })
 
+  describe('addToCart — stock guard', () => {
+    it('does not add an out-of-stock product to the cart', () => {
+      const { result } = renderHook(() => useCart(), { wrapper: CartProvider })
+
+      act(() => result.current.addToCart({ ...mockProduct, stockQuantity: 0 }))
+
+      expect(result.current.items).toHaveLength(0)
+    })
+
+    // The passed-in product is the freshest data the caller has (e.g. a
+    // re-fetched page). If it now shows zero stock, a second "Add to Cart"
+    // click must not increment the existing line, even though the item was
+    // legitimately added earlier while stock was available.
+    it('does not increment an existing cart item if the current product data now shows zero stock', () => {
+      const { result } = renderHook(() => useCart(), { wrapper: CartProvider })
+
+      act(() => result.current.addToCart(mockProduct))
+      act(() => result.current.addToCart({ ...mockProduct, stockQuantity: 0 }))
+
+      expect(result.current.items[0].quantity).toBe(1)
+    })
+  })
+
   it('removes a product from the cart', () => {
     const { result } = renderHook(() => useCart(), { wrapper: CartProvider })
 
