@@ -77,11 +77,15 @@ export default function LoginPage() {
               autoComplete="current-password"
               className="input-field"
             />
+            {/* Was href="#": a control that looked actionable, did nothing,
+                and sat on the page a locked-out user reaches for first. There
+                is no self-service reset flow yet, so this goes to the real
+                support channel rather than implying one exists. */}
             <a
-              href="#"
+              href="mailto:support@visionnova.com?subject=Password%20reset%20request"
               className="mt-1 block text-right text-xs text-primary"
             >
-              Forgot password?
+              Forgot password? Email support
             </a>
           </div>
 

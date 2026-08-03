@@ -115,11 +115,15 @@ export default function RegisterPage() {
             Create Account
           </button>
 
+          {/* No Terms of Service or Privacy Policy document exists yet, so this
+              no longer asks for consent to them. Fake consent is worse than
+              none; the honest position is to say where questions go until the
+              real documents are published. */}
           <p className="text-center text-xs text-muted">
-            By creating an account you agree to our{' '}
-            <Link href="/help" className="text-primary underline">Terms of Service</Link>
-            {' '}and{' '}
-            <Link href="/help" className="text-primary underline">Privacy Policy</Link>
+            Questions about our terms or how we handle your data? Email{' '}
+            <a href="mailto:support@visionnova.com" className="text-primary underline">
+              support@visionnova.com
+            </a>
           </p>
 
         </form>

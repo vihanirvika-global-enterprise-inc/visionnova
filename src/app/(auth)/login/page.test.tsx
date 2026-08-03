@@ -39,3 +39,31 @@ describe('LoginPage', () => {
     })
   })
 })
+
+// This was href="#" — a control that looked actionable, did nothing, and sat
+// on the one page a locked-out user reaches for. No password-reset flow
+// exists (no route, action, token table or email template), so it points at
+// the real support channel rather than pretending self-service exists.
+describe('LoginPage password recovery', () => {
+  it('offers a recovery affordance that actually goes somewhere', () => {
+    render(<LoginPage />)
+
+    const recovery = screen.getByRole('link', { name: /forgot password/i })
+    expect(recovery).toHaveAttribute('href', expect.stringContaining('mailto:support@visionnova.com'))
+  })
+
+  it('has no dead placeholder links anywhere on the page', () => {
+    const { container } = render(<LoginPage />)
+
+    const deadLinks = Array.from(container.querySelectorAll('a[href="#"], a[href=""]'))
+    expect(deadLinks).toHaveLength(0)
+  })
+
+  // Wording must not imply a self-service reset email the app cannot send.
+  it('does not promise an automated reset email', () => {
+    render(<LoginPage />)
+
+    const recovery = screen.getByRole('link', { name: /forgot password/i })
+    expect(recovery.textContent).not.toMatch(/reset link|reset email|check your (inbox|email)/i)
+  })
+})
