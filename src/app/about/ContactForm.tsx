@@ -32,6 +32,22 @@ export default function ContactForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      {/* Honeypot: real visitors never see, tab to, or hear this field — a
+          bot filling every input indiscriminately populates it, and
+          sendContactEmail drops the submission silently when it does. Not
+          visually hidden via CSS alone (some scrapers skip display:none),
+          but also aria-hidden and unreachable by keyboard, so it's invisible
+          to assistive tech too, not just sighted users. */}
+      <input
+        type="text"
+        name="company"
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+        className="absolute h-px w-px overflow-hidden opacity-0"
+        style={{ left: '-9999px' }}
+      />
+
       {error && (
         <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
           {error}

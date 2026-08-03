@@ -24,6 +24,16 @@ export function captureAuthWarning(error: Error, context: { check?: string } = {
   Sentry.captureException(error, { extra: context })
 }
 
+// A honeypot trip is a spam signal, not an error — nothing failed and no
+// email was attempted, so this deliberately does not touch email_log (which
+// records real send attempts) or captureException (which implies a bug).
+export function captureSpamAttempt(context: { form: string; ip?: string }) {
+  Sentry.captureMessage(`Honeypot triggered on ${context.form}`, {
+    level: 'info',
+    extra: context,
+  })
+}
+
 // Deliberately louder than captureAuthWarning: this fires when rate limiting
 // is failing open, meaning register/login are currently unprotected against
 // brute-force/credential-stuffing. That's an actionable incident, not a
