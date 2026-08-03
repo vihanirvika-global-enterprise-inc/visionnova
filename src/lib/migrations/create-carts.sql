@@ -6,11 +6,16 @@ CREATE TABLE IF NOT EXISTS carts (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- variant_id is deliberately NOT declared here. Migrations run in alphabetical
+-- filename order, and create-product-variants.sql sorts after this file, so a
+-- FK to product_variants would reference a table that does not exist yet on a
+-- fresh database. It is added by link-cart-items-to-variants.sql, which sorts
+-- after both. Databases migrated before that split already have the column, so
+-- both paths converge on the same schema.
 CREATE TABLE IF NOT EXISTS cart_items (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   cart_id     UUID NOT NULL REFERENCES carts(id),
   product_id  UUID NOT NULL REFERENCES products(id),
-  variant_id  UUID REFERENCES product_variants(id),
   qty         INTEGER NOT NULL CHECK (qty > 0),
   unit_price  NUMERIC(10, 2) NOT NULL CHECK (unit_price >= 0),
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()

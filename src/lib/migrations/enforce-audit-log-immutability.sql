@@ -12,6 +12,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- DROP-first because CREATE TRIGGER has no IF NOT EXISTS form. Same shape the
+-- constraint migrations use (DROP CONSTRAINT IF EXISTS before ADD CONSTRAINT),
+-- so re-running this against a database that already has the trigger is a
+-- no-op rather than a "trigger already exists" error. That state is reachable
+-- whenever the trigger was applied but the schema_migrations row wasn't
+-- recorded, which blocked db:setup partway through for everyone after it.
+DROP TRIGGER IF EXISTS audit_logs_immutable ON audit_logs;
+
 CREATE TRIGGER audit_logs_immutable
   BEFORE UPDATE OR DELETE ON audit_logs
   FOR EACH ROW

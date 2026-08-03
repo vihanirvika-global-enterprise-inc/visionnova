@@ -201,7 +201,6 @@ describe('the real migrations directory', () => {
     expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS cart_items/)
     expect(sql).toMatch(/cart_id\s+UUID NOT NULL REFERENCES carts\(id\)/)
     expect(sql).toMatch(/product_id\s+UUID NOT NULL REFERENCES products\(id\)/)
-    expect(sql).toMatch(/variant_id\s+UUID REFERENCES product_variants\(id\)/)
     expect(sql).toMatch(/qty\s+INTEGER NOT NULL CHECK \(qty > 0\)/)
     expect(sql).toMatch(/unit_price\s+NUMERIC\(10, 2\) NOT NULL CHECK \(unit_price >= 0\)/)
 
@@ -209,6 +208,51 @@ describe('the real migrations directory', () => {
     // references carts(id) and migrations apply top-to-bottom in one file
     expect(sql.indexOf('CREATE TABLE IF NOT EXISTS carts')).toBeLessThan(
       sql.indexOf('CREATE TABLE IF NOT EXISTS cart_items')
+    )
+  })
+
+  // variant_id lives in its own migration rather than in create-carts.sql:
+  // migrations run in alphabetical filename order and create-product-variants
+  // sorts after create-carts, so declaring the FK inline referenced a table
+  // that did not exist yet and broke db:setup on a fresh database.
+  it('adds cart_items.variant_id only after product_variants exists', async () => {
+    const { MIGRATIONS_DIR } = await import('./migrations.js')
+    const files = listMigrationFiles(MIGRATIONS_DIR)
+
+    expect(files).toContain('link-cart-items-to-variants.sql')
+
+    const sql = readFileSync(join(MIGRATIONS_DIR, 'link-cart-items-to-variants.sql'), 'utf8')
+    expect(sql).toMatch(/ADD COLUMN IF NOT EXISTS variant_id UUID REFERENCES product_variants\(id\)/)
+
+    // The ordering guarantee itself: both referenced tables must be created by
+    // migrations that sort earlier than this one.
+    const linkIndex = files.indexOf('link-cart-items-to-variants.sql')
+    expect(linkIndex).toBeGreaterThan(files.indexOf('create-carts.sql'))
+    expect(linkIndex).toBeGreaterThan(files.indexOf('create-product-variants.sql'))
+  })
+
+  // create-carts.sql must not reintroduce the forward reference.
+  it('does not reference product_variants from create-carts.sql', async () => {
+    const { MIGRATIONS_DIR } = await import('./migrations.js')
+    const sql = readFileSync(join(MIGRATIONS_DIR, 'create-carts.sql'), 'utf8')
+    const statements = sql.split('\n').filter((line) => !line.trim().startsWith('--')).join('\n')
+
+    expect(statements).not.toMatch(/REFERENCES product_variants/)
+  })
+
+  // Re-running a migration has to be a no-op, because the ledger and the
+  // database can drift apart (a migration applied by hand, a ledger restored
+  // from an older dump). CREATE TRIGGER has no IF NOT EXISTS form, so the
+  // DROP-first guard is what makes this one safe to re-apply — without it,
+  // db:setup died partway through for every developer after that point.
+  it('guards the audit-log trigger so re-running the migration is a no-op', async () => {
+    const { MIGRATIONS_DIR } = await import('./migrations.js')
+    const sql = readFileSync(join(MIGRATIONS_DIR, 'enforce-audit-log-immutability.sql'), 'utf8')
+
+    expect(sql).toMatch(/DROP TRIGGER IF EXISTS audit_logs_immutable ON audit_logs/)
+    expect(sql).toMatch(/CREATE OR REPLACE FUNCTION reject_audit_log_mutation/)
+    expect(sql.indexOf('DROP TRIGGER IF EXISTS')).toBeLessThan(
+      sql.indexOf('CREATE TRIGGER audit_logs_immutable')
     )
   })
 
