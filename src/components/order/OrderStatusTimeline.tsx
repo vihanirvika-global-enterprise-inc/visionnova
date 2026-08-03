@@ -1,4 +1,5 @@
 import type { OrderStatus } from '@/types'
+import { ORDER_STATUS_LABELS } from '@/lib/orderStatus'
 
 // The happy path an order travels. cancelled and payment_failed are deliberately
 // absent: they are exits, not points along it.
@@ -12,13 +13,9 @@ export const ORDER_TIMELINE = [
 
 type TimelineStatus = (typeof ORDER_TIMELINE)[number]
 
-const STEP_LABELS: Record<TimelineStatus, string> = {
-  pending: 'Placed',
-  paid: 'Paid',
-  processing: 'Processing',
-  shipped: 'Shipped',
-  delivered: 'Delivered',
-}
+// Step wording comes from the shared status labels rather than a second copy,
+// so a rename can't leave the timeline and the account badges disagreeing.
+const STEP_LABELS: Record<TimelineStatus, string> = ORDER_STATUS_LABELS
 
 const EXCEPTION_MESSAGES: Record<string, string> = {
   cancelled: 'This order was cancelled.',

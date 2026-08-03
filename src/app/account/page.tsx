@@ -1,31 +1,45 @@
 import Link from 'next/link'
 import { getOrdersByCustomer } from '@/lib/orders'
 import { getPrescriptionsByCustomer } from '@/lib/prescriptions'
+import { getCustomerById } from '@/lib/customers'
 import { getSession } from '@/lib/session'
 import { formatPrice } from '@/lib/formatters'
+import { orderStatusLabel } from '@/lib/orderStatus'
 
 function statusColors(status: string): string {
   if (status === 'approved' || status === 'delivered' || status === 'shipped') {
     return 'bg-green-100 text-green-700'
   }
-  if (status === 'rejected' || status === 'cancelled') {
+  if (status === 'rejected' || status === 'cancelled' || status === 'payment_failed') {
     return 'bg-red-100 text-red-700'
   }
   return 'bg-amber-100 text-amber-700'
+}
+
+// expires_at is nullable — say so rather than rendering a blank cell or an
+// Invalid Date, which reads as a bug to the customer.
+function expiryLabel(expiresAt: Date | null): string {
+  if (!expiresAt) return 'No expiry on file'
+  return `Expires ${expiresAt.toLocaleDateString('en-IN')}`
 }
 
 export default async function AccountPage() {
   const session = getSession()
   const customerId = session?.customerId ?? ''
 
-  const [orders, prescriptions] = await Promise.all([
+  const [orders, prescriptions, customer] = await Promise.all([
     getOrdersByCustomer(customerId),
     getPrescriptionsByCustomer(customerId),
+    getCustomerById(customerId),
   ])
+
+  // The session can outlive the customer row (deleted account, stale cookie),
+  // so the greeting degrades instead of assuming a record exists.
+  const greeting = customer ? `Welcome back, ${customer.firstName}` : 'My Account'
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
-      <h1 className="text-dark">My Account</h1>
+      <h1 className="text-dark">{greeting}</h1>
 
       <div className="mt-8 flex flex-col gap-8">
 
@@ -71,18 +85,40 @@ export default async function AccountPage() {
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                     </svg>
-                    <span className="font-medium text-dark">Prescription #{index + 1}</span>
+                    <div>
+                      <span className="block font-medium text-dark">Prescription #{index + 1}</span>
+                      <span
+                        data-testid={`rx-expiry-${rx.id}`}
+                        className="block text-xs text-muted"
+                      >
+                        {expiryLabel(rx.expiresAt)}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
+                    {rx.status === 'rejected' && (
+                      <Link
+                        href="/prescription-upload"
+                        className="text-xs font-medium text-primary hover:underline"
+                      >
+                        Re-upload
+                      </Link>
+                    )}
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColors(rx.status)}`}>
                       {rx.status}
-                    </span>
-                    <span className="text-xs text-muted">
-                      {rx.createdAt.toLocaleDateString()}
                     </span>
                   </div>
                 </div>
               ))}
+
+              {/* Previously the only upload affordance was the empty state, so
+                  a customer whose sole prescription was rejected had nowhere
+                  to go from this page. */}
+              <div className="pt-4">
+                <Link href="/prescription-upload" className="btn-secondary text-sm">
+                  Upload a new prescription
+                </Link>
+              </div>
             </div>
           )}
         </div>
@@ -138,8 +174,11 @@ export default async function AccountPage() {
                     >
                       {formatPrice(order.totalAmount)}
                     </p>
-                    <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusColors(order.status)}`}>
-                      {order.status}
+                    <span
+                      data-testid={`order-status-${order.id}`}
+                      className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusColors(order.status)}`}
+                    >
+                      {orderStatusLabel(order.status)}
                     </span>
                   </div>
                 </div>
