@@ -110,3 +110,38 @@ describe('reviewPrescription', () => {
     expect(Prescriptions.updatePrescriptionStatus).not.toHaveBeenCalled()
   })
 })
+
+// Middleware's /admin matcher intercepts this action today, but that is a
+// config-line guarantee on the decision that approves medical data. The role
+// check belongs on the action itself.
+describe('reviewPrescription — role gate', () => {
+  it.each([
+    ['customer', 'a plain customer'],
+    ['ops', 'ops, deliberately excluded from clinical review'],
+  ])('refuses a %s session (%s) without changing status or writing a review log', async (role) => {
+    vi.mocked(Session.getSession).mockReturnValue({ customerId: 'cust-001', role })
+
+    const { reviewPrescription } = await import('./actions')
+    const fd = new FormData()
+    fd.set('prescriptionId', 'rx-001')
+    fd.set('action', 'approved')
+
+    await reviewPrescription(fd)
+
+    expect(Prescriptions.updatePrescriptionStatus).not.toHaveBeenCalled()
+    expect(Prescriptions.logPrescriptionReviewAction).not.toHaveBeenCalled()
+  })
+
+  it.each(['optometrist', 'admin'])('allows a %s session through', async (role) => {
+    vi.mocked(Session.getSession).mockReturnValue({ customerId: 'reviewer-001', role })
+
+    const { reviewPrescription } = await import('./actions')
+    const fd = new FormData()
+    fd.set('prescriptionId', 'rx-001')
+    fd.set('action', 'approved')
+
+    await reviewPrescription(fd)
+
+    expect(Prescriptions.updatePrescriptionStatus).toHaveBeenCalledWith('rx-001', 'approved')
+  })
+})

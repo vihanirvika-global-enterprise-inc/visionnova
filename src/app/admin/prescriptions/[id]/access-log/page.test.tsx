@@ -22,6 +22,7 @@ const logEntry = {
   accessorId: 'cust-009',
   accessorName: 'Dr Rao',
   accessorRole: 'optometrist',
+  accessType: 'file' as const,
   accessedAt: new Date('2026-07-20T09:30:00Z'),
 }
 
@@ -104,5 +105,27 @@ describe('AccessLogPage — trail', () => {
       'href',
       `/admin/prescriptions/${RX}`
     )
+  })
+
+  // Opening the record and opening the scanned file are different acts. The
+  // trail records both, so it has to say which happened.
+  it('distinguishes a file read from a metadata read', async () => {
+    vi.mocked(getAccessLogsByPrescription).mockResolvedValue([
+      { ...logEntry, id: 'log-file', accessType: 'file' },
+      { ...logEntry, id: 'log-meta', accessType: 'metadata' },
+    ] as never)
+
+    await renderPage()
+
+    expect(screen.getByTestId('access-log-log-file')).toHaveTextContent(/prescription file/i)
+    expect(screen.getByTestId('access-log-log-meta')).toHaveTextContent(/patient record/i)
+  })
+
+  // The screen previously claimed to list "every read of this prescription
+  // file" — inaccurate now that metadata reads are recorded too.
+  it('describes the trail as covering reads of the prescription, not only its file', async () => {
+    await renderPage()
+
+    expect(screen.getByText(/every read of this prescription, most recent first/i)).toBeInTheDocument()
   })
 })

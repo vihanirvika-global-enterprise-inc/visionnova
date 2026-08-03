@@ -2,6 +2,10 @@ import { render, screen } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 vi.mock('@/lib/prescriptions', () => ({ getPendingPrescriptions: vi.fn() }))
+vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
+vi.mock('next/navigation', () => ({
+  notFound: vi.fn(() => { throw new Error('NEXT_NOT_FOUND') }),
+}))
 
 const now = new Date()
 const makePrescription = (overrides: Record<string, unknown> = {}) => ({
@@ -18,7 +22,12 @@ const makePrescription = (overrides: Record<string, unknown> = {}) => ({
 })
 
 describe('AdminPrescriptionsPage', () => {
-  beforeEach(() => { vi.resetModules(); vi.clearAllMocks() })
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.clearAllMocks()
+    const { getSession } = await import('@/lib/session')
+    vi.mocked(getSession).mockReturnValue({ customerId: 'reviewer-001', role: 'optometrist' })
+  })
 
   it('renders a row for each pending prescription', async () => {
     const { getPendingPrescriptions } = await import('@/lib/prescriptions')
@@ -63,6 +72,40 @@ describe('AdminPrescriptionsPage', () => {
 
   it('shows an empty state when no prescriptions are pending', async () => {
     const { getPendingPrescriptions } = await import('@/lib/prescriptions')
+    vi.mocked(getPendingPrescriptions).mockResolvedValueOnce([])
+
+    const AdminPrescriptionsPage = (await import('./page')).default
+    render(await AdminPrescriptionsPage())
+
+    expect(screen.getByText(/no pending prescriptions/i)).toBeInTheDocument()
+  })
+})
+
+// The queue lists patient names and email addresses. Middleware gates /admin,
+// but this page re-checks rather than trusting a matcher stays correct — the
+// same reasoning the access-log page already applies.
+describe('AdminPrescriptionsPage — role gate', () => {
+  beforeEach(() => { vi.resetModules(); vi.clearAllMocks() })
+
+  it.each([
+    ['no session', null],
+    ['a plain customer', { customerId: 'cust-001', role: 'customer' }],
+    ['ops', { customerId: 'ops-001', role: 'ops' }],
+  ])('404s %s without querying the queue', async (_label, session) => {
+    const { getSession } = await import('@/lib/session')
+    const { getPendingPrescriptions } = await import('@/lib/prescriptions')
+    vi.mocked(getSession).mockReturnValue(session as never)
+
+    const AdminPrescriptionsPage = (await import('./page')).default
+
+    await expect(AdminPrescriptionsPage()).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(getPendingPrescriptions).not.toHaveBeenCalled()
+  })
+
+  it.each(['optometrist', 'admin'])('allows a %s through', async (role) => {
+    const { getSession } = await import('@/lib/session')
+    const { getPendingPrescriptions } = await import('@/lib/prescriptions')
+    vi.mocked(getSession).mockReturnValue({ customerId: 'reviewer-001', role })
     vi.mocked(getPendingPrescriptions).mockResolvedValueOnce([])
 
     const AdminPrescriptionsPage = (await import('./page')).default

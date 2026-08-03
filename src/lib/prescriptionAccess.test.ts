@@ -7,7 +7,7 @@ vi.mock('./prescriptionAccessLogs', () => ({ logPrescriptionAccess: vi.fn() }))
 import { getPrescriptionById } from './prescriptions'
 import { readPrescriptionFile } from './prescriptionStorage'
 import { logPrescriptionAccess } from './prescriptionAccessLogs'
-import { readPrescriptionForSession } from './prescriptionAccess'
+import { readPrescriptionForSession, readPrescriptionMetadataForSession } from './prescriptionAccess'
 
 const OWNER = 'cust-owner'
 const RX = 'rx-1'
@@ -73,6 +73,7 @@ describe('readPrescriptionForSession — logs every successful read', () => {
       prescriptionId: RX,
       accessorId: OWNER,
       accessorRole: 'customer',
+      accessType: 'file',
     })
   })
 
@@ -84,6 +85,7 @@ describe('readPrescriptionForSession — logs every successful read', () => {
       prescriptionId: RX,
       accessorId: 'cust-reviewer',
       accessorRole: role,
+      accessType: 'file',
     })
   })
 
@@ -101,6 +103,67 @@ describe('readPrescriptionForSession — logs every successful read', () => {
     vi.mocked(logPrescriptionAccess).mockRejectedValue(new Error('db down'))
 
     const result = await readPrescriptionForSession(RX, { customerId: OWNER, role: 'customer' })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe('audit_failed')
+  })
+})
+
+// Opening the review screen shows the patient's name, email and submission
+// date. That is a read of health data even though no file is fetched, so it
+// belongs on the same trail — recorded as 'metadata' so an auditor can tell
+// the two apart.
+describe('readPrescriptionMetadataForSession', () => {
+  it('returns the prescription to a reviewer and logs a metadata read', async () => {
+    const result = await readPrescriptionMetadataForSession(RX, {
+      customerId: 'cust-reviewer', role: 'optometrist',
+    })
+
+    expect(result.ok).toBe(true)
+    expect(logPrescriptionAccess).toHaveBeenCalledWith({
+      prescriptionId: RX,
+      accessorId: 'cust-reviewer',
+      accessorRole: 'optometrist',
+      accessType: 'metadata',
+    })
+  })
+
+  it('never reads the file bytes for a metadata read', async () => {
+    await readPrescriptionMetadataForSession(RX, { customerId: OWNER, role: 'customer' })
+
+    expect(readPrescriptionFile).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['unauthenticated', null],
+    ['forbidden', { customerId: 'someone-else', role: 'customer' }],
+  ])('denies %s without logging', async (reason, session) => {
+    const result = await readPrescriptionMetadataForSession(RX, session as never)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe(reason)
+    expect(logPrescriptionAccess).not.toHaveBeenCalled()
+  })
+
+  it('denies an unknown prescription', async () => {
+    vi.mocked(getPrescriptionById).mockResolvedValue(null)
+
+    const result = await readPrescriptionMetadataForSession(RX, {
+      customerId: 'cust-reviewer', role: 'optometrist',
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe('not_found')
+    expect(logPrescriptionAccess).not.toHaveBeenCalled()
+  })
+
+  // Same compliance bar as the file read: no unlogged look at health data.
+  it('fails closed when the audit write fails', async () => {
+    vi.mocked(logPrescriptionAccess).mockRejectedValue(new Error('db down'))
+
+    const result = await readPrescriptionMetadataForSession(RX, {
+      customerId: 'cust-reviewer', role: 'optometrist',
+    })
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('audit_failed')
