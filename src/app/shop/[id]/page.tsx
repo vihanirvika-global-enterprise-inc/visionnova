@@ -1,7 +1,8 @@
-import Image from 'next/image'
 import Link from 'next/link'
 import { getProductById } from '@/lib/products'
+import { getProductImages } from '@/lib/productImages'
 import { AddToCartButton } from '@/components/ui/AddToCartButton'
+import { ProductGallery } from '@/components/shop/ProductGallery'
 import { formatPrice } from '@/lib/formatters'
 
 interface ProductPageProps {
@@ -19,6 +20,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
     )
   }
 
+  const images = await getProductImages(product.id)
+
   return (
     <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
 
@@ -33,31 +36,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
       {/* Two-column layout */}
       <div className="grid gap-12 md:grid-cols-2 md:items-start">
 
-        {/* ── Left: image ───────────────────────────────────── */}
-        <div className="aspect-square overflow-hidden rounded-2xl bg-slate-100">
-          {product.imageUrl ? (
-            <Image
-              src={product.imageUrl}
-              alt={product.name}
-              width={600}
-              height={600}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary to-teal">
-              <svg aria-hidden="true"
-                className="h-24 w-24 text-white opacity-40"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </div>
-          )}
-        </div>
+        {/* ── Left: image gallery ──────────────────────────────── */}
+        <ProductGallery images={images} fallbackUrl={product.imageUrl} productName={product.name} />
 
         {/* ── Right: details ────────────────────────────────── */}
         <div className="flex flex-col">
