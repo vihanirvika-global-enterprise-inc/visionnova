@@ -7,11 +7,16 @@ export function Footer() {
 
   return (
     <footer>
+      {/* These pointed at /legal/terms, /legal/privacy, /legal/returns and
+          /legal/shipping. No /legal route exists, so all four 404'd on every
+          page. Returns and Shipping now point at /help, which genuinely holds
+          that policy. Terms and Privacy are not linked at all: no such
+          document exists yet, and a link to nothing is worse than no link —
+          the Grievance Officer contact below is the real route for
+          data-protection questions in the meantime. */}
       <nav aria-label="legal">
-        <a href="/legal/terms">Terms</a>
-        <a href="/legal/privacy">Privacy</a>
-        <a href="/legal/returns">Returns</a>
-        <a href="/legal/shipping">Shipping</a>
+        <a href="/help">Returns</a>
+        <a href="/help">Shipping</a>
       </nav>
 
       <section aria-labelledby="grievance-officer-heading">

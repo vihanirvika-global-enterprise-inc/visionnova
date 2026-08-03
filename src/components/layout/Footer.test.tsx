@@ -2,15 +2,41 @@ import { render, screen } from '@testing-library/react'
 import { describe, it, expect, afterEach } from 'vitest'
 import { Footer } from './Footer'
 
+// These four previously pointed at /legal/terms, /legal/privacy,
+// /legal/returns and /legal/shipping. No src/app/legal route exists, so every
+// one of them 404'd — on every page of the site, since the footer is global.
 describe('Footer legal links', () => {
-  it('renders links to Terms, Privacy, Returns, and Shipping', () => {
+  it('renders the footer landmark', () => {
+    render(<Footer />)
+    expect(screen.getByRole('contentinfo')).toBeInTheDocument()
+  })
+
+  // /help genuinely carries the returns and shipping policy (its "Returns &
+  // Refunds" and "Shipping & Delivery" sections), so these are real
+  // destinations rather than a redirect to something unrelated.
+  it('points Returns and Shipping at the help page, which holds that policy', () => {
     render(<Footer />)
 
-    expect(screen.getByRole('contentinfo')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/legal/terms')
-    expect(screen.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/legal/privacy')
-    expect(screen.getByRole('link', { name: 'Returns' })).toHaveAttribute('href', '/legal/returns')
-    expect(screen.getByRole('link', { name: 'Shipping' })).toHaveAttribute('href', '/legal/shipping')
+    expect(screen.getByRole('link', { name: 'Returns' })).toHaveAttribute('href', '/help')
+    expect(screen.getByRole('link', { name: 'Shipping' })).toHaveAttribute('href', '/help')
+  })
+
+  // No Terms of Service or Privacy Policy document exists anywhere in the
+  // codebase. A link is not offered rather than pointing one at a 404 or at
+  // unrelated content — the Grievance Officer block below is the real,
+  // statutorily-designated contact for data-protection questions.
+  it('does not link to a Terms or Privacy document that does not exist', () => {
+    render(<Footer />)
+
+    expect(screen.queryByRole('link', { name: 'Terms' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Privacy' })).not.toBeInTheDocument()
+  })
+
+  it('never links into /legal, which has no routes', () => {
+    const { container } = render(<Footer />)
+
+    const legalLinks = Array.from(container.querySelectorAll('a[href^="/legal"]'))
+    expect(legalLinks).toHaveLength(0)
   })
 })
 
