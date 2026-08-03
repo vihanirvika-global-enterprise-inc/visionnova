@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { describe, it, expect, afterEach } from 'vitest'
 import { Footer } from './Footer'
 
@@ -86,14 +86,18 @@ describe('Footer Grievance Officer contact', () => {
     expect(alert).toHaveTextContent(/dpdp/i)
   })
 
-  it('does not render a mailto or tel link when unconfigured', () => {
+  // Scoped to the Grievance Officer section specifically: the footer's
+  // newsletter line always has its own mailto link, unrelated to whether the
+  // Grievance Officer contact is configured.
+  it('does not render a grievance mailto or tel link when unconfigured', () => {
     delete process.env.GRIEVANCE_OFFICER_NAME
     delete process.env.GRIEVANCE_OFFICER_EMAIL
     delete process.env.GRIEVANCE_OFFICER_PHONE
 
     render(<Footer />)
 
-    expect(screen.queryByRole('link', { name: /@/ })).not.toBeInTheDocument()
+    const section = screen.getByRole('alert').closest('section')!
+    expect(within(section).queryByRole('link', { name: /@/ })).not.toBeInTheDocument()
   })
 
   // Name without a reachable channel isn't a real contact point either —
@@ -121,9 +125,21 @@ describe('Footer Grievance Officer contact', () => {
   })
 })
 
-describe('Footer newsletter signup', () => {
-  it('renders the newsletter signup form', () => {
+// NewsletterSignupForm looked like a working subscribe flow and wasn't — no
+// server action, no persistence. Removed in favor of honest interim copy; this
+// pins that the footer's newsletter affordance actually goes where it says.
+describe('Footer newsletter', () => {
+  it('does not render a fake subscribe form', () => {
     render(<Footer />)
-    expect(screen.getByRole('form', { name: /newsletter signup/i })).toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: /newsletter signup/i })).not.toBeInTheDocument()
+  })
+
+  it('points readers at the real newsletter mailbox stated in the copy', () => {
+    render(<Footer />)
+
+    expect(screen.getByText(/coming soon/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /newsletter@visionnova\.com/i })).toHaveAttribute(
+      'href', 'mailto:newsletter@visionnova.com'
+    )
   })
 })
