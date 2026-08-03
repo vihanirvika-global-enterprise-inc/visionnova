@@ -1,4 +1,4 @@
-import { NewsletterSignupForm } from './NewsletterSignupForm'
+import { NewsletterComingSoon } from './NewsletterComingSoon'
 
 export function Footer() {
   const name = process.env.GRIEVANCE_OFFICER_NAME
@@ -44,7 +44,7 @@ export function Footer() {
         )}
       </section>
 
-      <NewsletterSignupForm />
+      <NewsletterComingSoon />
     </footer>
   )
 }
