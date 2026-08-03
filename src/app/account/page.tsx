@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { getOrdersByCustomer } from '@/lib/orders'
 import { getPrescriptionsByCustomer } from '@/lib/prescriptions'
 import { getCustomerById } from '@/lib/customers'
@@ -25,7 +26,17 @@ function expiryLabel(expiresAt: Date | null): string {
 
 export default async function AccountPage() {
   const session = getSession()
-  const customerId = session?.customerId ?? ''
+
+  // Middleware already rejects an invalid session before this runs, so this
+  // is defense in depth rather than the primary guard — but the page must not
+  // rely on that. The previous `?? ''` fallback only failed closed by accident
+  // of customer_id being a uuid column (Postgres rejects ''); against a text
+  // column it would have silently rendered an empty account instead.
+  if (!session) {
+    redirect('/login')
+  }
+
+  const customerId = session.customerId
 
   const [orders, prescriptions, customer] = await Promise.all([
     getOrdersByCustomer(customerId),
