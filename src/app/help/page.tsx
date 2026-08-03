@@ -41,8 +41,9 @@ export default function HelpPage() {
               </summary>
               <p className="text-muted text-sm mt-3 leading-relaxed">
                 Most of our frames require a valid prescription from a licensed eye care professional.
-                You can upload your prescription during checkout or from your account dashboard.
-                Our optometrists verify every prescription before your glasses are made.
+                Upload it from your account dashboard and wait for one of our optometrists to verify
+                it — verification has to be complete before you place an order containing
+                prescription eyewear.
               </p>
             </details>
 
@@ -52,8 +53,9 @@ export default function HelpPage() {
                 <span className="text-primary text-xl">+</span>
               </summary>
               <p className="text-muted text-sm mt-3 leading-relaxed">
-                After placing your order, visit My Account → Prescriptions and upload a clear photo
-                or PDF. We accept JPG, PNG, and PDF files up to 10MB.
+                Go to My Account → My Prescriptions and upload a clear photo or PDF. We accept JPG,
+                PNG, and PDF files. Do this before you order prescription eyewear, since checkout
+                requires a verified prescription already on file.
               </p>
             </details>
 
@@ -74,8 +76,9 @@ export default function HelpPage() {
                 <span className="text-primary text-xl">+</span>
               </summary>
               <p className="text-muted text-sm mt-3 leading-relaxed">
-                We&apos;ll email you the exact reason. Common issues are illegible photos or expired
-                prescriptions. Simply re-upload a clearer image from your account dashboard.
+                We&apos;ll email you to let you know. The most common causes are an illegible photo or
+                an expired prescription — re-upload a clearer copy from your account dashboard, or
+                email support@visionnova.com if you&apos;d like to know exactly why it was rejected.
               </p>
             </details>
 
@@ -96,7 +99,7 @@ export default function HelpPage() {
               </summary>
               <p className="text-muted text-sm mt-3 leading-relaxed">
                 Standard delivery within India takes 5–7 business days after your prescription is
-                verified. Express delivery (2–3 days) is available at checkout.
+                verified.
               </p>
             </details>
 
@@ -106,8 +109,9 @@ export default function HelpPage() {
                 <span className="text-primary text-xl">+</span>
               </summary>
               <p className="text-muted text-sm mt-3 leading-relaxed">
-                Yes. Once your order ships, you&apos;ll receive a tracking link by email. You can also
-                track under My Account → Orders.
+                Yes. We email you when your order ships, and you can follow its progress any time
+                under My Account → Orders, which shows the carrier and tracking number once your
+                order is dispatched.
               </p>
             </details>
 
@@ -138,8 +142,9 @@ export default function HelpPage() {
                 <span className="text-primary text-xl">+</span>
               </summary>
               <p className="text-muted text-sm mt-3 leading-relaxed">
-                Go to My Account → Orders, find your order, and click &apos;Request Return&apos;. We&apos;ll email
-                you a prepaid return label within 24 hours.
+                Email us at support@visionnova.com with your order number, within 30 days for
+                non-prescription frames or 14 days for prescription glasses. Our team will confirm
+                your return and arrange collection with you directly.
               </p>
             </details>
 
@@ -157,6 +162,52 @@ export default function HelpPage() {
         </section>
 
         {/* Section 4 */}
+        <section>
+          <h2 className="text-base font-semibold text-dark mb-2">
+            Payments
+          </h2>
+          <div className="divide-y divide-slate-100 border-t border-slate-100">
+
+            <details className="border-b border-slate-100 py-4">
+              <summary className="font-medium text-dark cursor-pointer list-none flex justify-between items-center">
+                What payment methods can I use?
+                <span className="text-primary text-xl">+</span>
+              </summary>
+              <p className="text-muted text-sm mt-3 leading-relaxed">
+                Orders within India are handled by Razorpay, and prices are charged in rupees. The
+                payment options available to you appear in the Razorpay window when you check out.
+              </p>
+            </details>
+
+            <details className="border-b border-slate-100 py-4">
+              <summary className="font-medium text-dark cursor-pointer list-none flex justify-between items-center">
+                Is my payment information secure?
+                <span className="text-primary text-xl">+</span>
+              </summary>
+              <p className="text-muted text-sm mt-3 leading-relaxed">
+                Card and bank details are entered with our payment provider and never reach
+                VisionNova&apos;s servers, so we never store them. We also verify every payment
+                directly with the provider using a signed message before marking an order paid —
+                an order is never treated as paid on the word of your browser alone.
+              </p>
+            </details>
+
+            <details className="border-b border-slate-100 py-4">
+              <summary className="font-medium text-dark cursor-pointer list-none flex justify-between items-center">
+                When am I charged?
+                <span className="text-primary text-xl">+</span>
+              </summary>
+              <p className="text-muted text-sm mt-3 leading-relaxed">
+                When you complete payment at checkout. If a payment fails, your order is kept
+                unpaid and nothing is taken. Refunds on returned items are processed within
+                5–7 business days.
+              </p>
+            </details>
+
+          </div>
+        </section>
+
+        {/* Section 5 */}
         <section>
           <h2 className="text-base font-semibold text-dark mb-2">
             Privacy &amp; Account

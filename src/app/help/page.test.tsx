@@ -2,22 +2,149 @@ import { render, screen } from '@testing-library/react'
 import { describe, it, expect } from 'vitest'
 import HelpPage from './page'
 
+// Returns the answer text for a question, so assertions target the specific
+// Q&A rather than matching stray text elsewhere on the page.
+function answerFor(questionPattern: RegExp): string {
+  const answer = screen
+    .getByText(questionPattern)
+    .closest('details')
+    ?.querySelector('p')
+  return answer?.textContent ?? ''
+}
+
 describe('HelpPage prescription security copy', () => {
   it('does not claim encryption that has no backing implementation', () => {
     render(<HelpPage />)
-    const answer = screen.getByText(/is my prescription data secure/i)
-      .closest('details')
-      ?.querySelector('p')
-
-    expect(answer?.textContent).not.toMatch(/encrypt/i)
+    expect(answerFor(/is my prescription data secure/i)).not.toMatch(/encrypt/i)
   })
 
   it('describes the security properties that are actually real: access control and logging', () => {
     render(<HelpPage />)
-    const answer = screen.getByText(/is my prescription data secure/i)
-      .closest('details')
-      ?.querySelector('p')
+    expect(answerFor(/is my prescription data secure/i)).toMatch(/access/i)
+  })
+})
 
-    expect(answer?.textContent).toMatch(/access/i)
+// PR #17 wired the PDP's return-policy copy to point here rather than
+// duplicate it, so these figures are a cross-page contract. The PDP side is
+// already pinned in shop/[id]/page.test.tsx; without these assertions the
+// /help side could drift and only the PDP would keep claiming the old numbers.
+describe('HelpPage return policy figures — shared contract with the PDP', () => {
+  it('states the 30-day window for non-prescription frames', () => {
+    render(<HelpPage />)
+    expect(answerFor(/what is your return policy/i)).toMatch(/30-day returns on non-prescription frames/i)
+  })
+
+  it('states the 14-day window for prescription glasses', () => {
+    render(<HelpPage />)
+    expect(answerFor(/what is your return policy/i)).toMatch(/14-day returns on prescription glasses/i)
+  })
+
+  it('states the 5–7 business day refund window', () => {
+    render(<HelpPage />)
+    expect(answerFor(/when will i receive my refund/i)).toMatch(/5–7 business days/i)
+  })
+
+  it('states the 5–7 business day standard delivery window', () => {
+    render(<HelpPage />)
+    expect(answerFor(/how long does delivery take/i)).toMatch(/5–7 business days/i)
+  })
+})
+
+// Each of these described something the codebase cannot do. A customer
+// following the PDP's "See full policy" link was being told to use flows that
+// do not exist.
+describe('HelpPage — claims must match what the implementation actually does', () => {
+  it('does not promise a Request Return button, which exists nowhere in the app', () => {
+    render(<HelpPage />)
+    const answer = answerFor(/how do i start a return/i)
+
+    expect(answer).not.toMatch(/request return/i)
+    expect(answer).toMatch(/support@visionnova\.com/i)
+  })
+
+  // The prepaid-label SLA was invented copy — no return system exists to
+  // honour it, so no timeline is promised until one does.
+  it('does not promise a prepaid return label within a fixed timeframe', () => {
+    render(<HelpPage />)
+    expect(answerFor(/how do i start a return/i)).not.toMatch(/within 24 hours/i)
+  })
+
+  it('does not advertise express delivery, which checkout does not offer', () => {
+    render(<HelpPage />)
+    expect(answerFor(/how long does delivery take/i)).not.toMatch(/express/i)
+  })
+
+  // checkoutAction hard-blocks any order containing a prescription-required
+  // item unless an approved prescription already exists, so both
+  // upload-during-checkout and upload-after-ordering are impossible.
+  it('does not tell customers to upload a prescription during checkout', () => {
+    render(<HelpPage />)
+    expect(answerFor(/do i need a prescription to order/i)).not.toMatch(/during checkout/i)
+  })
+
+  it('does not tell customers to upload a prescription after placing an order', () => {
+    render(<HelpPage />)
+    expect(answerFor(/how do i upload my prescription/i)).not.toMatch(/after placing your order/i)
+  })
+
+  it('describes the real order of operations: verify before ordering', () => {
+    render(<HelpPage />)
+    expect(answerFor(/do i need a prescription to order/i)).toMatch(/before you (place|can place)/i)
+  })
+
+  // OrderShippedEmail contains no tracking link — it directs customers to
+  // their account.
+  it('does not promise a tracking link by email', () => {
+    render(<HelpPage />)
+    expect(answerFor(/can i track my order/i)).not.toMatch(/tracking link/i)
+  })
+
+  it('directs order tracking to the account, matching what the shipped email says', () => {
+    render(<HelpPage />)
+    expect(answerFor(/can i track my order/i)).toMatch(/account/i)
+  })
+
+  // PrescriptionStatusEmail sends only {firstName, status} — the rejection
+  // reason is recorded in prescription_review_logs but never reaches the
+  // customer, by email or anywhere in the UI.
+  it('does not promise that the rejection email states the exact reason', () => {
+    render(<HelpPage />)
+    expect(answerFor(/my prescription was rejected/i)).not.toMatch(/exact reason/i)
+  })
+
+  it('still tells a rejected customer what to do next', () => {
+    render(<HelpPage />)
+    expect(answerFor(/my prescription was rejected/i)).toMatch(/re-upload/i)
+  })
+})
+
+describe('HelpPage payment section', () => {
+  it('has a Payments category', () => {
+    render(<HelpPage />)
+    expect(screen.getByRole('heading', { name: /payments/i })).toBeInTheDocument()
+  })
+
+  it('names Razorpay, the provider actually used for Indian orders', () => {
+    render(<HelpPage />)
+    expect(answerFor(/what payment methods/i)).toMatch(/razorpay/i)
+  })
+
+  it('states that card details do not reach VisionNova servers', () => {
+    render(<HelpPage />)
+    expect(answerFor(/is my payment information secure/i)).toMatch(/never reach|never stored|do not reach/i)
+  })
+
+  // The order is only marked paid by a signature-verified webhook, never by
+  // the browser returning from the payment provider.
+  it('describes server-side payment confirmation rather than browser-reported success', () => {
+    render(<HelpPage />)
+    expect(answerFor(/is my payment information secure/i)).toMatch(/verif/i)
+  })
+})
+
+describe('HelpPage currency', () => {
+  it('shows no dollar amounts on an India-first storefront', () => {
+    const { container } = render(<HelpPage />)
+    expect(container.textContent).not.toMatch(/\$\d/)
   })
 })
