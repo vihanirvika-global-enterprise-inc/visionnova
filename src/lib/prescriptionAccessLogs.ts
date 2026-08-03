@@ -1,5 +1,10 @@
 import { sql } from './db'
 
+// 'file' is the scanned prescription itself; 'metadata' is the patient
+// identity and submission detail shown on the review screen. Both are reads of
+// health data; an auditor needs to tell them apart.
+export type PrescriptionAccessType = 'file' | 'metadata'
+
 export interface PrescriptionAccessLog {
   id: string
   prescriptionId: string
@@ -8,6 +13,7 @@ export interface PrescriptionAccessLog {
   // than a UUID.
   accessorName: string
   accessorRole: string
+  accessType: PrescriptionAccessType
   accessedAt: Date
 }
 
@@ -15,6 +21,7 @@ interface LogPrescriptionAccessInput {
   prescriptionId: string
   accessorId: string
   accessorRole: string
+  accessType: PrescriptionAccessType
 }
 
 function mapAccessLog(row: Record<string, unknown>): PrescriptionAccessLog {
@@ -26,6 +33,7 @@ function mapAccessLog(row: Record<string, unknown>): PrescriptionAccessLog {
     // fact that someone read the file.
     accessorName: (row.accessor_name as string) ?? 'Unknown user',
     accessorRole: row.accessor_role as string,
+    accessType: row.access_type as PrescriptionAccessType,
     accessedAt: row.accessed_at as Date,
   }
 }
@@ -36,8 +44,8 @@ export async function logPrescriptionAccess(
   input: LogPrescriptionAccessInput
 ): Promise<void> {
   await sql`
-    INSERT INTO prescription_access_logs (prescription_id, accessor_id, accessor_role)
-    VALUES (${input.prescriptionId}, ${input.accessorId}, ${input.accessorRole})
+    INSERT INTO prescription_access_logs (prescription_id, accessor_id, accessor_role, access_type)
+    VALUES (${input.prescriptionId}, ${input.accessorId}, ${input.accessorRole}, ${input.accessType})
   `
 }
 

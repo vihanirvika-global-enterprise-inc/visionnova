@@ -13,6 +13,7 @@ const logRow = {
   prescription_id: 'rx-001',
   accessor_id: 'cust-001',
   accessor_role: 'optometrist',
+  access_type: 'file',
   accessed_at: new Date('2026-07-31T10:00:00Z'),
 }
 
@@ -26,9 +27,25 @@ describe('logPrescriptionAccess', () => {
       prescriptionId: 'rx-001',
       accessorId: 'cust-001',
       accessorRole: 'optometrist',
+      accessType: 'file',
     })
 
     expect(sql).toHaveBeenCalledOnce()
+  })
+
+  it.each(['file', 'metadata'] as const)('persists a %s read type', async (accessType) => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql).mockResolvedValueOnce([logRow])
+
+    const { logPrescriptionAccess } = await import('./prescriptionAccessLogs')
+    await logPrescriptionAccess({
+      prescriptionId: 'rx-001',
+      accessorId: 'cust-001',
+      accessorRole: 'optometrist',
+      accessType,
+    })
+
+    expect(spy.mock.calls[0].slice(1)).toContain(accessType)
   })
 })
 
@@ -51,6 +68,7 @@ describe('getAccessLogsByPrescription', () => {
         accessorId: 'cust-001',
         accessorName: 'Dr Rao',
         accessorRole: 'optometrist',
+        accessType: 'file',
         accessedAt: logRow.accessed_at,
       },
     ])

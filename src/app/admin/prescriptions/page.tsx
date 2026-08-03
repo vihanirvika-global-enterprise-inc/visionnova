@@ -1,7 +1,21 @@
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
+import { getSession } from '@/lib/session'
+import { REVIEWER_ROLES } from '@/lib/prescriptionAccess'
 import { getPendingPrescriptions } from '@/lib/prescriptions'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminPrescriptionsPage() {
+  const session = getSession()
+
+  // Middleware gates /admin, but this queue lists patient names and email
+  // addresses, so the page re-checks rather than trusting a matcher stays
+  // correct — the same reasoning the access-log page applies.
+  if (!session || !REVIEWER_ROLES.includes(session.role)) {
+    notFound()
+  }
+
   const prescriptions = await getPendingPrescriptions()
 
   return (

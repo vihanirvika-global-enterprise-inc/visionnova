@@ -3,10 +3,19 @@ import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { getPrescriptionById } from '@/lib/prescriptions'
 import { getAccessLogsByPrescription } from '@/lib/prescriptionAccessLogs'
+import type { PrescriptionAccessType } from '@/lib/prescriptionAccessLogs'
 
 export const dynamic = 'force-dynamic'
 
 const REVIEWER_ROLES = ['optometrist', 'admin']
+
+// Plain language for a subject-access response: 'file' and 'metadata' are
+// storage terms, not something a patient asking "who saw my data" should
+// have to interpret.
+const ACCESS_TYPE_LABELS: Record<PrescriptionAccessType, string> = {
+  file: 'Prescription file',
+  metadata: 'Patient record',
+}
 
 // Answers "who has read this prescription, and when" for a DPDP subject-access
 // request, without anyone needing database access.
@@ -39,7 +48,7 @@ export default async function AccessLogPage({ params }: { params: { id: string }
         Access log — prescription {prescription.id}
       </h1>
       <p className="mt-1 text-sm text-muted">
-        Every read of this prescription file, most recent first.
+        Every read of this prescription, most recent first.
       </p>
 
       {logs.length === 0 ? (
@@ -56,6 +65,7 @@ export default async function AccessLogPage({ params }: { params: { id: string }
               <tr className="border-b border-slate-200">
                 <th scope="col" className="p-4 font-medium text-dark">Accessed by</th>
                 <th scope="col" className="p-4 font-medium text-dark">Role</th>
+                <th scope="col" className="p-4 font-medium text-dark">What was read</th>
                 <th scope="col" className="p-4 font-medium text-dark">When</th>
               </tr>
             </thead>
@@ -68,6 +78,7 @@ export default async function AccessLogPage({ params }: { params: { id: string }
                 >
                   <td className="p-4 text-dark">{log.accessorName}</td>
                   <td className="p-4 text-muted">{log.accessorRole}</td>
+                  <td className="p-4 text-muted">{ACCESS_TYPE_LABELS[log.accessType]}</td>
                   <td className="p-4 text-muted">
                     <time dateTime={log.accessedAt.toISOString()}>
                       {log.accessedAt.toLocaleString('en-IN')}

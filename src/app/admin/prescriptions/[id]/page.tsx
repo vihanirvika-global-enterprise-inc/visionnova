@@ -1,14 +1,31 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getPrescriptionById, getReviewLogsByPrescription } from '@/lib/prescriptions'
+import { getSession } from '@/lib/session'
+import { REVIEWER_ROLES, readPrescriptionMetadataForSession } from '@/lib/prescriptionAccess'
+import { getReviewLogsByPrescription } from '@/lib/prescriptions'
 import { reviewPrescription } from './actions'
 
+export const dynamic = 'force-dynamic'
+
 export default async function ReviewPrescriptionPage({ params }: { params: { id: string } }) {
-  const [prescription, logs] = await Promise.all([
-    getPrescriptionById(params.id),
+  const session = getSession()
+
+  // Middleware gates /admin, but this screen names the patient and shows their
+  // email, so the page re-checks rather than trusting a matcher stays correct.
+  if (!session || !REVIEWER_ROLES.includes(session.role)) {
+    notFound()
+  }
+
+  // Read through the audited door, not getPrescriptionById: opening this
+  // screen is itself a read of health data and must leave a trail entry. A
+  // denial — including an unwritable audit log — must not render.
+  const [access, logs] = await Promise.all([
+    readPrescriptionMetadataForSession(params.id, session),
     getReviewLogsByPrescription(params.id),
   ])
-  if (!prescription) notFound()
+  if (!access.ok) notFound()
+
+  const prescription = access.prescription
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
