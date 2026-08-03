@@ -12,6 +12,9 @@ function decodeSessionCookie(cookieValue: string): { customerId: string; role: s
   if (expected !== sig) return null
   try {
     const payload = JSON.parse(Buffer.from(data, 'base64url').toString('utf8'))
+    // A signed payload with no customerId is not a usable session — treating
+    // it as one hands downstream pages an undefined id to query with.
+    if (!payload?.customerId) return null
     return { customerId: payload.customerId, role: payload.role ?? 'customer' }
   } catch {
     return null
@@ -34,8 +37,13 @@ export function middleware(request: NextRequest) {
   }
 
   const isProtected = PROTECTED.some((path) => pathname.startsWith(path))
-  if (isProtected && !sessionCookie) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  if (isProtected) {
+    // Verify the signature here, not just the cookie's presence: a tampered
+    // or stale cookie otherwise reached the page, where getSession() rejected
+    // it and the customer got a 500 instead of a redirect.
+    if (!sessionCookie || !decodeSessionCookie(sessionCookie.value)) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
   }
 
   return NextResponse.next()
