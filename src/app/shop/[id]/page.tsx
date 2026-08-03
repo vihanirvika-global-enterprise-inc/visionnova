@@ -9,6 +9,20 @@ interface ProductPageProps {
   params: { id: string }
 }
 
+function CheckIcon() {
+  return (
+    <svg aria-hidden="true"
+      className="mt-0.5 h-4 w-4 flex-shrink-0 text-teal"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      strokeWidth={2.5}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+    </svg>
+  )
+}
+
 export default async function ProductPage({ params }: ProductPageProps) {
   const product = await getProductById(params.id)
 
@@ -85,6 +99,29 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <AddToCartButton product={product} />
             </div>
           )}
+
+          {/* Policy text mirrors /help exactly (return window depends on
+              requiresPrescription there too) so the two pages never
+              disagree — full detail lives on /help, not duplicated here. */}
+          <div className="mt-6 flex flex-col gap-3 rounded-xl bg-surface p-4 text-sm">
+            <div className="flex items-start gap-2">
+              <CheckIcon />
+              <p className="text-dark">
+                {product.requiresPrescription ? '14-day returns' : '30-day returns'} on this item.{' '}
+                <Link href="/help" className="font-medium text-primary hover:underline">
+                  See full policy
+                </Link>
+              </p>
+            </div>
+            <div className="flex items-start gap-2">
+              <CheckIcon />
+              <p className="text-dark">Free return shipping — we&apos;ll email a prepaid label.</p>
+            </div>
+            <div className="flex items-start gap-2">
+              <CheckIcon />
+              <p className="text-dark">Typically delivered in 5–7 business days.</p>
+            </div>
+          </div>
 
         </div>
       </div>
