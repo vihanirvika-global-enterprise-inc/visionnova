@@ -36,3 +36,98 @@ export async function getInStockProducts(): Promise<Product[]> {
   const rows = await sql`SELECT * FROM products WHERE stock_quantity > 0 ORDER BY created_at DESC`
   return rows.map(mapProduct)
 }
+
+export type ProductSort = 'price_asc' | 'price_desc' | 'newest'
+
+export interface CatalogQueryOptions {
+  q?: string
+  sort?: ProductSort
+  page?: number
+  pageSize?: number
+}
+
+export interface CatalogQueryResult {
+  products: Product[]
+  totalCount: number
+}
+
+const DEFAULT_PAGE_SIZE = 12
+
+// Six flat queries rather than composing WHERE/ORDER BY from dynamic
+// fragments: ORDER BY's column and direction can't be a bind parameter (only
+// values can), and the two axes here (search on/off, sort) form a small,
+// fixed matrix. This keeps every branch a single, directly-parameterized
+// query — the same shape as every other function in this file.
+export async function getCatalogProducts(
+  options: CatalogQueryOptions = {}
+): Promise<CatalogQueryResult> {
+  const { q, sort = 'newest', page = 1, pageSize = DEFAULT_PAGE_SIZE } = options
+  const safePage = Math.max(1, page)
+  const safePageSize = Math.max(1, pageSize)
+  const offset = (safePage - 1) * safePageSize
+  const pattern = q ? `%${q}%` : null
+
+  let rows: Record<string, unknown>[]
+  let countRows: Record<string, unknown>[]
+
+  if (pattern) {
+    if (sort === 'price_asc') {
+      rows = await sql`
+        SELECT * FROM products
+        WHERE stock_quantity > 0 AND (name ILIKE ${pattern} OR description ILIKE ${pattern})
+        ORDER BY price ASC
+        LIMIT ${safePageSize} OFFSET ${offset}
+      `
+    } else if (sort === 'price_desc') {
+      rows = await sql`
+        SELECT * FROM products
+        WHERE stock_quantity > 0 AND (name ILIKE ${pattern} OR description ILIKE ${pattern})
+        ORDER BY price DESC
+        LIMIT ${safePageSize} OFFSET ${offset}
+      `
+    } else {
+      rows = await sql`
+        SELECT * FROM products
+        WHERE stock_quantity > 0 AND (name ILIKE ${pattern} OR description ILIKE ${pattern})
+        ORDER BY created_at DESC
+        LIMIT ${safePageSize} OFFSET ${offset}
+      `
+    }
+    countRows = await sql`
+      SELECT COUNT(*)::int AS count FROM products
+      WHERE stock_quantity > 0 AND (name ILIKE ${pattern} OR description ILIKE ${pattern})
+    `
+  } else {
+    if (sort === 'price_asc') {
+      rows = await sql`
+        SELECT * FROM products
+        WHERE stock_quantity > 0
+        ORDER BY price ASC
+        LIMIT ${safePageSize} OFFSET ${offset}
+      `
+    } else if (sort === 'price_desc') {
+      rows = await sql`
+        SELECT * FROM products
+        WHERE stock_quantity > 0
+        ORDER BY price DESC
+        LIMIT ${safePageSize} OFFSET ${offset}
+      `
+    } else {
+      rows = await sql`
+        SELECT * FROM products
+        WHERE stock_quantity > 0
+        ORDER BY created_at DESC
+        LIMIT ${safePageSize} OFFSET ${offset}
+      `
+    }
+    countRows = await sql`
+      SELECT COUNT(*)::int AS count FROM products
+      WHERE stock_quantity > 0
+    `
+  }
+
+  return {
+    products: rows.map(mapProduct),
+    totalCount: (countRows[0]?.count as number) ?? 0,
+  }
+}
