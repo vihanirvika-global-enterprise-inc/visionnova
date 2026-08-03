@@ -1,20 +1,38 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { AuthField } from '@/components/auth/AuthField'
+import { MIN_PASSWORD_LENGTH } from '@/lib/passwordPolicy'
+import type { AuthFormState } from '@/lib/authFormState'
 import { registerAction } from './actions'
 
+// Focus order matches the visual order, so a failed submit lands on the first
+// offending input rather than leaving the user to hunt for it.
+const FIELD_ORDER = ['firstName', 'lastName', 'email', 'password'] as const
+
 export default function RegisterPage() {
-  const [error, setError] = useState<string | null>(null)
+  const [state, setState] = useState<AuthFormState>({})
   const [isPending, startTransition] = useTransition()
+  const inputs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  const fieldErrors = state.fieldErrors ?? {}
+  const allMessages = [
+    ...(state.formError ? [state.formError] : []),
+    ...Object.values(fieldErrors).flat(),
+  ]
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
-    setError(null)
+    setState({})
     startTransition(async () => {
       const result = await registerAction(formData)
-      if (result?.error) setError(result.error)
+      if (!result) return
+      setState(result)
+
+      const firstInvalid = FIELD_ORDER.find((field) => result.fieldErrors?.[field]?.length)
+      if (firstInvalid) inputs.current[firstInvalid]?.focus()
     })
   }
 
@@ -31,15 +49,19 @@ export default function RegisterPage() {
           Join VisionNova to start shopping
         </p>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/* noValidate: the browser's own bubbles would pre-empt our inline
+            messages, which are the ones wired up for screen readers. The
+            required/minLength attributes still document intent and stay
+            useful if JS fails to load. */}
+        <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
 
-          {error && (
+          {allMessages.length > 0 && (
             <div
               role="alert"
-              className="card flex items-center gap-2 border-red-200 bg-red-50 p-3 text-sm text-red-700"
+              className="card flex items-start gap-2 border-red-200 bg-red-50 p-3 text-sm text-red-700"
             >
               <svg aria-hidden="true"
-                className="h-4 w-4 flex-shrink-0"
+                className="mt-0.5 h-4 w-4 flex-shrink-0"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -47,65 +69,66 @@ export default function RegisterPage() {
               >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
               </svg>
-              {error}
+              {allMessages.length === 1 ? (
+                <span>{allMessages[0]}</span>
+              ) : (
+                <ul className="space-y-0.5">
+                  {allMessages.map((message) => (
+                    <li key={message}>{message}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 
           {/* First + Last Name — separate fields required by tests: /first name/i and /last name/i */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="firstName" className="mb-1 block text-sm font-medium text-dark">
-                First name
-              </label>
-              <input
-                id="firstName"
-                type="text"
-                name="firstName"
-                autoComplete="given-name"
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label htmlFor="lastName" className="mb-1 block text-sm font-medium text-dark">
-                Last name
-              </label>
-              <input
-                id="lastName"
-                type="text"
-                name="lastName"
-                autoComplete="family-name"
-                className="input-field"
-              />
-            </div>
-          </div>
-
-          {/* Email */}
-          <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-dark">
-              Email address
-            </label>
-            <input
-              id="email"
-              type="email"
-              name="email"
-              autoComplete="email"
-              className="input-field"
+            <AuthField
+              id="firstName"
+              name="firstName"
+              type="text"
+              label="First name"
+              autoComplete="given-name"
+              required
+              errors={fieldErrors.firstName}
+              ref={(el) => { inputs.current.firstName = el }}
+            />
+            <AuthField
+              id="lastName"
+              name="lastName"
+              type="text"
+              label="Last name"
+              autoComplete="family-name"
+              required
+              errors={fieldErrors.lastName}
+              ref={(el) => { inputs.current.lastName = el }}
             />
           </div>
+
+          <AuthField
+            id="email"
+            name="email"
+            type="email"
+            label="Email address"
+            autoComplete="email"
+            required
+            errors={fieldErrors.email}
+            ref={(el) => { inputs.current.email = el }}
+          />
 
           {/* Password — single field only; "Confirm password" label would create double /password/i match */}
-          <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-medium text-dark">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              name="password"
-              autoComplete="new-password"
-              className="input-field"
-            />
-          </div>
+          <AuthField
+            id="password"
+            name="password"
+            type="password"
+            label="Password"
+            autoComplete="new-password"
+            required
+            minLength={MIN_PASSWORD_LENGTH}
+            hint={`At least ${MIN_PASSWORD_LENGTH} characters`}
+            errors={fieldErrors.password}
+            ref={(el) => { inputs.current.password = el }}
+          />
 
           <button
             type="submit"

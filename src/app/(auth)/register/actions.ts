@@ -6,12 +6,13 @@ import { validateRegistration } from '@/lib/validation'
 import { createSession } from '@/lib/session'
 import { getClientIp } from '@/lib/getClientIp'
 import { checkRateLimit } from '@/lib/rateLimit'
+import type { AuthFormState } from '@/lib/authFormState'
 
-export async function registerAction(formData: FormData): Promise<{ error: string } | never> {
+export async function registerAction(formData: FormData): Promise<AuthFormState | never> {
   const ip = getClientIp()
   const rateLimit = await checkRateLimit(ip, 'register')
   if (!rateLimit.allowed) {
-    return { error: `Too many attempts. Try again in ${rateLimit.retryAfterSeconds} seconds.` }
+    return { formError: `Too many attempts. Try again in ${rateLimit.retryAfterSeconds} seconds.` }
   }
 
   const firstName = formData.get('firstName') as string
@@ -19,8 +20,8 @@ export async function registerAction(formData: FormData): Promise<{ error: strin
   const email = formData.get('email') as string
   const password = formData.get('password') as string
 
-  const { valid, errors } = await validateRegistration({ firstName, lastName, email, password })
-  if (!valid) return { error: errors[0] }
+  const { valid, fieldErrors } = await validateRegistration({ firstName, lastName, email, password })
+  if (!valid) return { fieldErrors }
 
   let customer
   try {
@@ -30,7 +31,7 @@ export async function registerAction(formData: FormData): Promise<{ error: strin
     // duplicate email before this is ever reached (see the race-condition
     // comment in registerUser).
     if (error instanceof DuplicateEmailError) {
-      return { error: error.message }
+      return { fieldErrors: { email: [error.message] } }
     }
     throw error
   }

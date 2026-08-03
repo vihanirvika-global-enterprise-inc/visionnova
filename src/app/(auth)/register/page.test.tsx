@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { MIN_PASSWORD_LENGTH } from '@/lib/passwordPolicy'
 import RegisterPage from './page'
 
 vi.mock('./actions', () => ({
@@ -8,6 +9,23 @@ vi.mock('./actions', () => ({
 }))
 
 import { registerAction } from './actions'
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
+async function fillAndSubmit(overrides: Partial<Record<string, string>> = {}) {
+  const values = {
+    firstName: 'Ada', lastName: 'Lovelace',
+    email: 'ada@example.com', password: 'a-long-enough-password',
+    ...overrides,
+  }
+  if (values.firstName) await userEvent.type(screen.getByLabelText(/first name/i), values.firstName)
+  if (values.lastName) await userEvent.type(screen.getByLabelText(/last name/i), values.lastName)
+  if (values.email) await userEvent.type(screen.getByLabelText(/email/i), values.email)
+  if (values.password) await userEvent.type(screen.getByLabelText(/password/i), values.password)
+  await userEvent.click(screen.getByRole('button', { name: /create account/i }))
+}
 
 describe('RegisterPage', () => {
   it('renders email and password input fields', () => {
@@ -32,22 +50,155 @@ describe('RegisterPage', () => {
     expect(screen.getByRole('link', { name: /login/i })).toBeInTheDocument()
   })
 
-  // 10, not 8 — the minimum was raised and this fixture still quoted the old
-  // rule. It's a mock string so it passed either way, which is exactly how a
-  // stale rule survives in a test.
   it('displays an error message returned by the action', async () => {
-    vi.mocked(registerAction).mockResolvedValue({ error: 'Password must be at least 10 characters' })
+    vi.mocked(registerAction).mockResolvedValue({
+      fieldErrors: { password: [`Password must be at least ${MIN_PASSWORD_LENGTH} characters`] },
+    })
 
     render(<RegisterPage />)
-    await userEvent.type(screen.getByLabelText(/first name/i), 'Ada')
-    await userEvent.type(screen.getByLabelText(/last name/i), 'Lovelace')
-    await userEvent.type(screen.getByLabelText(/email/i), 'ada@example.com')
-    await userEvent.type(screen.getByLabelText(/password/i), 'short')
-    await userEvent.click(screen.getByRole('button', { name: /create account/i }))
+    await fillAndSubmit({ password: 'short' })
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Password must be at least 10 characters')
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        `Password must be at least ${MIN_PASSWORD_LENGTH} characters`
+      )
     })
+  })
+})
+
+describe('RegisterPage client-side validation', () => {
+  it('marks every field required so an empty submit is caught before the server', () => {
+    render(<RegisterPage />)
+
+    expect(screen.getByLabelText(/first name/i)).toBeRequired()
+    expect(screen.getByLabelText(/last name/i)).toBeRequired()
+    expect(screen.getByLabelText(/email/i)).toBeRequired()
+    expect(screen.getByLabelText(/password/i)).toBeRequired()
+  })
+
+  // Imported from the same constant the server validates against, so raising
+  // the minimum cannot leave the form advertising the old rule.
+  it('enforces the real password minimum on the input', () => {
+    render(<RegisterPage />)
+    expect(screen.getByLabelText(/password/i)).toHaveAttribute(
+      'minlength', String(MIN_PASSWORD_LENGTH)
+    )
+  })
+
+  it('states the password rule before the user submits anything', () => {
+    render(<RegisterPage />)
+    expect(screen.getByText(`At least ${MIN_PASSWORD_LENGTH} characters`)).toBeInTheDocument()
+  })
+
+  it('describes the password field by its hint for assistive tech', () => {
+    render(<RegisterPage />)
+    const password = screen.getByLabelText(/password/i)
+    const describedBy = password.getAttribute('aria-describedby') ?? ''
+
+    expect(describedBy).toContain('password-hint')
+  })
+
+  it('uses type=email so the field is validated as an address', () => {
+    render(<RegisterPage />)
+    expect(screen.getByLabelText(/email/i)).toHaveAttribute('type', 'email')
+  })
+})
+
+// These guard PR #7/#8's hardening at the layer users actually see. Each was
+// previously covered only in actions/lib tests, so a UI change that swallowed
+// the message would not have failed anything.
+describe('RegisterPage error surfacing', () => {
+  it('renders the duplicate-email error inline on the email field', async () => {
+    vi.mocked(registerAction).mockResolvedValue({
+      fieldErrors: { email: ['Email already registered'] },
+    })
+
+    render(<RegisterPage />)
+    await fillAndSubmit()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/email/i)).toHaveAttribute('aria-invalid', 'true')
+    })
+    const errorId = screen.getByLabelText(/email/i).getAttribute('aria-describedby')!
+    expect(document.getElementById(errorId)).toHaveTextContent('Email already registered')
+  })
+
+  it('renders the breach warning inline on the password field', async () => {
+    vi.mocked(registerAction).mockResolvedValue({
+      fieldErrors: { password: ['This password has appeared in a data breach — please choose another'] },
+    })
+
+    render(<RegisterPage />)
+    await fillAndSubmit()
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/data breach/i)
+    })
+    expect(screen.getByLabelText(/password/i)).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  // The core regression guard: the breach message used to be appended last
+  // and only errors[0] was shown, so any earlier problem hid it entirely.
+  it('shows the breach warning even when another field also has an error', async () => {
+    vi.mocked(registerAction).mockResolvedValue({
+      fieldErrors: {
+        lastName: ['Last name is required'],
+        password: ['This password has appeared in a data breach — please choose another'],
+      },
+    })
+
+    render(<RegisterPage />)
+    await fillAndSubmit({ lastName: '' })
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/last name is required/i)
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent(/data breach/i)
+    expect(screen.getByLabelText(/password/i)).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText(/last name/i)).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('surfaces the rate-limit countdown with the actual seconds', async () => {
+    vi.mocked(registerAction).mockResolvedValue({
+      formError: 'Too many attempts. Try again in 42 seconds.',
+    })
+
+    render(<RegisterPage />)
+    await fillAndSubmit()
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Try again in 42 seconds')
+    })
+  })
+
+  it('moves focus to the first field with an error', async () => {
+    vi.mocked(registerAction).mockResolvedValue({
+      fieldErrors: {
+        email: ['Invalid email address'],
+        password: ['Password must be at least 10 characters'],
+      },
+    })
+
+    render(<RegisterPage />)
+    await fillAndSubmit()
+
+    // email precedes password in the form, so it takes focus.
+    await waitFor(() => expect(screen.getByLabelText(/email/i)).toHaveFocus())
+  })
+
+  it('clears previous errors when the form is resubmitted', async () => {
+    vi.mocked(registerAction).mockResolvedValueOnce({
+      fieldErrors: { email: ['Email already registered'] },
+    })
+
+    render(<RegisterPage />)
+    await fillAndSubmit()
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+
+    vi.mocked(registerAction).mockResolvedValueOnce({})
+    await userEvent.click(screen.getByRole('button', { name: /create account/i }))
+
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
 })
 

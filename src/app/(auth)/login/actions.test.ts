@@ -59,7 +59,8 @@ describe('loginAction', () => {
       makeFormData({ email: 'user@example.com', password: 'correctpass' })
     )
 
-    expect(result).toEqual({ error: expect.stringContaining('12') })
+    // Rate limiting belongs to no single input, so it is a form-level error.
+    expect(result).toEqual({ formError: expect.stringContaining('12') })
     expect(Auth.loginUser).not.toHaveBeenCalled()
     expect(mockSet).not.toHaveBeenCalled()
   })
@@ -69,18 +70,22 @@ describe('loginAction', () => {
       makeFormData({ email: 'not-an-email', password: 'password123' })
     )
 
-    expect(result).toEqual({ error: expect.any(String) })
+    expect(result.fieldErrors?.email?.[0]).toEqual(expect.any(String))
     expect(Auth.loginUser).not.toHaveBeenCalled()
   })
 
-  it('returns an error when credentials are wrong', async () => {
+  // Enumeration safety: a wrong password and an unregistered address must be
+  // indistinguishable, so this stays a generic form-level message and is
+  // never attributed to the email field.
+  it('returns a generic form-level error when credentials are wrong', async () => {
     vi.mocked(Auth.loginUser).mockResolvedValue(null)
 
     const result = await loginAction(
       makeFormData({ email: 'user@example.com', password: 'wrongpass' })
     )
 
-    expect(result).toEqual({ error: expect.any(String) })
+    expect(result).toEqual({ formError: 'Invalid email or password' })
+    expect(result.fieldErrors).toBeUndefined()
   })
 
   it('sets a session cookie and redirects on valid credentials', async () => {
