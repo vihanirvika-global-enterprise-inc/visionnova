@@ -70,14 +70,54 @@ describe('Footer Grievance Officer contact', () => {
     )
   })
 
-  it('renders a visible placeholder instead of blank content when env vars are missing', () => {
+  // A quiet grey fallback line was easy to miss in review or QA — exactly
+  // the kind of thing that ships to production unnoticed, which is how the
+  // statutory contact point ended up unconfigured in practice. This must be
+  // impossible to miss: an alert, not a footnote.
+  it('renders a loud, unmissable alert — not a quiet fallback line — when unconfigured', () => {
     delete process.env.GRIEVANCE_OFFICER_NAME
     delete process.env.GRIEVANCE_OFFICER_EMAIL
     delete process.env.GRIEVANCE_OFFICER_PHONE
 
     render(<Footer />)
 
-    expect(screen.getByText(/grievance officer name not configured/i)).toBeInTheDocument()
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent(/grievance officer contact.*not configured/i)
+    expect(alert).toHaveTextContent(/dpdp/i)
+  })
+
+  it('does not render a mailto or tel link when unconfigured', () => {
+    delete process.env.GRIEVANCE_OFFICER_NAME
+    delete process.env.GRIEVANCE_OFFICER_EMAIL
+    delete process.env.GRIEVANCE_OFFICER_PHONE
+
+    render(<Footer />)
+
+    expect(screen.queryByRole('link', { name: /@/ })).not.toBeInTheDocument()
+  })
+
+  // Name without a reachable channel isn't a real contact point either —
+  // email is the functional minimum (it's what the mailto link uses), so a
+  // name with no email still counts as unconfigured.
+  it('still alerts when a name is set but the email is missing', () => {
+    process.env.GRIEVANCE_OFFICER_NAME = 'Asha Rao'
+    delete process.env.GRIEVANCE_OFFICER_EMAIL
+
+    render(<Footer />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/not configured/i)
+  })
+
+  // Phone stays genuinely optional — email is the required channel.
+  it('does not alert when name and email are set but phone is missing', () => {
+    process.env.GRIEVANCE_OFFICER_NAME = 'Asha Rao'
+    process.env.GRIEVANCE_OFFICER_EMAIL = 'grievance@visionnova.com'
+    delete process.env.GRIEVANCE_OFFICER_PHONE
+
+    render(<Footer />)
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'grievance@visionnova.com' })).toBeInTheDocument()
   })
 })
 
