@@ -66,6 +66,15 @@ export interface Product {
   updatedAt: Date
 }
 
+export interface ProductImage {
+  id: string
+  productId: string
+  url: string
+  alt: string | null
+  sortOrder: number
+  createdAt: Date
+}
+
 export interface Order {
   id: string
   customerId: string
