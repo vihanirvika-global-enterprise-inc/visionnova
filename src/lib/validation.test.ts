@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { validateRegistration, validateLogin, validateShippingAddress } from './validation'
+import {
+  validateRegistration,
+  validateLogin,
+  validateShippingAddress,
+  MIN_PASSWORD_LENGTH,
+} from './validation'
 import { checkBreached } from './breachCheck'
 import { captureAuthWarning } from './sentry'
 import { getCustomerByEmail } from './customers'
@@ -204,6 +209,74 @@ describe('validateLogin', () => {
     const result = validateLogin({ email: 'jane@example.com', password: '' })
     expect(result.valid).toBe(false)
     expect(result.errors).toContain('Password is required')
+  })
+})
+
+// Errors need to say WHICH field they belong to, so the form can mark the
+// right input invalid and move focus there instead of showing one anonymous
+// banner message.
+describe('field-associated errors', () => {
+  it('exports the password minimum so the client and server cannot drift', () => {
+    expect(MIN_PASSWORD_LENGTH).toBe(10)
+  })
+
+  it('attributes each registration error to its field', async () => {
+    vi.mocked(getCustomerByEmail).mockResolvedValue(null)
+    vi.mocked(checkBreached).mockResolvedValue(false)
+
+    const result = await validateRegistration({
+      email: 'not-an-email', password: 'short', firstName: '', lastName: '',
+    })
+
+    expect(result.fieldErrors.email?.[0]).toMatch(/invalid email/i)
+    expect(result.fieldErrors.password?.[0]).toMatch(/at least 10 characters/i)
+    expect(result.fieldErrors.firstName?.[0]).toMatch(/first name/i)
+    expect(result.fieldErrors.lastName?.[0]).toMatch(/last name/i)
+  })
+
+  it('attributes a duplicate email to the email field', async () => {
+    vi.mocked(getCustomerByEmail).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(checkBreached).mockResolvedValue(false)
+
+    const result = await validateRegistration({
+      email: 'taken@example.com', password: 'a-long-enough-password', firstName: 'Ada', lastName: 'L',
+    })
+
+    expect(result.fieldErrors.email?.[0]).toMatch(/already registered/i)
+  })
+
+  // The regression this whole change exists for: the breach warning used to
+  // be appended last and only errors[0] was surfaced, so any earlier problem
+  // buried the most security-relevant message.
+  it('reports the breach warning alongside an unrelated field error, not instead of it', async () => {
+    vi.mocked(getCustomerByEmail).mockResolvedValue(null)
+    vi.mocked(checkBreached).mockResolvedValue(true)
+
+    const result = await validateRegistration({
+      email: 'jane@example.com', password: 'a-long-enough-password', firstName: 'Ada', lastName: '',
+    })
+
+    expect(result.fieldErrors.lastName?.[0]).toMatch(/last name/i)
+    expect(result.fieldErrors.password?.[0]).toMatch(/data breach/i)
+  })
+
+  it('attributes login errors to their fields', () => {
+    const result = validateLogin({ email: 'not-an-email', password: '' })
+
+    expect(result.fieldErrors.email?.[0]).toMatch(/invalid email/i)
+    expect(result.fieldErrors.password?.[0]).toMatch(/password is required/i)
+  })
+
+  it('leaves fieldErrors empty when input is valid', async () => {
+    vi.mocked(getCustomerByEmail).mockResolvedValue(null)
+    vi.mocked(checkBreached).mockResolvedValue(false)
+
+    const result = await validateRegistration({
+      email: 'jane@example.com', password: 'a-long-enough-password', firstName: 'Ada', lastName: 'L',
+    })
+
+    expect(result.valid).toBe(true)
+    expect(Object.keys(result.fieldErrors)).toHaveLength(0)
   })
 })
 

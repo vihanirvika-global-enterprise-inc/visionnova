@@ -1,20 +1,37 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { AuthField } from '@/components/auth/AuthField'
+import type { AuthFormState } from '@/lib/authFormState'
 import { loginAction } from './actions'
 
+// Focus order, so a failed submit lands on the first offending input rather
+// than leaving the user to hunt for it.
+const FIELD_ORDER = ['email', 'password'] as const
+
 export default function LoginPage() {
-  const [error, setError] = useState<string | null>(null)
+  const [state, setState] = useState<AuthFormState>({})
   const [isPending, startTransition] = useTransition()
+  const inputs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  const fieldErrors = state.fieldErrors ?? {}
+  const allMessages = [
+    ...(state.formError ? [state.formError] : []),
+    ...Object.values(fieldErrors).flat(),
+  ]
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
-    setError(null)
+    setState({})
     startTransition(async () => {
       const result = await loginAction(formData)
-      if (result?.error) setError(result.error)
+      if (!result) return
+      setState(result)
+
+      const firstInvalid = FIELD_ORDER.find((field) => result.fieldErrors?.[field]?.length)
+      if (firstInvalid) inputs.current[firstInvalid]?.focus()
     })
   }
 
@@ -31,15 +48,19 @@ export default function LoginPage() {
           Sign in to view your orders and prescriptions
         </p>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/* noValidate: the browser's own bubbles would pre-empt our inline
+            messages, which are the ones wired up for screen readers. The
+            required/type attributes still document intent and stay useful if
+            JS fails to load. */}
+        <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
 
-          {error && (
+          {allMessages.length > 0 && (
             <div
               role="alert"
-              className="card flex items-center gap-2 border-red-200 bg-red-50 p-3 text-sm text-red-700"
+              className="card flex items-start gap-2 border-red-200 bg-red-50 p-3 text-sm text-red-700"
             >
               <svg aria-hidden="true"
-                className="h-4 w-4 flex-shrink-0"
+                className="mt-0.5 h-4 w-4 flex-shrink-0"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -47,40 +68,40 @@ export default function LoginPage() {
               >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
               </svg>
-              {error}
+              {allMessages.length === 1 ? (
+                <span>{allMessages[0]}</span>
+              ) : (
+                <ul className="space-y-0.5">
+                  {allMessages.map((message) => (
+                    <li key={message}>{message}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 
-          {/* Email */}
-          <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-dark">
-              Email address
-            </label>
-            <input
-              id="email"
-              type="email"
-              name="email"
-              autoComplete="email"
-              className="input-field"
-            />
-          </div>
+          <AuthField
+            id="email"
+            name="email"
+            type="email"
+            label="Email address"
+            autoComplete="email"
+            required
+            errors={fieldErrors.email}
+            ref={(el) => { inputs.current.email = el }}
+          />
 
-          {/* Password */}
           <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-medium text-dark">
-              Password
-            </label>
-            <input
+            <AuthField
               id="password"
-              type="password"
               name="password"
+              type="password"
+              label="Password"
               autoComplete="current-password"
-              className="input-field"
+              required
+              errors={fieldErrors.password}
+              ref={(el) => { inputs.current.password = el }}
             />
-            {/* Was href="#": a control that looked actionable, did nothing,
-                and sat on the page a locked-out user reaches for first. There
-                is no self-service reset flow yet, so this goes to the real
-                support channel rather than implying one exists. */}
             <a
               href="mailto:support@visionnova.com?subject=Password%20reset%20request"
               className="mt-1 block text-right text-xs text-primary"

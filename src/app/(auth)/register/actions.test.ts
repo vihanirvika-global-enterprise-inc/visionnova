@@ -81,7 +81,8 @@ describe('registerAction', () => {
 
     const result = await registerAction(makeFormData(validFields))
 
-    expect(result).toEqual({ error: expect.stringContaining('37') })
+    // Rate limiting belongs to no single input, so it is a form-level error.
+    expect(result).toEqual({ formError: expect.stringContaining('37') })
     expect(Auth.registerUser).not.toHaveBeenCalled()
     expect(mockSet).not.toHaveBeenCalled()
   })
@@ -91,7 +92,7 @@ describe('registerAction', () => {
       makeFormData({ ...validFields, email: 'not-an-email' })
     )
 
-    expect(result).toEqual({ error: expect.any(String) })
+    expect(result.fieldErrors?.email?.[0]).toEqual(expect.any(String))
     expect(Auth.registerUser).not.toHaveBeenCalled()
   })
 
@@ -100,8 +101,21 @@ describe('registerAction', () => {
       makeFormData({ ...validFields, password: 'short' })
     )
 
-    expect(result).toEqual({ error: expect.any(String) })
+    expect(result.fieldErrors?.password?.[0]).toEqual(expect.any(String))
     expect(Auth.registerUser).not.toHaveBeenCalled()
+  })
+
+  // Every problem is returned at once, so a user is not sent round-tripping
+  // to discover them one at a time — and the breach warning, which used to be
+  // last in the list, can no longer be hidden by an earlier error.
+  it('returns errors for every invalid field in one response', async () => {
+    const result = await registerAction(
+      makeFormData({ firstName: '', lastName: '', email: 'not-an-email', password: 'short' })
+    )
+
+    expect(Object.keys(result.fieldErrors ?? {}).sort()).toEqual(
+      ['email', 'firstName', 'lastName', 'password']
+    )
   })
 
   // validateRegistration's own precheck normally catches this before
@@ -113,7 +127,7 @@ describe('registerAction', () => {
 
     const result = await registerAction(makeFormData(validFields))
 
-    expect(result).toEqual({ error: 'Email already registered' })
+    expect(result).toEqual({ fieldErrors: { email: ['Email already registered'] } })
     expect(NextNavigation.redirect).not.toHaveBeenCalled()
     expect(mockSet).not.toHaveBeenCalled()
   })
