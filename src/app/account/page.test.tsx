@@ -6,6 +6,9 @@ vi.mock('@/lib/orders', () => ({ getOrdersByCustomer: vi.fn() }))
 vi.mock('@/lib/prescriptions', () => ({ getPrescriptionsByCustomer: vi.fn() }))
 vi.mock('@/lib/customers', () => ({ getCustomerById: vi.fn() }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn(() => { throw new Error('NEXT_REDIRECT') }),
+}))
 
 const CUSTOMER_ID = 'cust-001'
 
@@ -111,6 +114,26 @@ describe('AccountPage', () => {
   it('renders the customer prescription status', async () => {
     await setup({ prescriptions: [makePrescription({ status: 'approved' })] })
     expect(screen.getByText(/approved/i)).toBeInTheDocument()
+  })
+})
+
+// Middleware now rejects an invalid session before the page runs, so this is
+// unreachable in practice — but the page must not depend on that. The old
+// `?? ''` fallback only failed closed by accident of customer_id being a uuid
+// column; against a text column it would have silently rendered an empty
+// account, telling a customer with a broken session they have no orders.
+describe('AccountPage — no valid session', () => {
+  it('redirects to /login rather than querying with an empty customer id', async () => {
+    const { getSession } = await import('@/lib/session')
+    const { redirect } = await import('next/navigation')
+    const { getOrdersByCustomer } = await import('@/lib/orders')
+    vi.mocked(getSession).mockReturnValue(null)
+
+    const AccountPage = (await import('./page')).default
+
+    await expect(AccountPage()).rejects.toThrow('NEXT_REDIRECT')
+    expect(redirect).toHaveBeenCalledWith('/login')
+    expect(getOrdersByCustomer).not.toHaveBeenCalled()
   })
 })
 
