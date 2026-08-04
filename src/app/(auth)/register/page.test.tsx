@@ -23,7 +23,7 @@ async function fillAndSubmit(overrides: Partial<Record<string, string>> = {}) {
   if (values.firstName) await userEvent.type(screen.getByLabelText(/first name/i), values.firstName)
   if (values.lastName) await userEvent.type(screen.getByLabelText(/last name/i), values.lastName)
   if (values.email) await userEvent.type(screen.getByLabelText(/email/i), values.email)
-  if (values.password) await userEvent.type(screen.getByLabelText(/password/i), values.password)
+  if (values.password) await userEvent.type(screen.getByLabelText('Password'), values.password)
   await userEvent.click(screen.getByRole('button', { name: /create account/i }))
 }
 
@@ -31,7 +31,7 @@ describe('RegisterPage', () => {
   it('renders email and password input fields', () => {
     render(<RegisterPage />)
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Password')).toBeInTheDocument()
   })
 
   it('renders first name and last name input fields', () => {
@@ -73,14 +73,14 @@ describe('RegisterPage client-side validation', () => {
     expect(screen.getByLabelText(/first name/i)).toBeRequired()
     expect(screen.getByLabelText(/last name/i)).toBeRequired()
     expect(screen.getByLabelText(/email/i)).toBeRequired()
-    expect(screen.getByLabelText(/password/i)).toBeRequired()
+    expect(screen.getByLabelText('Password')).toBeRequired()
   })
 
   // Imported from the same constant the server validates against, so raising
   // the minimum cannot leave the form advertising the old rule.
   it('enforces the real password minimum on the input', () => {
     render(<RegisterPage />)
-    expect(screen.getByLabelText(/password/i)).toHaveAttribute(
+    expect(screen.getByLabelText('Password')).toHaveAttribute(
       'minlength', String(MIN_PASSWORD_LENGTH)
     )
   })
@@ -92,7 +92,7 @@ describe('RegisterPage client-side validation', () => {
 
   it('describes the password field by its hint for assistive tech', () => {
     render(<RegisterPage />)
-    const password = screen.getByLabelText(/password/i)
+    const password = screen.getByLabelText('Password')
     const describedBy = password.getAttribute('aria-describedby') ?? ''
 
     expect(describedBy).toContain('password-hint')
@@ -134,7 +134,7 @@ describe('RegisterPage error surfacing', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/data breach/i)
     })
-    expect(screen.getByLabelText(/password/i)).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('Password')).toHaveAttribute('aria-invalid', 'true')
   })
 
   // The core regression guard: the breach message used to be appended last
@@ -154,7 +154,7 @@ describe('RegisterPage error surfacing', () => {
       expect(screen.getByRole('alert')).toHaveTextContent(/last name is required/i)
     })
     expect(screen.getByRole('alert')).toHaveTextContent(/data breach/i)
-    expect(screen.getByLabelText(/password/i)).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('Password')).toHaveAttribute('aria-invalid', 'true')
     expect(screen.getByLabelText(/last name/i)).toHaveAttribute('aria-invalid', 'true')
   })
 

@@ -15,7 +15,7 @@ beforeEach(() => {
 
 async function submit(email = 'x@x.com', password = 'badpassword') {
   await userEvent.type(screen.getByLabelText(/email/i), email)
-  await userEvent.type(screen.getByLabelText(/password/i), password)
+  await userEvent.type(screen.getByLabelText('Password'), password)
   await userEvent.click(screen.getByRole('button', { name: /sign in/i }))
 }
 
@@ -23,7 +23,7 @@ describe('LoginPage', () => {
   it('renders email and password input fields', () => {
     render(<LoginPage />)
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Password')).toBeInTheDocument()
   })
 
   it('renders a sign in submit button', () => {
@@ -53,7 +53,7 @@ describe('LoginPage client-side validation', () => {
     render(<LoginPage />)
 
     expect(screen.getByLabelText(/email/i)).toBeRequired()
-    expect(screen.getByLabelText(/password/i)).toBeRequired()
+    expect(screen.getByLabelText('Password')).toBeRequired()
   })
 
   it('uses type=email so the field is validated as an address', () => {
@@ -76,7 +76,7 @@ describe('LoginPage error surfacing', () => {
       expect(screen.getByRole('alert')).toHaveTextContent('Invalid email or password')
     })
     expect(screen.getByLabelText(/email/i)).not.toHaveAttribute('aria-invalid')
-    expect(screen.getByLabelText(/password/i)).not.toHaveAttribute('aria-invalid')
+    expect(screen.getByLabelText('Password')).not.toHaveAttribute('aria-invalid')
   })
 
   it('surfaces the rate-limit countdown with the actual seconds', async () => {
