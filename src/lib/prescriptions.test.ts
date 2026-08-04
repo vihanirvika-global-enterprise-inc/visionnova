@@ -28,6 +28,7 @@ describe('createPrescription', () => {
       left_sphere: null, left_cylinder: null, left_axis: null, left_add: null,
       pupillary_distance: null,
       expires_at: null,
+      consent_given_at: now,
       created_at: now,
       updated_at: now,
     }])
@@ -36,12 +37,92 @@ describe('createPrescription', () => {
     const result = await createPrescription({
       customerId: 'cust-001',
       fileUrl: 'https://storage.example.com/rx/rx-001.pdf',
+      consentGivenAt: now,
     })
 
     expect(sql).toHaveBeenCalledOnce()
     expect(result.id).toBe('rx-001')
     expect(result.status).toBe('pending')
     expect(result.fileUrl).toBe('https://storage.example.com/rx/rx-001.pdf')
+    expect(result.consentGivenAt).toEqual(now)
+  })
+
+  // ST-007: consent is captured per prescription, not assumed — the caller
+  // must state when it was given, and that value is what gets persisted.
+  it('persists the given consentGivenAt timestamp, not the current time', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql)
+    const consentTime = new Date('2026-01-01T10:00:00Z')
+    spy.mockResolvedValueOnce([{
+      id: 'rx-001', customer_id: 'cust-001',
+      file_url: 'https://storage.example.com/rx/rx-001.pdf', status: 'pending',
+      right_sphere: null, right_cylinder: null, right_axis: null, right_add: null,
+      left_sphere: null, left_cylinder: null, left_axis: null, left_add: null,
+      pupillary_distance: null, expires_at: null,
+      consent_given_at: consentTime,
+      created_at: consentTime, updated_at: consentTime,
+    }])
+
+    const { createPrescription } = await import('./prescriptions')
+    await createPrescription({
+      customerId: 'cust-001',
+      fileUrl: 'https://storage.example.com/rx/rx-001.pdf',
+      consentGivenAt: consentTime,
+    })
+
+    const params = spy.mock.calls[0].slice(1)
+    expect(params).toContainEqual(consentTime)
+  })
+
+  // ST-023 (C3. Digital Rx Writing Tool). An optometrist-authored
+  // prescription has no uploaded document and is approved immediately (the
+  // optometrist wrote it themselves — no separate review queue applies).
+  it('creates a prescription with no file, an approved status, and clinical values when writing digitally', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql)
+    const now = new Date()
+    spy.mockResolvedValueOnce([{
+      id: 'rx-002', customer_id: 'cust-1', file_url: null, status: 'approved',
+      right_sphere: '-1.50', right_cylinder: '-0.75', right_axis: 90, right_add: null,
+      left_sphere: '-1.25', left_cylinder: null, left_axis: null, left_add: null,
+      pupillary_distance: '62', expires_at: null,
+      consent_given_at: now, created_at: now, updated_at: now,
+    }])
+
+    const { createPrescription } = await import('./prescriptions')
+    const result = await createPrescription({
+      customerId: 'cust-1',
+      fileUrl: null,
+      consentGivenAt: now,
+      status: 'approved',
+      rightSphere: -1.5, rightCylinder: -0.75, rightAxis: 90,
+      leftSphere: -1.25, pupillaryDistance: 62,
+    })
+
+    expect(result.fileUrl).toBeNull()
+    expect(result.status).toBe('approved')
+    expect(result.rightSphere).toBe(-1.5)
+    expect(result.pupillaryDistance).toBe(62)
+  })
+
+  it('still defaults to pending status and null fileUrl for a normal customer upload', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql)
+    const now = new Date()
+    spy.mockResolvedValueOnce([{
+      id: 'rx-001', customer_id: 'cust-1', file_url: 'key.pdf', status: 'pending',
+      right_sphere: null, right_cylinder: null, right_axis: null, right_add: null,
+      left_sphere: null, left_cylinder: null, left_axis: null, left_add: null,
+      pupillary_distance: null, expires_at: null,
+      consent_given_at: now, created_at: now, updated_at: now,
+    }])
+
+    const { createPrescription } = await import('./prescriptions')
+    const result = await createPrescription({
+      customerId: 'cust-1', fileUrl: 'key.pdf', consentGivenAt: now,
+    })
+
+    expect(result.status).toBe('pending')
   })
 })
 

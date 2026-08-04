@@ -55,9 +55,18 @@ export default function PrescriptionUploadPage() {
   return (
     <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
       <h1 className="text-dark">Upload Your Prescription</h1>
-      <p className="mb-8 mt-2 text-muted">
+      <p className="mt-2 text-muted">
         Upload a photo, scan, or PDF of your prescription. Our licensed optometrists
         will verify it within 12 hours.
+      </p>
+      {/* ST-008: the only cross-link into eye test booking from the part of
+          the funnel where "I don't have a current prescription" comes up. */}
+      <p className="mb-8 mt-1 text-sm text-muted">
+        Don&apos;t have a current prescription?{' '}
+        <Link href="/eye-test" className="font-medium text-primary hover:underline">
+          Book an eye test
+        </Link>{' '}
+        instead.
       </p>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
@@ -202,6 +211,17 @@ export default function PrescriptionUploadPage() {
             </div>
           )}
         </div>
+
+        {/* ── Consent ────────────────────────────────────────── */}
+        <label className="flex items-start gap-3 text-sm text-dark">
+          <input
+            type="checkbox"
+            name="consent"
+            className="mt-0.5 h-4 w-4 flex-shrink-0"
+          />
+          I consent to VisionNova and its licensed optometrists reviewing this
+          prescription to verify and fulfill my order.
+        </label>
 
         {/* ── Submit + trust note ───────────────────────────── */}
         <div>

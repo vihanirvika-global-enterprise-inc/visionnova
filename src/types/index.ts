@@ -122,8 +122,15 @@ export interface ShipmentDetails {
 export interface Prescription {
   id: string
   customerId: string
-  fileUrl: string
+  // ST-023: null for a prescription authored directly by an optometrist
+  // (Digital Rx Writing Tool) — there is no uploaded document, the clinical
+  // fields are the record.
+  fileUrl: string | null
   status: PrescriptionStatus
+  // ST-007: null only for prescriptions created before consent capture
+  // existed — never set retroactively, since that would fabricate consent
+  // that was never actually given.
+  consentGivenAt: Date | null
   rightSphere: number | null
   rightCylinder: number | null
   rightAxis: number | null

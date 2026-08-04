@@ -6,24 +6,51 @@ import { sendEmailBestEffort } from './bestEffortEmail'
 
 interface CreatePrescriptionInput {
   customerId: string
-  fileUrl: string
+  // null for a digitally-authored prescription (ST-023) — there is no
+  // uploaded document.
+  fileUrl: string | null
+  consentGivenAt: Date
+  // Defaults to the DB's own 'pending' default (customer upload, awaiting
+  // review) when omitted. The Digital Rx Writing Tool passes 'approved'
+  // explicitly — the optometrist wrote it themselves, no separate review
+  // queue applies.
+  status?: Prescription['status']
+  rightSphere?: number | null
+  rightCylinder?: number | null
+  rightAxis?: number | null
+  rightAdd?: number | null
+  leftSphere?: number | null
+  leftCylinder?: number | null
+  leftAxis?: number | null
+  leftAdd?: number | null
+  pupillaryDistance?: number | null
+}
+
+// NUMERIC columns come back from the Postgres driver as strings (precision
+// preservation), unlike INTEGER — this was previously unnoticed because
+// nothing ever wrote real values through this path; ST-023 is the first
+// caller that does.
+function numericOrNull(value: unknown): number | null {
+  if (value === null || value === undefined) return null
+  return parseFloat(value as string)
 }
 
 function mapPrescription(row: Record<string, unknown>): Prescription {
   return {
     id: row.id as string,
     customerId: row.customer_id as string,
-    fileUrl: row.file_url as string,
+    fileUrl: row.file_url as string | null,
     status: row.status as Prescription['status'],
-    rightSphere: row.right_sphere as number | null,
-    rightCylinder: row.right_cylinder as number | null,
+    consentGivenAt: (row.consent_given_at as Date) ?? null,
+    rightSphere: numericOrNull(row.right_sphere),
+    rightCylinder: numericOrNull(row.right_cylinder),
     rightAxis: row.right_axis as number | null,
-    rightAdd: row.right_add as number | null,
-    leftSphere: row.left_sphere as number | null,
-    leftCylinder: row.left_cylinder as number | null,
+    rightAdd: numericOrNull(row.right_add),
+    leftSphere: numericOrNull(row.left_sphere),
+    leftCylinder: numericOrNull(row.left_cylinder),
     leftAxis: row.left_axis as number | null,
-    leftAdd: row.left_add as number | null,
-    pupillaryDistance: row.pupillary_distance as number | null,
+    leftAdd: numericOrNull(row.left_add),
+    pupillaryDistance: numericOrNull(row.pupillary_distance),
     expiresAt: row.expires_at as Date | null,
     createdAt: row.created_at as Date,
     updatedAt: row.updated_at as Date,
@@ -32,8 +59,21 @@ function mapPrescription(row: Record<string, unknown>): Prescription {
 
 export async function createPrescription(input: CreatePrescriptionInput): Promise<Prescription> {
   const rows = await sql`
-    INSERT INTO prescriptions (customer_id, file_url)
-    VALUES (${input.customerId}, ${input.fileUrl})
+    INSERT INTO prescriptions (
+      customer_id, file_url, consent_given_at, status,
+      right_sphere, right_cylinder, right_axis, right_add,
+      left_sphere, left_cylinder, left_axis, left_add,
+      pupillary_distance
+    )
+    VALUES (
+      ${input.customerId}, ${input.fileUrl}, ${input.consentGivenAt},
+      ${input.status ?? 'pending'},
+      ${input.rightSphere ?? null}, ${input.rightCylinder ?? null},
+      ${input.rightAxis ?? null}, ${input.rightAdd ?? null},
+      ${input.leftSphere ?? null}, ${input.leftCylinder ?? null},
+      ${input.leftAxis ?? null}, ${input.leftAdd ?? null},
+      ${input.pupillaryDistance ?? null}
+    )
     RETURNING *
   `
   return mapPrescription(rows[0])
