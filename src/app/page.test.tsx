@@ -3,14 +3,25 @@ import { describe, it, expect, vi } from 'vitest'
 import type { Product } from '@/types'
 
 vi.mock('@/lib/products', () => ({ getInStockProducts: vi.fn() }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('@/app/account/wishlist/actions', () => ({
+  toggleWishlistAction: vi.fn().mockResolvedValue({ ok: true }),
+}))
 
 async function renderHomePage(products: Product[] = []) {
   const { getInStockProducts } = await import('@/lib/products')
   vi.mocked(getInStockProducts).mockResolvedValueOnce(products)
 
   const { CartProvider } = await import('@/components/cart/CartContext')
+  const { WishlistProvider } = await import('@/components/wishlist/WishlistContext')
   const HomePage = (await import('./page')).default
-  return render(<CartProvider>{await HomePage()}</CartProvider>)
+  return render(
+    <CartProvider>
+      <WishlistProvider initialWishlistedIds={[]} isLoggedIn={false}>
+        {await HomePage()}
+      </WishlistProvider>
+    </CartProvider>
+  )
 }
 
 const mockProduct: Product = {

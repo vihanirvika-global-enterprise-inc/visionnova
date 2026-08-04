@@ -2,9 +2,25 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi, describe, it, expect } from 'vitest'
 import { CartProvider, useCart } from '@/components/cart/CartContext'
+import { WishlistProvider } from '@/components/wishlist/WishlistContext'
 import { ProductCard } from './ProductCard'
 import { formatPrice } from '@/lib/formatters'
 import type { Product } from '@/types'
+
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('@/app/account/wishlist/actions', () => ({
+  toggleWishlistAction: vi.fn().mockResolvedValue({ ok: true }),
+}))
+
+function renderWithProviders(ui: React.ReactElement) {
+  return render(
+    <CartProvider>
+      <WishlistProvider initialWishlistedIds={[]} isLoggedIn={false}>
+        {ui}
+      </WishlistProvider>
+    </CartProvider>
+  )
+}
 
 const mockProduct: Product = {
   id: 'prod-001',
@@ -22,23 +38,23 @@ const mockProduct: Product = {
 
 describe('ProductCard', () => {
   it('renders the product name and price', () => {
-    render(<CartProvider><ProductCard product={mockProduct} /></CartProvider>)
+    renderWithProviders(<ProductCard product={mockProduct} />)
     expect(screen.getByText('Classic Frame')).toBeInTheDocument()
     expect(screen.getByText(formatPrice(89.99))).toBeInTheDocument()
   })
 
   it('shows a prescription badge when requiresPrescription is true', () => {
-    render(<CartProvider><ProductCard product={{ ...mockProduct, requiresPrescription: true }} /></CartProvider>)
+    renderWithProviders(<ProductCard product={{ ...mockProduct, requiresPrescription: true }} />)
     expect(screen.getByText('Requires Prescription')).toBeInTheDocument()
   })
 
   it('does not show a prescription badge when requiresPrescription is false', () => {
-    render(<CartProvider><ProductCard product={mockProduct} /></CartProvider>)
+    renderWithProviders(<ProductCard product={mockProduct} />)
     expect(screen.queryByText('Requires Prescription')).not.toBeInTheDocument()
   })
 
   it('does not render an Add to Cart button when the product is out of stock', () => {
-    render(<CartProvider><ProductCard product={{ ...mockProduct, stockQuantity: 0 }} /></CartProvider>)
+    renderWithProviders(<ProductCard product={{ ...mockProduct, stockQuantity: 0 }} />)
     expect(screen.queryByRole('button', { name: /add to cart/i })).not.toBeInTheDocument()
   })
 
@@ -50,14 +66,19 @@ describe('ProductCard', () => {
       return null
     }
 
-    render(
-      <CartProvider>
+    renderWithProviders(
+      <>
         <ProductCard product={mockProduct} />
         <Inspector />
-      </CartProvider>
+      </>
     )
 
     await userEvent.click(screen.getByRole('button', { name: /add to cart/i }))
     expect(itemCount).toBe(1)
+  })
+
+  it('renders a wishlist toggle', () => {
+    renderWithProviders(<ProductCard product={mockProduct} />)
+    expect(screen.getByRole('button', { name: /add to wishlist/i })).toBeInTheDocument()
   })
 })

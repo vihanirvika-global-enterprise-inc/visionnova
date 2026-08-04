@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import type { Product } from '@/types'
 import { AddToCartButton } from './AddToCartButton'
+import { WishlistButton } from './WishlistButton'
 import { formatPrice } from '@/lib/formatters'
 
 interface ProductCardProps {
@@ -9,7 +10,9 @@ interface ProductCardProps {
 
 export function ProductCard({ product }: ProductCardProps) {
   return (
-    <div className="card flex flex-col">
+    <div className="card relative flex flex-col">
+
+      <WishlistButton product={product} />
 
       {/* Image area */}
       <div className="aspect-video overflow-hidden rounded-t-xl bg-slate-100">
