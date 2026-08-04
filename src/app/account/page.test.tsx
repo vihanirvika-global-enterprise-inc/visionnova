@@ -245,6 +245,35 @@ describe('AccountPage — prescription file access', () => {
   })
 })
 
+// EP-010 BUG-004 / FTC Eyeglass Rule (16 CFR 456.2): the patient must be
+// able to get a copy of their prescription. A digitally-authored Rx has no
+// file to view, so the clinical values themselves have to be reachable here
+// instead — before this, they existed only in the database.
+describe('AccountPage — digitally-authored prescription details', () => {
+  it('shows the actual clinical values for a prescription with no file', async () => {
+    await setup({
+      prescriptions: [makePrescription({
+        id: 'rx-001', fileUrl: null,
+        rightSphere: -2.5, rightCylinder: -0.75, rightAxis: 90, rightAdd: null,
+        leftSphere: -2.25, leftCylinder: -0.5, leftAxis: 85, leftAdd: null,
+        pupillaryDistance: 62,
+      })],
+    })
+
+    const details = screen.getByTestId('rx-clinical-values-rx-001')
+    expect(details).toHaveTextContent('-2.5')
+    expect(details).toHaveTextContent('-0.75')
+    expect(details).toHaveTextContent('90')
+    expect(details).toHaveTextContent('62')
+  })
+
+  it('does not render clinical-value details for a prescription that has an uploaded file', async () => {
+    await setup({ prescriptions: [makePrescription({ id: 'rx-001', fileUrl: 'https://storage.example.com/rx-001.pdf' })] })
+
+    expect(screen.queryByTestId('rx-clinical-values-rx-001')).not.toBeInTheDocument()
+  })
+})
+
 describe('AccountPage — rejected prescription re-upload', () => {
   it('offers a re-upload link on a rejected prescription', async () => {
     await setup({ prescriptions: [makePrescription({ status: 'rejected' })] })

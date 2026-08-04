@@ -32,6 +32,10 @@ function expiryLabel(expiresAt: Date | null): string {
   return `Expires ${expiresAt.toLocaleDateString('en-IN')}`
 }
 
+function formatRx(value: number | null): string {
+  return value === null ? '—' : value.toFixed(2)
+}
+
 interface AccountPageProps {
   searchParams?: { orderTab?: string }
 }
@@ -162,6 +166,34 @@ export default async function AccountPage({ searchParams = {} }: AccountPageProp
                       >
                         View File
                       </a>
+                    )}
+                    {/* EP-010 BUG-004 / FTC Eyeglass Rule (16 CFR 456.2): the
+                        patient must be able to get a copy of their
+                        prescription. A digitally-authored Rx has no file, so
+                        the clinical values recorded at write-up time are the
+                        prescription of record and have to be reachable here
+                        — before this they existed only in the database. */}
+                    {!rx.fileUrl && (
+                      <details data-testid={`rx-clinical-values-${rx.id}`}>
+                        <summary className="cursor-pointer text-xs font-medium text-primary hover:underline">
+                          View prescription details
+                        </summary>
+                        <div className="mt-2 text-left text-xs text-dark">
+                          <p>
+                            <strong>OD (right)</strong> — SPH {formatRx(rx.rightSphere)} · CYL{' '}
+                            {formatRx(rx.rightCylinder)} · AXIS {rx.rightAxis ?? '—'} · ADD{' '}
+                            {formatRx(rx.rightAdd)}
+                          </p>
+                          <p>
+                            <strong>OS (left)</strong> — SPH {formatRx(rx.leftSphere)} · CYL{' '}
+                            {formatRx(rx.leftCylinder)} · AXIS {rx.leftAxis ?? '—'} · ADD{' '}
+                            {formatRx(rx.leftAdd)}
+                          </p>
+                          <p>
+                            <strong>PD</strong> {formatRx(rx.pupillaryDistance)}
+                          </p>
+                        </div>
+                      </details>
                     )}
                     {rx.status === 'rejected' && (
                       <Link

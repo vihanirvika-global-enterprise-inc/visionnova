@@ -103,6 +103,23 @@ export async function updatePrescriptionStatus(
             to: customer.email,
             firstName: customer.firstName,
             status,
+            // EP-010 BUG-004 / FTC Eyeglass Rule: the patient must
+            // automatically receive a copy of the prescription on approval.
+            // hasFile tells the template to point at the account page
+            // instead; clinicalValues carries the actual prescription when
+            // there is no file to point at (a digitally-authored Rx).
+            hasFile: Boolean(prescription.fileUrl),
+            clinicalValues: {
+              rightSphere: prescription.rightSphere,
+              rightCylinder: prescription.rightCylinder,
+              rightAxis: prescription.rightAxis,
+              rightAdd: prescription.rightAdd,
+              leftSphere: prescription.leftSphere,
+              leftCylinder: prescription.leftCylinder,
+              leftAxis: prescription.leftAxis,
+              leftAdd: prescription.leftAdd,
+              pupillaryDistance: prescription.pupillaryDistance,
+            },
           }),
         { prescriptionId: prescription.id }
       )
@@ -177,6 +194,10 @@ interface LogPrescriptionReviewInput {
   rejectionReason?: RejectionReason
 }
 
+// Reviewed for EP-010 BUG-003: this is the review-decision half of the Rx
+// audit trail (who approved/rejected, why, and when) — the read-access half
+// lives in prescriptionAccessLogs.ts. Together they satisfy the ticket's
+// "confirm Audit-Log View" requirement.
 export async function logPrescriptionReviewAction(input: LogPrescriptionReviewInput): Promise<void> {
   await sql`
     INSERT INTO prescription_review_logs (prescription_id, reviewer_id, action, rejection_reason, note)

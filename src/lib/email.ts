@@ -38,10 +38,28 @@ export async function sendOrderShippedEmail(options: OrderShippedEmailOptions) {
   })
 }
 
+export interface PrescriptionClinicalValues {
+  rightSphere: number | null
+  rightCylinder: number | null
+  rightAxis: number | null
+  rightAdd: number | null
+  leftSphere: number | null
+  leftCylinder: number | null
+  leftAxis: number | null
+  leftAdd: number | null
+  pupillaryDistance: number | null
+}
+
 export interface PrescriptionStatusEmailOptions {
   to: string
   firstName: string
   status: 'approved' | 'rejected'
+  // FTC Eyeglass Rule (EP-010 BUG-004): on approval, the patient must
+  // automatically receive a copy of the prescription. hasFile tells the
+  // template whether to point at the account page instead of inlining
+  // clinicalValues — see PrescriptionStatusEmail.tsx.
+  hasFile?: boolean
+  clinicalValues?: PrescriptionClinicalValues
 }
 
 export async function sendPrescriptionStatusEmail(options: PrescriptionStatusEmailOptions) {
@@ -53,6 +71,8 @@ export async function sendPrescriptionStatusEmail(options: PrescriptionStatusEma
     react: createElement(PrescriptionStatusEmail, {
       firstName: options.firstName,
       status: options.status,
+      hasFile: options.hasFile,
+      clinicalValues: options.clinicalValues,
     }),
   })
 }
