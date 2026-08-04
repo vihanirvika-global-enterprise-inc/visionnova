@@ -2,6 +2,9 @@ import Link from 'next/link'
 import { getInStockProducts } from '@/lib/products'
 import { ProductGrid } from '@/components/ui/ProductGrid'
 
+// ST-001 (A1. Homepage): hero, trust strip, and a live product grid wired to
+// getInStockProducts — verified against the ticket, not just carried over
+// from its "Done" status.
 export default async function HomePage() {
   const products = await getInStockProducts()
 

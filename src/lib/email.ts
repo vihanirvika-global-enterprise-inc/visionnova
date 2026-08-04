@@ -98,6 +98,12 @@ export async function sendLoginOtpEmail(options: LoginOtpEmailOptions) {
   })
 }
 
+// ST-011 (A11. Order Confirmation — "confirmation page and email/SMS fire").
+// Email half is real — called from both src/app/api/stripe/webhook and
+// src/app/api/razorpay/webhook on successful payment. SMS is not
+// implemented: no SMS provider (Twilio or otherwise) exists anywhere in
+// this codebase despite being named in the project's tech stack — that's a
+// vendor/credentials gap, not something to stub without real credentials.
 export interface OrderConfirmationEmailOptions {
   to: string
   orderId: string
