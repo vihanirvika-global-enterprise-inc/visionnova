@@ -66,6 +66,29 @@ export interface Product {
   updatedAt: Date
 }
 
+export interface PartnerStore {
+  id: string
+  name: string
+  addressLine1: string
+  addressLine2: string | null
+  city: string
+  state: string
+  postalCode: string
+  phone: string | null
+  createdAt: Date
+}
+
+export type AppointmentStatus = 'scheduled' | 'cancelled' | 'completed'
+
+export interface EyeTestAppointment {
+  id: string
+  customerId: string
+  optometristId: string
+  scheduledAt: Date
+  status: AppointmentStatus
+  createdAt: Date
+}
+
 export interface ProductImage {
   id: string
   productId: string
