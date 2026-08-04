@@ -3,6 +3,7 @@ import { createElement, type ReactElement } from 'react'
 import { OrderConfirmationEmail } from '../emails/OrderConfirmationEmail'
 import { PrescriptionStatusEmail } from '../emails/PrescriptionStatusEmail'
 import { OrderShippedEmail } from '../emails/OrderShippedEmail'
+import { LoginOtpEmail } from '../emails/LoginOtpEmail'
 
 export interface SendEmailOptions {
   to: string
@@ -52,6 +53,27 @@ export async function sendPrescriptionStatusEmail(options: PrescriptionStatusEma
     react: createElement(PrescriptionStatusEmail, {
       firstName: options.firstName,
       status: options.status,
+    }),
+  })
+}
+
+// ST-013 (A13. Auth — OTP delivery). The email half of "2FA on login": this
+// is a hard failure, not best-effort — unlike order/shipping emails, there
+// is no other way for the customer to receive the code, so loginAction must
+// not proceed to the verify-otp step if this throws.
+export interface LoginOtpEmailOptions {
+  to: string
+  firstName: string
+  code: string
+}
+
+export async function sendLoginOtpEmail(options: LoginOtpEmailOptions) {
+  return sendEmail({
+    to: options.to,
+    subject: 'Your VisionNova verification code',
+    react: createElement(LoginOtpEmail, {
+      firstName: options.firstName,
+      code: options.code,
     }),
   })
 }

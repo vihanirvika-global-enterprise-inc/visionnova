@@ -108,6 +108,33 @@ describe('sendPrescriptionStatusEmail', () => {
   })
 })
 
+describe('sendLoginOtpEmail', () => {
+  beforeEach(() => {
+    mockSend.mockReset()
+  })
+
+  it('sends the OTP code to the customer with a verification-code subject', async () => {
+    mockSend.mockResolvedValue({ data: { id: 'email-otp-1' }, error: null })
+    const { sendLoginOtpEmail } = await import('./email')
+
+    await sendLoginOtpEmail({
+      to: 'customer@example.com',
+      firstName: 'Priya',
+      code: '482913',
+    })
+
+    expect(mockSend).toHaveBeenCalledOnce()
+    expect(mockSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: 'VisionNova <noreply@visionnova.com>',
+        to: 'customer@example.com',
+        subject: expect.stringMatching(/verification code/i),
+        react: expect.anything(),
+      })
+    )
+  })
+})
+
 describe('sendOrderConfirmationEmail', () => {
   beforeEach(() => {
     mockSend.mockReset()
