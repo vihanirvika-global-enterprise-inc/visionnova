@@ -145,3 +145,40 @@ describe('checkRateLimit — fail-open scoping', () => {
     expect(captureRateLimitOutage).not.toHaveBeenCalled()
   })
 })
+
+// Rate limiting is a protective control, so a production deploy that silently
+// lost it would be a security regression — missing credentials must stay fatal
+// there. Locally, though, the same throw made every rate-limited endpoint
+// (register, login, contact) unusable without an Upstash account.
+describe('checkRateLimit — unconfigured credentials', () => {
+  beforeEach(() => {
+    delete process.env.UPSTASH_REDIS_REST_URL
+    delete process.env.UPSTASH_REDIS_REST_TOKEN
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('throws in production so rate limiting can never be silently absent', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+
+    await expect(checkRateLimit('1.2.3.4', 'register')).rejects.toThrow(
+      /UPSTASH_REDIS_REST_URL/,
+    )
+  })
+
+  it('allows the request outside production instead of breaking the endpoint', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+
+    await expect(checkRateLimit('1.2.3.4', 'register')).resolves.toEqual({ allowed: true })
+  })
+
+  it('does not report unconfigured local dev to Sentry as an outage', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+
+    await checkRateLimit('1.2.3.4', 'register')
+
+    expect(captureRateLimitOutage).not.toHaveBeenCalled()
+  })
+})
