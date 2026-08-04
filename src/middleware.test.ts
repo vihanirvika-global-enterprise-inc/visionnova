@@ -26,6 +26,7 @@ const CUSTOMER_TOKEN = makeSignedSession({ customerId: 'cust-001', role: 'custom
 const OPTOMETRIST_TOKEN = makeSignedSession({ customerId: 'cust-002', role: 'optometrist' })
 const ADMIN_TOKEN = makeSignedSession({ customerId: 'cust-003', role: 'admin' })
 const OPS_TOKEN = makeSignedSession({ customerId: 'cust-004', role: 'ops' })
+const PARTNER_TOKEN = makeSignedSession({ customerId: 'cust-005', role: 'partner_optometrist' })
 
 describe('middleware', () => {
   it('redirects unauthenticated requests to /account to /login', async () => {
@@ -157,3 +158,52 @@ describe('middleware — admin guard', () => {
   })
 })
 
+// ST-021 (EP-007). The whole point of this guard: 'optometrist' must never
+// get in here, even though it's an ADMIN_ROLES member — this is a
+// deliberately separate role list, not a widening of the admin gate.
+describe('middleware — partner portal guard', () => {
+  it('allows unauthenticated requests to /partner-portal/register through — it is the signup form', async () => {
+    const req = makeRequest('/partner-portal/register')
+    const res = await middleware(req)
+
+    expect(res.status).toBe(200)
+  })
+
+  it('redirects unauthenticated requests to other /partner-portal/* routes to /login', async () => {
+    const req = makeRequest('/partner-portal/dashboard')
+    const res = await middleware(req)
+
+    expect(res.status).toBe(307)
+    expect(res.headers.get('location')).toContain('/login')
+  })
+
+  it('redirects customer role to /partner-portal/* to /unauthorized', async () => {
+    const req = makeRequest('/partner-portal/dashboard', CUSTOMER_TOKEN)
+    const res = await middleware(req)
+
+    expect(res.status).toBe(307)
+    expect(res.headers.get('location')).toContain('/unauthorized')
+  })
+
+  it('redirects the internal optometrist reviewer role away from /partner-portal/* — it must not inherit partner access', async () => {
+    const req = makeRequest('/partner-portal/dashboard', OPTOMETRIST_TOKEN)
+    const res = await middleware(req)
+
+    expect(res.status).toBe(307)
+    expect(res.headers.get('location')).toContain('/unauthorized')
+  })
+
+  it('allows partner_optometrist role through /partner-portal/*', async () => {
+    const req = makeRequest('/partner-portal/dashboard', PARTNER_TOKEN)
+    const res = await middleware(req)
+
+    expect(res.status).toBe(200)
+  })
+
+  it('allows admin role through /partner-portal/* for oversight', async () => {
+    const req = makeRequest('/partner-portal/dashboard', ADMIN_TOKEN)
+    const res = await middleware(req)
+
+    expect(res.status).toBe(200)
+  })
+})

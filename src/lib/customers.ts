@@ -7,6 +7,9 @@ interface CreateCustomerInput {
   firstName: string
   lastName: string
   phone?: string
+  // Defaults to the DB's own 'customer' default when omitted — existing
+  // callers (customer registration) are unaffected.
+  role?: CustomerRole
 }
 
 function mapCustomer(row: Record<string, unknown>): Customer {
@@ -25,8 +28,11 @@ function mapCustomer(row: Record<string, unknown>): Customer {
 
 export async function createCustomer(input: CreateCustomerInput): Promise<Customer> {
   const rows = await sql`
-    INSERT INTO customers (email, password_hash, first_name, last_name, phone)
-    VALUES (${input.email}, ${input.passwordHash}, ${input.firstName}, ${input.lastName}, ${input.phone ?? null})
+    INSERT INTO customers (email, password_hash, first_name, last_name, phone, role)
+    VALUES (
+      ${input.email}, ${input.passwordHash}, ${input.firstName}, ${input.lastName},
+      ${input.phone ?? null}, ${input.role ?? 'customer'}
+    )
     RETURNING *
   `
   return mapCustomer(rows[0])

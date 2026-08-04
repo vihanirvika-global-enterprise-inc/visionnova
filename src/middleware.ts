@@ -4,6 +4,11 @@ const SECRET = process.env.SESSION_SECRET ?? 'dev-secret-change-in-production'
 const PROTECTED = ['/account', '/checkout', '/prescription-upload', '/order']
 const ADMIN_ROLES = ['optometrist', 'admin']
 
+// Deliberately excludes 'optometrist' — that role already has /admin access
+// to every customer's prescription; a B2B2C partner clinic must never
+// inherit that. 'admin' is included for operational oversight only.
+const PARTNER_ROLES = ['partner_optometrist', 'admin']
+
 function toHex(buffer: ArrayBuffer): string {
   return Array.from(new Uint8Array(buffer))
     .map((byte) => byte.toString(16).padStart(2, '0'))
@@ -58,6 +63,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  if (pathname.startsWith('/partner-portal')) {
+    // Registration must stay reachable without a session — it's how a new
+    // partner account gets created in the first place.
+    if (pathname === '/partner-portal/register') {
+      return NextResponse.next()
+    }
+    if (!sessionCookie) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+    const session = await decodeSessionCookie(sessionCookie.value)
+    if (!session || !PARTNER_ROLES.includes(session.role)) {
+      return NextResponse.redirect(new URL('/unauthorized', request.url))
+    }
+    return NextResponse.next()
+  }
+
   const isProtected = PROTECTED.some((path) => pathname.startsWith(path))
   if (isProtected) {
     // Verify the signature here, not just the cookie's presence: a tampered
@@ -78,5 +99,6 @@ export const config = {
     '/prescription-upload/:path*',
     '/order/:path*',
     '/admin/:path*',
+    '/partner-portal/:path*',
   ],
 }

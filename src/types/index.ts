@@ -38,7 +38,11 @@ export interface ShippingAddress {
   country: string
 }
 
-export type CustomerRole = 'customer' | 'optometrist' | 'ops' | 'admin'
+// partner_optometrist is deliberately distinct from optometrist — that role
+// already grants access to every customer's prescription via /admin
+// (REVIEWER_ROLES in prescriptionAccess.ts). A B2B2C partner clinic must
+// never inherit that; see middleware's separate '/partner-portal' gate.
+export type CustomerRole = 'customer' | 'optometrist' | 'ops' | 'admin' | 'partner_optometrist'
 
 export interface Customer {
   id: string
@@ -169,5 +173,32 @@ export interface PrescriptionReviewLog {
   action: ReviewStatus
   rejectionReason: RejectionReason | null
   note: string | null
+  createdAt: Date
+}
+
+// ST-021 (EP-007 B2B2C Optometrist Clinic Portal).
+export type KycStatus = 'pending' | 'verified' | 'rejected'
+
+export interface OptometristPartner {
+  id: string
+  customerId: string
+  clinicName: string
+  kycStatus: KycStatus
+  kycDocumentKey: string
+  referralCode: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+// ST-024 — ledger shell. amount is null until a real commission-rate
+// business rule exists to compute it; see referralCommissions.ts.
+export type CommissionStatus = 'pending' | 'reconciled'
+
+export interface ReferralCommission {
+  id: string
+  partnerId: string
+  orderId: string
+  amount: number | null
+  status: CommissionStatus
   createdAt: Date
 }
