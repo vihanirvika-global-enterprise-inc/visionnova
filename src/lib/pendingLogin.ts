@@ -1,8 +1,9 @@
 import { createHmac } from 'crypto'
 import { cookies } from 'next/headers'
+import { requiredSecret } from './requiredSecret'
 
 const PENDING_LOGIN_COOKIE = 'pending_login'
-const SECRET = process.env.SESSION_SECRET ?? 'dev-secret-change-in-production'
+const SECRET = requiredSecret('SESSION_SECRET')
 // Long enough to read an email and type a 6-digit code, short enough that a
 // stale pending login can't be resurrected much later.
 const MAX_AGE = 60 * 10

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requiredSecret } from './lib/requiredSecret'
 
-const SECRET = process.env.SESSION_SECRET ?? 'dev-secret-change-in-production'
+const SECRET = requiredSecret('SESSION_SECRET')
 const PROTECTED = ['/account', '/checkout', '/prescription-upload', '/order', '/eye-test']
 const ADMIN_ROLES = ['optometrist', 'admin']
 

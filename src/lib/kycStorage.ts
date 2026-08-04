@@ -1,6 +1,7 @@
 import { randomUUID, randomBytes, createHash, createCipheriv, createDecipheriv } from 'crypto'
 import { mkdir, writeFile, readFile } from 'fs/promises'
 import { join, resolve, extname, basename } from 'path'
+import { requiredSecret } from './requiredSecret'
 
 // ST-021 ("KYC documents encrypted at rest"). Same directory-safety shape as
 // prescriptionStorage.ts, deliberately duplicated rather than shared — see
@@ -17,7 +18,7 @@ const AUTH_TAG_LENGTH = 16
 // having been flagged here as a gap when this module was first built for
 // ST-021's KYC-specific requirement.
 function getEncryptionKey(): Buffer {
-  const secret = process.env.KYC_ENCRYPTION_KEY ?? 'dev-secret-change-in-production'
+  const secret = requiredSecret('KYC_ENCRYPTION_KEY')
   // SHA-256 turns an arbitrary-length secret into exactly the 32 bytes
   // AES-256 requires, the same "hash a passphrase into a fixed-length key"
   // approach as SESSION_SECRET's HMAC usage elsewhere in this codebase.

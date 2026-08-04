@@ -1,8 +1,9 @@
 import { createHmac } from 'crypto'
 import { cookies } from 'next/headers'
+import { requiredSecret } from './requiredSecret'
 
 const SESSION_COOKIE = 'session'
-const SECRET = process.env.SESSION_SECRET ?? 'dev-secret-change-in-production'
+const SECRET = requiredSecret('SESSION_SECRET')
 const MAX_AGE = 60 * 60 * 24 * 7 // 7 days in seconds
 
 interface SessionPayload {

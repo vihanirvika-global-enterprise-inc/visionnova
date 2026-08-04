@@ -1,6 +1,7 @@
 import { randomUUID, randomBytes, createHash, createCipheriv, createDecipheriv } from 'crypto'
 import { mkdir, writeFile, readFile } from 'fs/promises'
 import { join, resolve, extname, basename } from 'path'
+import { requiredSecret } from './requiredSecret'
 
 // Deliberately NOT under public/ — Next.js serves everything there as an
 // unauthenticated static asset. Files here are reachable only through
@@ -33,7 +34,7 @@ export const CONTENT_TYPES: Record<string, string> = {
 // prescriptions on disk needs a one-time re-encryption pass before this
 // ships — that is a deployment/ops step, not something to fabricate here.
 function getEncryptionKey(): Buffer {
-  const secret = process.env.PRESCRIPTION_ENCRYPTION_KEY ?? 'dev-secret-change-in-production'
+  const secret = requiredSecret('PRESCRIPTION_ENCRYPTION_KEY')
   return createHash('sha256').update(secret).digest()
 }
 
