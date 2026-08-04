@@ -66,6 +66,16 @@ describe('CatalogPage', () => {
 
     expect(screen.getByTestId('catalog-controls')).toBeInTheDocument()
   })
+
+  it('links to the sunglasses and contact lens catalogs', async () => {
+    const { getCatalogProducts } = await import('@/lib/products')
+    vi.mocked(getCatalogProducts).mockResolvedValueOnce({ products: [], totalCount: 0 })
+
+    await renderCatalogPage()
+
+    expect(screen.getByRole('link', { name: /sunglasses/i })).toHaveAttribute('href', '/sunglasses')
+    expect(screen.getByRole('link', { name: /contact lenses/i })).toHaveAttribute('href', '/contacts')
+  })
 })
 
 describe('CatalogPage — search', () => {
