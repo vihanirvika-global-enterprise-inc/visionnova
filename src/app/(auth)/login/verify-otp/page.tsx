@@ -43,7 +43,11 @@ export default function VerifyOtpPage() {
           We emailed a 6-digit verification code. It expires in 5 minutes.
         </p>
 
-        <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+        {/* method=post is load-bearing, not cosmetic: onSubmit does not exist
+            until React hydrates, and a native submit before then would serialise
+            the one-time code into the query string — landing it in browser history,
+            the next navigation's Referer header, and proxy/server access logs. */}
+        <form method="post" onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
 
           {allMessages.length > 0 && (
             <div

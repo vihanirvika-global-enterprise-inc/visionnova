@@ -235,3 +235,20 @@ describe('RegisterPage terms and privacy', () => {
     expect(helpLinks).toHaveLength(0)
   })
 })
+
+// Pre-hydration safety. Submission runs through onSubmit + preventDefault,
+// which does not exist until React hydrates. In that window the browser
+// performs the form's native submit, and a GET form serialises every field
+// into the query string -- putting the credential in browser history, the
+// Referer header of the next navigation, and every proxy and server access
+// log. method=post is what makes that structurally impossible, independent
+// of whether any JavaScript has run.
+describe('registration form — pre-hydration submit safety', () => {
+  it('declares method=post so a native submit cannot put credentials in the URL', () => {
+    const { container } = render(<RegisterPage />)
+
+    const form = container.querySelector('form')
+    expect(form).not.toBeNull()
+    expect(form).toHaveAttribute('method', 'post')
+  })
+})

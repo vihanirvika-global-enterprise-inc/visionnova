@@ -52,7 +52,11 @@ export default function LoginPage() {
             messages, which are the ones wired up for screen readers. The
             required/type attributes still document intent and stay useful if
             JS fails to load. */}
-        <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+        {/* method=post is load-bearing, not cosmetic: onSubmit does not exist
+            until React hydrates, and a native submit before then would serialise
+            the password into the query string — landing it in browser history,
+            the next navigation's Referer header, and proxy/server access logs. */}
+        <form method="post" onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
 
           {allMessages.length > 0 && (
             <div
