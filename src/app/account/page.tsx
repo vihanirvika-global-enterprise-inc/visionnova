@@ -3,9 +3,17 @@ import { redirect } from 'next/navigation'
 import { getOrdersByCustomer } from '@/lib/orders'
 import { getPrescriptionsByCustomer } from '@/lib/prescriptions'
 import { getCustomerById } from '@/lib/customers'
+import { getAppointmentsByCustomer, getOptometrists } from '@/lib/eyeTestAppointments'
 import { getSession } from '@/lib/session'
 import { formatPrice } from '@/lib/formatters'
-import { orderStatusLabel } from '@/lib/orderStatus'
+import { orderStatusLabel, ORDER_TABS, filterOrdersByTab, type OrderTab } from '@/lib/orderStatus'
+
+function formatAppointmentTime(scheduledAt: Date): string {
+  return scheduledAt.toLocaleString('en-IN', {
+    weekday: 'short', day: 'numeric', month: 'short',
+    hour: 'numeric', minute: '2-digit',
+  })
+}
 
 function statusColors(status: string): string {
   if (status === 'approved' || status === 'delivered' || status === 'shipped') {
@@ -24,7 +32,20 @@ function expiryLabel(expiresAt: Date | null): string {
   return `Expires ${expiresAt.toLocaleDateString('en-IN')}`
 }
 
-export default async function AccountPage() {
+interface AccountPageProps {
+  searchParams?: { orderTab?: string }
+}
+
+// ST-016 (B1. My Account Dashboard — "dashboard loads all account widgets").
+// Verified against the ticket: prescriptions, orders, eye test appointments,
+// and wishlist/privacy entry points all load here in one server-rendered
+// pass (no client-side widget loading race to get wrong).
+//
+// No default value on the props object: Next's generated PageProps check
+// rejects a first argument that can be undefined, and it only runs when
+// .next/types exist (next build / a running dev server) — tsc --noEmit
+// alone will not catch it. Same trap admin/orders/page.tsx documents.
+export default async function AccountPage({ searchParams = {} }: AccountPageProps) {
   const session = getSession()
 
   // Middleware already rejects an invalid session before this runs, so this
@@ -38,11 +59,19 @@ export default async function AccountPage() {
 
   const customerId = session.customerId
 
-  const [orders, prescriptions, customer] = await Promise.all([
+  const [orders, prescriptions, customer, appointments, optometrists] = await Promise.all([
     getOrdersByCustomer(customerId),
     getPrescriptionsByCustomer(customerId),
     getCustomerById(customerId),
+    getAppointmentsByCustomer(customerId),
+    getOptometrists(),
   ])
+  const optometristsById = new Map(optometrists.map((o) => [o.id, o]))
+
+  const activeTab: OrderTab = ORDER_TABS.some((t) => t.key === searchParams.orderTab)
+    ? (searchParams.orderTab as OrderTab)
+    : 'all'
+  const visibleOrders = filterOrdersByTab(orders, activeTab)
 
   // The session can outlive the customer row (deleted account, stale cookie),
   // so the greeting degrades instead of assuming a record exists.
@@ -50,7 +79,17 @@ export default async function AccountPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
-      <h1 className="text-dark">{greeting}</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-dark">{greeting}</h1>
+        <div className="flex items-center gap-4">
+          <Link href="/account/privacy" className="text-sm font-medium text-primary hover:text-teal">
+            My Privacy →
+          </Link>
+          <Link href="/account/wishlist" className="text-sm font-medium text-primary hover:text-teal">
+            My Wishlist →
+          </Link>
+        </div>
+      </div>
 
       <div className="mt-8 flex flex-col gap-8">
 
@@ -107,6 +146,23 @@ export default async function AccountPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
+                    {/* ST-018 (B3. My Prescriptions Vault — "every Rx access
+                        is written to the audit log"). This is the only
+                        customer-facing route to the file itself; the API
+                        route it points at (readPrescriptionForSession) both
+                        authorises the owner and logs the access — that
+                        already existed and was only ever wired into the
+                        admin review screen before this link. */}
+                    {/* ST-023: a digitally-authored prescription has no
+                        uploaded document — nothing for this link to open. */}
+                    {rx.fileUrl && (
+                      <a
+                        href={`/api/prescriptions/${rx.id}/file`}
+                        className="text-xs font-medium text-primary hover:underline"
+                      >
+                        View File
+                      </a>
+                    )}
                     {rx.status === 'rejected' && (
                       <Link
                         href="/prescription-upload"
@@ -161,7 +217,31 @@ export default async function AccountPage() {
             </div>
           ) : (
             <div>
-              {orders.map((order) => (
+              {/* ST-017: plain links, not client-side state — matches the
+                  searchParams-driven pattern already used by /shop, /stores,
+                  etc., so no JS is required for the filter to work. */}
+              <nav aria-label="Filter orders" className="mb-4 flex flex-wrap gap-2">
+                {ORDER_TABS.map((tab) => (
+                  <Link
+                    key={tab.key}
+                    href={tab.key === 'all' ? '/account' : `/account?orderTab=${tab.key}`}
+                    aria-current={activeTab === tab.key ? 'true' : undefined}
+                    className={
+                      activeTab === tab.key
+                        ? 'rounded-full bg-primary px-3 py-1 text-xs font-medium text-white'
+                        : 'rounded-full bg-surface px-3 py-1 text-xs font-medium text-muted hover:text-dark'
+                    }
+                  >
+                    {tab.label}
+                  </Link>
+                ))}
+              </nav>
+
+              {visibleOrders.length === 0 && (
+                <p className="py-8 text-center text-muted">No orders in this view</p>
+              )}
+
+              {visibleOrders.map((order) => (
                 <div
                   key={order.id}
                   className="flex items-center justify-between border-b border-slate-100 py-4 last:border-0"
@@ -194,6 +274,51 @@ export default async function AccountPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Eye Test Appointments ────────────────────────── */}
+        <div className="card p-6">
+          <div className="mb-4 flex items-center">
+            <p className="text-lg font-semibold text-dark">My Eye Test Appointments</p>
+            <span className="ml-2 rounded-full bg-primary px-2 py-0.5 text-xs text-white">
+              {appointments.length}
+            </span>
+          </div>
+
+          {appointments.length === 0 ? (
+            <div className="flex flex-col items-center py-8 text-center">
+              <p className="text-muted">No eye test appointments booked yet</p>
+              <Link href="/eye-test" className="btn-secondary mt-4 text-sm">
+                Book an Eye Test
+              </Link>
+            </div>
+          ) : (
+            <div>
+              {appointments.map((appointment) => {
+                const optometrist = optometristsById.get(appointment.optometristId)
+                return (
+                  <div
+                    key={appointment.id}
+                    className="flex items-center justify-between border-b border-slate-100 py-4 last:border-0"
+                  >
+                    <div>
+                      <p className="font-medium text-dark">
+                        {optometrist
+                          ? `Dr. ${optometrist.firstName} ${optometrist.lastName}`
+                          : `Appointment #${appointment.id}`}
+                      </p>
+                      <span className="mt-0.5 block text-xs text-muted">
+                        {formatAppointmentTime(appointment.scheduledAt)}
+                      </span>
+                    </div>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColors(appointment.status)}`}>
+                      {appointment.status}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
