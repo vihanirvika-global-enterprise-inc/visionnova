@@ -28,33 +28,33 @@ const ADMIN_TOKEN = makeSignedSession({ customerId: 'cust-003', role: 'admin' })
 const OPS_TOKEN = makeSignedSession({ customerId: 'cust-004', role: 'ops' })
 
 describe('middleware', () => {
-  it('redirects unauthenticated requests to /account to /login', () => {
+  it('redirects unauthenticated requests to /account to /login', async () => {
     const req = makeRequest('/account')
-    const res = middleware(req)
+    const res = await middleware(req)
 
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toContain('/login')
   })
 
-  it('redirects unauthenticated requests to /checkout to /login', () => {
+  it('redirects unauthenticated requests to /checkout to /login', async () => {
     const req = makeRequest('/checkout')
-    const res = middleware(req)
+    const res = await middleware(req)
 
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toContain('/login')
   })
 
-  it('redirects unauthenticated requests to /prescription-upload to /login', () => {
+  it('redirects unauthenticated requests to /prescription-upload to /login', async () => {
     const req = makeRequest('/prescription-upload')
-    const res = middleware(req)
+    const res = await middleware(req)
 
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toContain('/login')
   })
 
-  it('allows requests with a validly signed session cookie to pass through', () => {
+  it('allows requests with a validly signed session cookie to pass through', async () => {
     const req = makeRequest('/account', CUSTOMER_TOKEN)
-    const res = middleware(req)
+    const res = await middleware(req)
 
     expect(res.status).toBe(200)
   })
@@ -69,22 +69,22 @@ describe('middleware — signature verification on protected non-admin routes', 
     '/checkout',
     '/prescription-upload',
     '/order/order-001',
-  ])('redirects a tampered session cookie on %s to /login, not through to a 500', (path) => {
+  ])('redirects a tampered session cookie on %s to /login, not through to a 500', async (path) => {
     const req = makeRequest(path, TAMPERED_TOKEN)
-    const res = middleware(req)
+    const res = await middleware(req)
 
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toContain('/login')
   })
 
-  it('redirects a cookie whose payload was swapped but signature left stale', () => {
+  it('redirects a cookie whose payload was swapped but signature left stale', async () => {
     const [, signature] = CUSTOMER_TOKEN.split('.')
     const forgedPayload = Buffer.from(
       JSON.stringify({ customerId: 'cust-victim', role: 'customer', iat: Date.now() })
     ).toString('base64url')
 
     const req = makeRequest('/account', `${forgedPayload}.${signature}`)
-    const res = middleware(req)
+    const res = await middleware(req)
 
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toContain('/login')
@@ -96,9 +96,9 @@ describe('middleware — signature verification on protected non-admin routes', 
     ['signature only', '.onlysig'],
     ['payload only', 'onlypayload.'],
     ['non-base64 payload', '!!!not-base64!!!.deadbeef'],
-  ])('redirects a malformed cookie (%s) rather than throwing', (_label, token) => {
+  ])('redirects a malformed cookie (%s) rather than throwing', async (_label, token) => {
     const req = makeRequest('/account', token)
-    const res = middleware(req)
+    const res = await middleware(req)
 
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toContain('/login')
@@ -106,41 +106,41 @@ describe('middleware — signature verification on protected non-admin routes', 
 
   // Unprotected routes must stay reachable regardless of cookie state — a
   // stale cookie shouldn't lock someone out of the storefront.
-  it('leaves unprotected routes alone even with a tampered cookie', () => {
+  it('leaves unprotected routes alone even with a tampered cookie', async () => {
     const req = makeRequest('/shop', TAMPERED_TOKEN)
-    const res = middleware(req)
+    const res = await middleware(req)
 
     expect(res.status).toBe(200)
   })
 })
 
 describe('middleware — admin guard', () => {
-  it('redirects unauthenticated requests to /admin/* to /login', () => {
+  it('redirects unauthenticated requests to /admin/* to /login', async () => {
     const req = makeRequest('/admin/prescriptions')
-    const res = middleware(req)
+    const res = await middleware(req)
 
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toContain('/login')
   })
 
-  it('redirects customer role to /admin/* to /unauthorized', () => {
+  it('redirects customer role to /admin/* to /unauthorized', async () => {
     const req = makeRequest('/admin/prescriptions', CUSTOMER_TOKEN)
-    const res = middleware(req)
+    const res = await middleware(req)
 
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toContain('/unauthorized')
   })
 
-  it('allows optometrist role through /admin/*', () => {
+  it('allows optometrist role through /admin/*', async () => {
     const req = makeRequest('/admin/prescriptions', OPTOMETRIST_TOKEN)
-    const res = middleware(req)
+    const res = await middleware(req)
 
     expect(res.status).toBe(200)
   })
 
-  it('allows admin role through /admin/*', () => {
+  it('allows admin role through /admin/*', async () => {
     const req = makeRequest('/admin/prescriptions', ADMIN_TOKEN)
-    const res = middleware(req)
+    const res = await middleware(req)
 
     expect(res.status).toBe(200)
   })
@@ -148,11 +148,12 @@ describe('middleware — admin guard', () => {
   // Deliberate, not an oversight: no /ops/* surface exists yet in this app,
   // so ops does not get /admin/* access as a side effect of this fix. When a
   // real ops-scoped area gets built, it needs its own explicit gate.
-  it('redirects ops role away from /admin/* — no ops-scoped area exists yet', () => {
+  it('redirects ops role away from /admin/* — no ops-scoped area exists yet', async () => {
     const req = makeRequest('/admin/prescriptions', OPS_TOKEN)
-    const res = middleware(req)
+    const res = await middleware(req)
 
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toContain('/unauthorized')
   })
 })
+
