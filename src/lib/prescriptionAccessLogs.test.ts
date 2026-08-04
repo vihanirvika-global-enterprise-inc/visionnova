@@ -96,3 +96,64 @@ describe('getAccessLogsByPrescription', () => {
     expect(await getAccessLogsByPrescription('rx-001')).toEqual([])
   })
 })
+
+// ST-029: the general Compliance & Audit-Log console needs every read across
+// every prescription, not one record at a time — the per-prescription trail
+// above stays for a subject-access request about one patient.
+describe('getRecentAccessLogs', () => {
+  it('returns the trail across all prescriptions, newest first, with the patient named', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql).mockResolvedValueOnce([
+      { ...logRow, accessor_name: 'Dr Rao', patient_name: 'Jane Doe' },
+    ])
+
+    const { getRecentAccessLogs } = await import('./prescriptionAccessLogs')
+    const logs = await getRecentAccessLogs()
+
+    expect(logs).toEqual([
+      {
+        id: 'log-001',
+        prescriptionId: 'rx-001',
+        accessorId: 'cust-001',
+        accessorName: 'Dr Rao',
+        accessorRole: 'optometrist',
+        accessType: 'file',
+        accessedAt: logRow.accessed_at,
+        patientName: 'Jane Doe',
+      },
+    ])
+
+    const query = (spy.mock.calls[0][0] as string[]).join('?')
+    expect(query).toMatch(/ORDER BY .*accessed_at DESC/i)
+  })
+
+  it('caps the result at the given limit', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql).mockResolvedValueOnce([])
+
+    const { getRecentAccessLogs } = await import('./prescriptionAccessLogs')
+    await getRecentAccessLogs(25)
+
+    expect(spy.mock.calls[0].slice(1)).toContain(25)
+  })
+
+  it('defaults to a limit of 100 when none is given', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql).mockResolvedValueOnce([])
+
+    const { getRecentAccessLogs } = await import('./prescriptionAccessLogs')
+    await getRecentAccessLogs()
+
+    expect(spy.mock.calls[0].slice(1)).toContain(100)
+  })
+
+  it('falls back for a patient whose account has since been removed', async () => {
+    const { sql } = await import('./db')
+    mockSql(sql).mockResolvedValueOnce([{ ...logRow, accessor_name: 'Dr Rao', patient_name: null }])
+
+    const { getRecentAccessLogs } = await import('./prescriptionAccessLogs')
+    const [log] = await getRecentAccessLogs()
+
+    expect(log.patientName).toBe('Unknown patient')
+  })
+})

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 vi.mock('@/lib/orders', () => ({ getOrdersAwaitingDispatch: vi.fn() }))
-vi.mock('./actions', () => ({ markOrderShipped: vi.fn() }))
+vi.mock('./actions', () => ({ markOrderShipped: vi.fn(), bulkUpdateOrders: vi.fn() }))
 
 import { getOrdersAwaitingDispatch } from '@/lib/orders'
 import AdminOrdersPage from './page'
@@ -33,7 +33,7 @@ describe('AdminOrdersPage', () => {
   it('lists orders awaiting dispatch', async () => {
     render(await AdminOrdersPage({}))
 
-    expect(screen.getByText(/order-001/)).toBeInTheDocument()
+    expect(screen.getByText(/Order #order-001/)).toBeInTheDocument()
     expect(screen.getByText(/Bengaluru/)).toBeInTheDocument()
   })
 
@@ -60,5 +60,13 @@ describe('AdminOrdersPage', () => {
     render(await AdminOrdersPage({}))
 
     expect(screen.getByText(/no orders awaiting dispatch/i)).toBeInTheDocument()
+  })
+
+  // ST-027 Order Operations: a bulk toolbar sits above the per-order cards
+  // so staff aren't limited to one status transition at a time.
+  it('offers a bulk-selection checkbox per order', async () => {
+    render(await AdminOrdersPage({}))
+
+    expect(screen.getByLabelText('Select order order-001')).toBeInTheDocument()
   })
 })

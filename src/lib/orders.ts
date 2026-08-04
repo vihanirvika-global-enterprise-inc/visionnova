@@ -97,3 +97,37 @@ export async function updateOrderStatus(
 
   return order
 }
+
+// ST-027 Order Operations. Deliberately excludes 'shipped' and 'delivered' —
+// both carry a per-order side effect (a real carrier/tracking number, a
+// shipped-confirmation email) that can't sensibly be applied identically
+// across a batch. Those stay on the single-order updateOrderStatus flow.
+const BULK_ALLOWED_STATUSES: readonly Order['status'][] = [
+  'pending', 'paid', 'payment_failed', 'processing', 'cancelled',
+]
+
+const BULK_STATUS_CAP = 50
+
+export async function bulkUpdateOrderStatus(
+  orderIds: string[],
+  status: Order['status']
+): Promise<{ updatedCount: number }> {
+  if (orderIds.length === 0) {
+    throw new Error('No orders selected')
+  }
+  if (orderIds.length > BULK_STATUS_CAP) {
+    throw new Error(`Cannot update more than ${BULK_STATUS_CAP} orders at once`)
+  }
+  if (!BULK_ALLOWED_STATUSES.includes(status)) {
+    throw new Error(`Bulk update to status "${status}" is not allowed`)
+  }
+
+  const rows = await sql`
+    UPDATE orders SET
+      status = ${status},
+      updated_at = NOW()
+    WHERE id = ANY(${orderIds})
+    RETURNING id
+  `
+  return { updatedCount: rows.length }
+}
