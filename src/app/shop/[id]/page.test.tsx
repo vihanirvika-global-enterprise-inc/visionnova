@@ -91,6 +91,89 @@ describe('ProductPage', () => {
   })
 })
 
+describe('ProductPage — lens builder', () => {
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.clearAllMocks()
+    const { getProductImages } = await import('@/lib/productImages')
+    vi.mocked(getProductImages).mockResolvedValue([])
+  })
+
+  it('shows the lens builder for a prescription-required product', async () => {
+    const { getProductById } = await import('@/lib/products')
+    vi.mocked(getProductById).mockResolvedValueOnce({
+      id: 'prod-002', name: 'Rx Frame', description: null,
+      price: 129.99, category: 'frames' as const, sku: 'RX-001',
+      stockQuantity: 10, imageUrl: null, requiresPrescription: true,
+      createdAt: new Date(), updatedAt: new Date(),
+    })
+
+    const { CartProvider } = await import('@/components/cart/CartContext')
+    const ProductPage = (await import('./page')).default
+    render(<CartProvider>{await ProductPage({ params: { id: 'prod-002' } })}</CartProvider>)
+
+    expect(screen.getByText('Build Your Lenses')).toBeInTheDocument()
+    expect(screen.getByLabelText(/lens type/i)).toBeInTheDocument()
+  })
+
+  it('does not show the lens builder for a non-prescription product', async () => {
+    const { getProductById } = await import('@/lib/products')
+    vi.mocked(getProductById).mockResolvedValueOnce({
+      id: 'prod-001', name: 'Classic Frame', description: null,
+      price: 89.99, category: 'frames' as const, sku: 'CF-001',
+      stockQuantity: 10, imageUrl: null, requiresPrescription: false,
+      createdAt: new Date(), updatedAt: new Date(),
+    })
+
+    const { CartProvider } = await import('@/components/cart/CartContext')
+    const ProductPage = (await import('./page')).default
+    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+
+    expect(screen.queryByText('Build Your Lenses')).not.toBeInTheDocument()
+  })
+})
+
+describe('ProductPage — try-on preview', () => {
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.clearAllMocks()
+    const { getProductImages } = await import('@/lib/productImages')
+    vi.mocked(getProductImages).mockResolvedValue([])
+  })
+
+  it('shows the try-on upload prompt when the product has an image', async () => {
+    const { getProductById } = await import('@/lib/products')
+    vi.mocked(getProductById).mockResolvedValueOnce({
+      id: 'prod-001', name: 'Classic Frame', description: null,
+      price: 89.99, category: 'frames' as const, sku: 'CF-001',
+      stockQuantity: 10, imageUrl: 'https://cdn.example/frame.png', requiresPrescription: false,
+      createdAt: new Date(), updatedAt: new Date(),
+    })
+
+    const { CartProvider } = await import('@/components/cart/CartContext')
+    const ProductPage = (await import('./page')).default
+    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+
+    expect(screen.getByText('Try It On')).toBeInTheDocument()
+  })
+
+  it('does not show the try-on section when the product has no image', async () => {
+    const { getProductById } = await import('@/lib/products')
+    vi.mocked(getProductById).mockResolvedValueOnce({
+      id: 'prod-001', name: 'Classic Frame', description: null,
+      price: 89.99, category: 'frames' as const, sku: 'CF-001',
+      stockQuantity: 10, imageUrl: null, requiresPrescription: false,
+      createdAt: new Date(), updatedAt: new Date(),
+    })
+
+    const { CartProvider } = await import('@/components/cart/CartContext')
+    const ProductPage = (await import('./page')).default
+    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+
+    expect(screen.queryByText('Try It On')).not.toBeInTheDocument()
+  })
+})
+
 describe('ProductPage — image gallery', () => {
   beforeEach(async () => {
     vi.resetModules()
