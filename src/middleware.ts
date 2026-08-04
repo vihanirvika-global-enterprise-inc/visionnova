@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const SECRET = process.env.SESSION_SECRET ?? 'dev-secret-change-in-production'
-const PROTECTED = ['/account', '/checkout', '/prescription-upload', '/order']
+const PROTECTED = ['/account', '/checkout', '/prescription-upload', '/order', '/eye-test']
 const ADMIN_ROLES = ['optometrist', 'admin']
 
+// EP-010 BUG-009 (Risk LEG-04 — GDPR). The MVP is India-only with no GDPR
+// programme (no EU consent flows, DPO, or Art. 27 representative), so serving
+// EU data subjects is legal exposure with no business upside. GDPR's scope is
+// the EEA, so the EEA trio (IS, LI, NO) is included — blocking the EU 27
+// alone would leave identical exposure open. UK-GDPR is a separate regime and
+// a separate business decision; GB is deliberately not listed.
+const GDPR_BLOCKED_COUNTRIES = new Set([
+  'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR',
+  'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK',
+  'SI', 'ES', 'SE',
+  'IS', 'LI', 'NO',
+])
 // Deliberately excludes 'optometrist' — that role already has /admin access
 // to every customer's prescription; a B2B2C partner clinic must never
 // inherit that. 'admin' is included for operational oversight only.
@@ -52,6 +64,20 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const sessionCookie = request.cookies.get('session')
 
+  // Geo-block before anything else. /api is exempt: those calls are
+  // server-to-server (payment webhooks fire from processor infrastructure
+  // that may sit in EU datacenters), not EU data subjects being served.
+  // Fails open when the header is absent (local dev, self-hosted) — Vercel's
+  // edge stamps it on every production request and strips inbound spoofs of
+  // its own headers, so enforcement is real exactly where traffic is real.
+  const country = request.headers.get('x-vercel-ip-country')?.toUpperCase()
+  if (country && GDPR_BLOCKED_COUNTRIES.has(country) && !pathname.startsWith('/api/')) {
+    return new NextResponse(
+      'VisionNova is not available in your region — we currently serve India only.',
+      { status: 451, headers: { 'content-type': 'text/plain; charset=utf-8' } }
+    )
+  }
+
   if (pathname.startsWith('/admin')) {
     if (!sessionCookie) {
       return NextResponse.redirect(new URL('/login', request.url))
@@ -92,13 +118,10 @@ export async function middleware(request: NextRequest) {
   return NextResponse.next()
 }
 
+// Broadened from an allow-list of protected paths when the EU/EEA geo-block
+// landed (EP-010 BUG-009): the block has to cover the whole site, not only
+// authenticated areas. The session gates above are already path-scoped
+// internally, so they behave identically under the wider matcher.
 export const config = {
-  matcher: [
-    '/account/:path*',
-    '/checkout/:path*',
-    '/prescription-upload/:path*',
-    '/order/:path*',
-    '/admin/:path*',
-    '/partner-portal/:path*',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }

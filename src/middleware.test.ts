@@ -12,6 +12,12 @@ function makeRequest(path: string, sessionToken?: string): NextRequest {
   return req
 }
 
+function makeGeoRequest(path: string, countryCode: string): NextRequest {
+  return new NextRequest(`http://localhost${path}`, {
+    headers: { 'x-vercel-ip-country': countryCode },
+  })
+}
+
 function makeSignedSession(payload: { customerId: string; role: string }): string {
   const secret = 'dev-secret-change-in-production'
   const data = Buffer.from(JSON.stringify({ ...payload, iat: Date.now() })).toString('base64url')
@@ -47,6 +53,14 @@ describe('middleware', () => {
 
   it('redirects unauthenticated requests to /prescription-upload to /login', async () => {
     const req = makeRequest('/prescription-upload')
+    const res = await middleware(req)
+
+    expect(res.status).toBe(307)
+    expect(res.headers.get('location')).toContain('/login')
+  })
+
+  it('redirects unauthenticated requests to /eye-test to /login', async () => {
+    const req = makeRequest('/eye-test')
     const res = await middleware(req)
 
     expect(res.status).toBe(307)
@@ -112,6 +126,53 @@ describe('middleware — signature verification on protected non-admin routes', 
     const res = await middleware(req)
 
     expect(res.status).toBe(200)
+  })
+})
+
+// EP-010 BUG-009 (Risk LEG-04 — GDPR): the MVP is India-only and has no
+// GDPR programme (no EU-compliant consent flows, DPO, or Art. 27 rep), so
+// serving EU traffic is legal exposure with no business upside. Blocked at
+// the request level using the country Vercel's edge stamps on every request.
+// GDPR's scope is the EEA, so the EEA trio (IS, LI, NO) is blocked too —
+// blocking the EU 27 alone would leave identical exposure open.
+describe('middleware — EU/EEA geo-block', () => {
+  it.each(['DE', 'FR', 'IE', 'NL'])('returns 451 for EU member state %s', async (country) => {
+    const res = await middleware(makeGeoRequest('/', country))
+
+    expect(res.status).toBe(451)
+  })
+
+  it.each(['IS', 'LI', 'NO'])('returns 451 for EEA state %s — GDPR covers the EEA, not just the EU', async (country) => {
+    const res = await middleware(makeGeoRequest('/', country))
+
+    expect(res.status).toBe(451)
+  })
+
+  it('blocks EU traffic on every route, not only the storefront', async () => {
+    const res = await middleware(makeGeoRequest('/account', 'DE'))
+
+    expect(res.status).toBe(451)
+  })
+
+  it.each(['IN', 'US', 'GB', 'AU'])('does not block non-EEA country %s', async (country) => {
+    const res = await middleware(makeGeoRequest('/', country))
+
+    expect(res.status).not.toBe(451)
+  })
+
+  // Local dev and self-hosted deployments have no geo header. Failing closed
+  // would block every request everywhere except Vercel — fail open, and the
+  // report records that enforcement only exists where the header does.
+  it('does not block when no geo header is present', async () => {
+    const res = await middleware(makeRequest('/'))
+
+    expect(res.status).not.toBe(451)
+  })
+
+  it('names the legal basis in the response body', async () => {
+    const res = await middleware(makeGeoRequest('/', 'DE'))
+
+    expect(await res.text()).toMatch(/not available|India/i)
   })
 })
 
