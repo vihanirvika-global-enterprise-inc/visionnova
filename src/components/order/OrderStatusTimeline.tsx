@@ -1,6 +1,11 @@
 import type { OrderStatus } from '@/types'
 import { ORDER_STATUS_LABELS } from '@/lib/orderStatus'
 
+// ST-012 (A12. Order Tracking — "stepper state matches backend order
+// status"). Driven directly by order.status from the DB (see
+// src/app/order/[id]/page.tsx), not client-side state — the stepper cannot
+// drift from what actually happened to the order.
+
 // The happy path an order travels. cancelled and payment_failed are deliberately
 // absent: they are exits, not points along it.
 export const ORDER_TIMELINE = [
