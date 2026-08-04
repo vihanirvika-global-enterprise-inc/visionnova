@@ -51,14 +51,20 @@ export default async function ReviewPrescriptionPage({ params }: { params: { id:
 
         <div>
           <p className="text-xs text-muted uppercase tracking-wide">File</p>
-          <a
-            href={`/api/prescriptions/${prescription.id}/file`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-1 inline-block text-sm text-primary hover:underline"
-          >
-            View prescription
-          </a>
+          {/* ST-023: a digitally-authored prescription (Digital Rx Writing
+              Tool) has no uploaded document — there is nothing to open. */}
+          {prescription.fileUrl ? (
+            <a
+              href={`/api/prescriptions/${prescription.id}/file`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 inline-block text-sm text-primary hover:underline"
+            >
+              View prescription
+            </a>
+          ) : (
+            <p className="mt-1 text-sm text-muted">Authored digitally — no file on record</p>
+          )}
         </div>
 
         <div>

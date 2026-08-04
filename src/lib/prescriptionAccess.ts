@@ -16,8 +16,12 @@ export type PrescriptionDenialReason =
   | 'unreadable'
   | 'audit_failed'
 
+// fileUrl is narrowed to non-null here: readPrescriptionForSession only ever
+// returns ok:true after confirming a file exists (ST-023's digitally-authored
+// prescriptions return not_found instead), so callers of the file route
+// shouldn't have to re-guard against a case that can't happen.
 export type PrescriptionAccessResult =
-  | { ok: true; prescription: Prescription; file: Buffer }
+  | { ok: true; prescription: Omit<Prescription, 'fileUrl'> & { fileUrl: string }; file: Buffer }
   | { ok: false; reason: PrescriptionDenialReason }
 
 export type PrescriptionMetadataResult =
@@ -64,9 +68,19 @@ export async function readPrescriptionForSession(
 
   const { prescription } = authorised
 
+  // ST-023: a digitally-authored prescription has no uploaded document —
+  // there is genuinely nothing to read, not a storage failure.
+  if (!prescription.fileUrl) {
+    return { ok: false, reason: 'not_found' }
+  }
+  // Captured into its own binding: TS's narrowing of an object property
+  // (prescription.fileUrl) doesn't survive the awaits below, since it can't
+  // prove nothing mutated it through a shared reference in the meantime.
+  const fileUrl = prescription.fileUrl
+
   let file: Buffer
   try {
-    file = await readPrescriptionFile(prescription.fileUrl)
+    file = await readPrescriptionFile(fileUrl)
   } catch {
     return { ok: false, reason: 'unreadable' }
   }
@@ -84,7 +98,7 @@ export async function readPrescriptionForSession(
     return { ok: false, reason: 'audit_failed' }
   }
 
-  return { ok: true, prescription, file }
+  return { ok: true, prescription: { ...prescription, fileUrl }, file }
 }
 
 // The other door: the review screen shows the patient's name, email and

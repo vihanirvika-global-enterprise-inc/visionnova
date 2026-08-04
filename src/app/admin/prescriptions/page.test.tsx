@@ -12,6 +12,7 @@ const makePrescription = (overrides: Record<string, unknown> = {}) => ({
   id: 'rx-001', customerId: 'cust-001',
   fileUrl: '/uploads/rx-001.pdf',
   status: 'pending' as const,
+  consentGivenAt: now,
   rightSphere: null, rightCylinder: null, rightAxis: null, rightAdd: null,
   leftSphere: null, leftCylinder: null, leftAxis: null, leftAdd: null,
   pupillaryDistance: null, expiresAt: null,
