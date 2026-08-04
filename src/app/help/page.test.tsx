@@ -54,7 +54,11 @@ describe('HelpPage return policy figures — shared contract with the PDP', () =
 // following the PDP's "See full policy" link was being told to use flows that
 // do not exist.
 describe('HelpPage — claims must match what the implementation actually does', () => {
-  it('does not promise a Request Return button, which exists nowhere in the app', () => {
+  // ST-017 later added a real "Request Return / Exchange" affordance to the
+  // order detail page — but it's a styled mailto link (same honest pattern
+  // as this FAQ answer), not self-service automation, so this FAQ copy
+  // still shouldn't claim more than "email us" describes.
+  it('does not promise return automation beyond the real email-based process', () => {
     render(<HelpPage />)
     const answer = answerFor(/how do i start a return/i)
 
@@ -139,6 +143,17 @@ describe('HelpPage payment section', () => {
   it('describes server-side payment confirmation rather than browser-reported success', () => {
     render(<HelpPage />)
     expect(answerFor(/is my payment information secure/i)).toMatch(/verif/i)
+  })
+})
+
+// ST-020 (B5. Help Center & Support — "FAQ search returns relevant
+// results"). FaqSearch itself is unit-tested in isolation
+// (src/components/help/FaqSearch.test.tsx) — this only proves it's actually
+// wired into the real page with the real FAQ content behind it.
+describe('HelpPage FAQ search', () => {
+  it('renders a search box', () => {
+    render(<HelpPage />)
+    expect(screen.getByRole('searchbox', { name: /search/i })).toBeInTheDocument()
   })
 })
 
