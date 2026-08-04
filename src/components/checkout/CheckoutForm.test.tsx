@@ -272,6 +272,59 @@ describe('CheckoutForm', () => {
   })
 })
 
+// ST-010 (A10. Checkout — 3-step: address / confirm-rx / payment). The
+// confirm-rx step only exists when checkoutAction's result carries a
+// prescriptionId — every test above uses the default mock, which doesn't,
+// so those all correctly exercise the plain 2-step path unaffected.
+describe('CheckoutForm — Rx confirmation step', () => {
+  async function advanceToConfirmRxStep() {
+    const user = userEvent.setup()
+    vi.mocked(checkoutAction).mockResolvedValue({
+      orderId: 'order-1', totalAmount: 999, priceAdjusted: false, discount: 0,
+      prescriptionId: 'rx-1',
+    })
+    await fillNameAndEmail(user)
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+    await waitFor(() => expect(screen.getByRole('heading', { name: /confirm prescription/i })).toBeInTheDocument())
+  }
+
+  it('shows the confirm-rx step instead of going straight to payment when the order needs one', async () => {
+    render(<CheckoutForm />)
+    await advanceToConfirmRxStep()
+
+    expect(createPayment).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('payment-element')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('razorpay-checkout')).not.toBeInTheDocument()
+  })
+
+  it('renders 3 progress steps, not 2, when confirm-rx applies', async () => {
+    render(<CheckoutForm />)
+    await advanceToConfirmRxStep()
+
+    const steps = screen.getByRole('list', { name: /checkout progress/i })
+    expect(within(steps).getAllByRole('listitem')).toHaveLength(3)
+    expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent(/confirm prescription/i)
+  })
+
+  it('only initiates payment after the customer continues from confirm-rx', async () => {
+    render(<CheckoutForm />)
+    await advanceToConfirmRxStep()
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /continue to payment/i }))
+
+    await waitFor(() => expect(createPayment).toHaveBeenCalledWith(99900, 'order-1', 'IN'))
+    expect(await screen.findByTestId('razorpay-checkout')).toBeInTheDocument()
+  })
+
+  it('moves focus into the confirm-rx region on arrival', async () => {
+    render(<CheckoutForm />)
+    await advanceToConfirmRxStep()
+
+    const region = screen.getByRole('group', { name: /confirm prescription/i })
+    await waitFor(() => expect(region).toHaveFocus())
+  })
+})
+
 describe('CheckoutForm payment method selection', () => {
   it('renders Razorpay for an Indian address', async () => {
     render(<CheckoutForm />)

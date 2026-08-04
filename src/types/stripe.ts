@@ -19,6 +19,8 @@ export type StripePaymentStatus =
 // Typed here to prevent string typos and make transitions explicit.
 export type CheckoutStep =
   | 'address'      // user filling shipping form
+  | 'confirm-rx'   // ST-010: only inserted when the cart has an Rx-required
+                    // item — confirms which approved prescription will fulfil it
   | 'payment'      // Stripe Elements rendered, awaiting card input
   | 'processing'   // confirmPayment() in flight
   | 'confirmed'    // payment succeeded, order created
