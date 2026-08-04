@@ -24,6 +24,13 @@ export function Footer() {
         <a href="/help">Shipping</a>
       </nav>
 
+      {/* ST-014: the only site-wide link into the store locator — it isn't
+          part of the main Navbar, so without this it would only be reachable
+          by typing /stores directly. */}
+      <nav aria-label="stores">
+        <a href="/stores">Store Locator</a>
+      </nav>
+
       <section aria-labelledby="grievance-officer-heading">
         <h2 id="grievance-officer-heading">Grievance Officer</h2>
         {isConfigured ? (
