@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { AnalyticsConsentControl } from '@/components/consent/AnalyticsConsentControl'
 import { getSession } from '@/lib/session'
 import { getCustomerById } from '@/lib/customers'
 import { getPrescriptionsByCustomer } from '@/lib/prescriptions'
@@ -144,6 +145,18 @@ export default async function PrivacyPage() {
           >
             Withdraw Consent
           </a>
+
+          {/* Analytics consent is separate from prescription-review consent:
+              different purpose, different lawful basis, and this one is
+              self-service because it has to be — DPDP requires withdrawal to
+              be as easy as giving. */}
+          <div className="mt-6 border-t border-slate-100 pt-6">
+            <h3 className="mb-2 text-sm font-semibold text-dark">Analytics cookies</h3>
+            <p className="mb-4 text-sm text-muted">
+              Separate from prescription review. Changing this takes effect immediately.
+            </p>
+            <AnalyticsConsentControl />
+          </div>
         </section>
 
         {/* ── Grievance Officer ──────────────────────────────── */}

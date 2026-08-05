@@ -13,6 +13,18 @@
 const STRIPE_SCRIPT = 'https://js.stripe.com'
 const RAZORPAY_SCRIPT = 'https://checkout.razorpay.com'
 
+// Analytics hosts. Both trackers are consent-gated, so these being listed
+// does not mean anything loads by default — CSP is not the control that
+// prevents collection, consent is. They are listed so that switching this
+// policy from Report-Only to enforcing does not silently break analytics for
+// the visitors who did agree to it.
+//
+// posthog-js is bundled from npm, but it fetches its recorder and surveys
+// bundles from the assets host at runtime, so script-src needs it too.
+const POSTHOG_HOSTS = ['https://*.posthog.com', 'https://*.i.posthog.com']
+const GA4_SCRIPT = 'https://www.googletagmanager.com'
+const GA4_COLLECT = ['https://www.google-analytics.com', 'https://*.analytics.google.com']
+
 // Named group referenced by the report-to directive and defined by the
 // Reporting-Endpoints response header in next.config.mjs.
 export const CSP_REPORT_GROUP = 'csp-endpoint'
@@ -62,6 +74,8 @@ export function buildContentSecurityPolicy({ isDev, reportUri }) {
       ...(isDev ? ["'unsafe-eval'"] : []),
       STRIPE_SCRIPT,
       RAZORPAY_SCRIPT,
+      GA4_SCRIPT,
+      ...POSTHOG_HOSTS,
     ],
 
     // Tailwind compiles to a stylesheet, but Next.js still injects inline styles.
@@ -75,7 +89,9 @@ export function buildContentSecurityPolicy({ isDev, reportUri }) {
       'https://api.stripe.com',
       'https://*.razorpay.com',
       'https://*.sentry.io',
-      'https://*.posthog.com',
+      ...POSTHOG_HOSTS,
+      GA4_SCRIPT,
+      ...GA4_COLLECT,
     ],
 
     // Both gateways complete payment inside an iframe they own.

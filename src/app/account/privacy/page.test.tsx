@@ -47,7 +47,15 @@ async function setup({
   vi.mocked(getOrdersByCustomer).mockResolvedValueOnce(orders as never)
 
   const PrivacyPage = (await import('./page')).default
-  render(await PrivacyPage())
+  // Imported here rather than at the top of the file: vi.resetModules() runs
+  // before each test, so a top-level import would hand this wrapper a
+  // different module instance — and therefore a different React context —
+  // than the one the page's own import resolves.
+  const { CookieConsentProvider } = await import('@/components/consent/CookieConsentProvider')
+
+  // The analytics consent control reads context that the root layout always
+  // provides in the real app.
+  render(<CookieConsentProvider>{await PrivacyPage()}</CookieConsentProvider>)
 }
 
 const ORIGINAL_ENV = process.env

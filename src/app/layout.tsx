@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, IBM_Plex_Mono } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import { CartProvider } from "@/components/cart/CartContext";
 import { WishlistProviderServer } from "@/components/wishlist/WishlistProviderServer";
 import { AuthNavbar } from "@/components/layout/AuthNavbar";
 import { Footer } from "@/components/layout/Footer";
 import { PostHogProvider } from "@/components/analytics/PostHogProvider";
+import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
+import { CookieConsentProvider } from "@/components/consent/CookieConsentProvider";
+import { CookieConsentBanner } from "@/components/consent/CookieConsentBanner";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -53,39 +55,26 @@ export default function RootLayout({
           Skip to main content
         </a>
 
-        <PostHogProvider>
-          <CartProvider>
-            <WishlistProviderServer>
-              <AuthNavbar />
-              {/* tabIndex -1 so following the skip link actually moves focus */}
-              <div id="main-content" tabIndex={-1}>
-                {children}
-              </div>
-              <Footer />
-            </WishlistProviderServer>
-          </CartProvider>
-        </PostHogProvider>
+        {/* Consent wraps both trackers: PostHog reads it before init, and the
+            GA4 script tags are not rendered at all until it is granted. */}
+        <CookieConsentProvider>
+          <PostHogProvider>
+            <CartProvider>
+              <WishlistProviderServer>
+                <AuthNavbar />
+                {/* tabIndex -1 so following the skip link actually moves focus */}
+                <div id="main-content" tabIndex={-1}>
+                  {children}
+                </div>
+                <Footer />
+              </WishlistProviderServer>
+            </CartProvider>
+          </PostHogProvider>
 
-        {process.env.NEXT_PUBLIC_GA4_ID && (
-          <>
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA4_ID}`}
-              strategy="afterInteractive"
-            />
-            <Script
-              id="ga4-init"
-              strategy="afterInteractive"
-              dangerouslySetInnerHTML={{
-                __html: `
-                  window.dataLayer=window.dataLayer||[];
-                  function gtag(){dataLayer.push(arguments);}
-                  gtag('js',new Date());
-                  gtag('config','${process.env.NEXT_PUBLIC_GA4_ID}');
-                `,
-              }}
-            />
-          </>
-        )}
+          <CookieConsentBanner />
+          <GoogleAnalytics />
+        </CookieConsentProvider>
+
       </body>
     </html>
   );

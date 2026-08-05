@@ -48,3 +48,20 @@ describe('.env.example — regulatory risk register flags', () => {
     expect(ENV_EXAMPLE).toMatch(new RegExp(`^#? ?${name}=`, 'm'))
   })
 })
+
+// Both analytics keys were read by running code and documented nowhere, so a
+// deployer had no signal that the trackers existed at all — let alone that
+// they now sit behind a consent gate. Same reasoning as the Grievance Officer
+// block above.
+describe('.env.example — analytics keys', () => {
+  it.each(['NEXT_PUBLIC_POSTHOG_KEY', 'NEXT_PUBLIC_GA4_ID'])('documents %s', (name) => {
+    expect(ENV_EXAMPLE).toMatch(new RegExp(`^${name}=`, 'm'))
+  })
+
+  // Unset must read as "no analytics", not as "misconfigured" — otherwise a
+  // deployer sets a key just to silence a perceived error.
+  it('says that leaving them unset is a supported state', () => {
+    expect(ENV_EXAMPLE).toMatch(/consent-gated|consent banner/i)
+    expect(ENV_EXAMPLE).toMatch(/unset is a safe, supported/i)
+  })
+})
