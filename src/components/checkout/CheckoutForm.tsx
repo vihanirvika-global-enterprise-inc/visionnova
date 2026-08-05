@@ -269,8 +269,18 @@ function PaymentForm({ onError, isLoading, setIsLoading, error }: PaymentFormPro
 
 // ── CheckoutForm (default export) ─────────────────────────────────────────────
 
-const CHECKOUT_STEPS = [
+const CHECKOUT_STEPS_STANDARD = [
   { key: 'address', label: 'Shipping' },
+  { key: 'payment', label: 'Payment' },
+] as const
+
+// ST-010 (A10. Checkout — "3-step"): the epic specifies address / Rx-confirm
+// / payment. The Rx-confirm step only exists when the order actually
+// contains an Rx-required item — checkoutAction returns prescriptionId only
+// in that case, so the step list itself is derived from that, not static.
+const CHECKOUT_STEPS_WITH_RX_CONFIRM = [
+  { key: 'address', label: 'Shipping' },
+  { key: 'confirm-rx', label: 'Confirm Prescription' },
   { key: 'payment', label: 'Payment' },
 ] as const
 
@@ -303,13 +313,20 @@ export default function CheckoutForm() {
   // verified against the real product prices.
   const [serverTotal, setServerTotal] = useState<number | null>(null)
   const [priceAdjusted, setPriceAdjusted] = useState(false)
+  // Set once, when checkoutAction's result includes a prescriptionId — stays
+  // true for the rest of the flow even after the confirm-rx step is passed,
+  // since it also drives which step list is rendered in the progress bar.
+  const [needsRxConfirm, setNeedsRxConfirm] = useState(false)
+  const [pendingOrder, setPendingOrder] = useState<{ orderId: string; totalAmount: number } | null>(null)
   const paymentRegionRef = useRef<HTMLDivElement>(null)
+  const confirmRxRegionRef = useRef<HTMLDivElement>(null)
 
-  // The address form unmounts on transition, destroying the focused button and
-  // dropping focus to <body> — a keyboard user is silently returned to the top
-  // of the page. Move focus into the payment region instead.
+  // The address form (or confirm-rx step) unmounts on transition, destroying
+  // the focused button and dropping focus to <body> — a keyboard user is
+  // silently returned to the top of the page. Move focus into the new region.
   useEffect(() => {
     if (step === 'payment') paymentRegionRef.current?.focus()
+    if (step === 'confirm-rx') confirmRxRegionRef.current?.focus()
   }, [step])
 
   function handleChange(e: AddressFieldChangeEvent) {
@@ -342,6 +359,32 @@ export default function CheckoutForm() {
     return fd
   }
 
+  // Shared by the direct (no Rx item) path and the post-confirm-rx path —
+  // the server decides the gateway from the shipping country, so the routing
+  // rule is not duplicated in the browser. totalAmount here is always the
+  // server-computed one from checkoutAction, never the client cart's own
+  // total, so a stale or tampered client total never reaches the gateway.
+  async function initiatePayment(orderId: string, totalAmount: number) {
+    const result = await createPayment(
+      formatAmountForStripe(totalAmount),
+      orderId,
+      formData.country
+    )
+
+    if (result.error) {
+      setError(result.error)
+      setIsLoading(false)
+      return
+    }
+
+    setProvider(result.provider ?? null)
+    setClientRef(result.clientRef ?? null)
+    setRazorpayKeyId(result.keyId ?? null)
+    setStep('payment')
+    setIsLoading(false)
+    trackEvent({ event: 'checkout_started', total: totalAmount, itemCount: items.length })
+  }
+
   async function handleAddressSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setIsLoading(true)
@@ -360,27 +403,21 @@ export default function CheckoutForm() {
     setServerTotal(orderResult.totalAmount)
     setPriceAdjusted(orderResult.priceAdjusted)
 
-    // The server decides the gateway from the shipping country, so the routing
-    // rule is not duplicated in the browser. orderResult.totalAmount, not the
-    // client cart's `total`, is what's actually charged — see checkoutAction.
-    const result = await createPayment(
-      formatAmountForStripe(orderResult.totalAmount),
-      orderResult.orderId,
-      formData.country
-    )
-
-    if (result.error) {
-      setError(result.error)
+    if (orderResult.prescriptionId) {
+      setNeedsRxConfirm(true)
+      setPendingOrder({ orderId: orderResult.orderId, totalAmount: orderResult.totalAmount })
+      setStep('confirm-rx')
       setIsLoading(false)
       return
     }
 
-    setProvider(result.provider ?? null)
-    setClientRef(result.clientRef ?? null)
-    setRazorpayKeyId(result.keyId ?? null)
-    setStep('payment')
-    setIsLoading(false)
-    trackEvent({ event: 'checkout_started', total: orderResult.totalAmount, itemCount: items.length })
+    await initiatePayment(orderResult.orderId, orderResult.totalAmount)
+  }
+
+  async function handleConfirmRxContinue() {
+    if (!pendingOrder) return
+    setIsLoading(true)
+    await initiatePayment(pendingOrder.orderId, pendingOrder.totalAmount)
   }
 
   return (
@@ -390,9 +427,8 @@ export default function CheckoutForm() {
       {/* A real list with aria-current, matching OrderStatusTimeline. Previously
           the current step was conveyed by font weight and colour alone. */}
       <ol aria-label="Checkout progress" className="mb-8 flex items-center gap-2">
-        {CHECKOUT_STEPS.map((checkoutStep, index) => {
-          const isCurrent =
-            checkoutStep.key === 'address' ? step === 'address' : step !== 'address'
+        {(needsRxConfirm ? CHECKOUT_STEPS_WITH_RX_CONFIRM : CHECKOUT_STEPS_STANDARD).map((checkoutStep, index) => {
+          const isCurrent = checkoutStep.key === step
           return (
             <li
               key={checkoutStep.key}
@@ -421,6 +457,39 @@ export default function CheckoutForm() {
           error={error}
           requiresPrescriptionUpload={requiresPrescriptionUpload}
         />
+      )}
+
+      {step === 'confirm-rx' && (
+        <div
+          ref={confirmRxRegionRef}
+          tabIndex={-1}
+          role="group"
+          aria-labelledby="confirm-rx-heading"
+        >
+          <h3 id="confirm-rx-heading" className="mb-4 text-base font-semibold text-dark">
+            Confirm Prescription
+          </h3>
+          <p className="mb-6 text-sm text-muted">
+            Your approved prescription on file will be used to fulfill the
+            prescription item(s) in this order.
+          </p>
+
+          {isLoading ? (
+            <p role="status" className="sr-only">
+              Processing, please wait
+            </p>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={handleConfirmRxContinue}
+            disabled={isLoading}
+            aria-busy={isLoading}
+            className="btn-primary w-full py-3 text-lg"
+          >
+            {isLoading ? 'Please wait...' : 'Continue to Payment'}
+          </button>
+        </div>
       )}
 
       {step === 'payment' && clientRef ? (

@@ -37,3 +37,21 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# playwright
+/test-results/
+/playwright-report/
+
+# lighthouse ci
+/lighthouse-results/
+/.lighthouseci/
+
+# refact agent runtime state — rewritten on every session, so tracking it
+# buries real diffs under thousands of lines of run logs. The hand-authored
+# config beside it (main_prompt.md, settings.json, imports/) stays tracked.
+/.refact/buddy/chats/
+/.refact/buddy/briefings/
+/.refact/buddy/state.json
+/.refact/buddy/*.jsonl
+/.refact/tasks/
+/.refact/project_information.yaml

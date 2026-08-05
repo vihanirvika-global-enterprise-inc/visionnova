@@ -61,6 +61,23 @@ describe('readPrescriptionForSession — denies without logging a read', () => {
     if (!result.ok) expect(result.reason).toBe('unreadable')
     expect(logPrescriptionAccess).not.toHaveBeenCalled()
   })
+
+  // ST-023: a digitally-authored prescription (Digital Rx Writing Tool) has
+  // no uploaded document — file_url is null. There's genuinely nothing to
+  // read, not a storage failure, so this must not attempt readPrescriptionFile
+  // (which would crash on a null key) or log a file access that never happened.
+  it('denies a digitally-authored prescription with no file — not_found, not a crash', async () => {
+    vi.mocked(getPrescriptionById).mockResolvedValue({
+      id: RX, customerId: OWNER, fileUrl: null,
+    } as any)
+
+    const result = await readPrescriptionForSession(RX, { customerId: OWNER, role: 'customer' })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe('not_found')
+    expect(readPrescriptionFile).not.toHaveBeenCalled()
+    expect(logPrescriptionAccess).not.toHaveBeenCalled()
+  })
 })
 
 describe('readPrescriptionForSession — logs every successful read', () => {

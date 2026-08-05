@@ -8,6 +8,10 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    // e2e/ is Playwright's — its *.spec.ts files need a real browser and a
+    // running app, and vitest's default include pattern would otherwise
+    // try to run them.
+    exclude: ['**/node_modules/**', 'e2e/**'],
     environmentMatchGlobs: [
       ['src/lib/**', 'node'],
     ],

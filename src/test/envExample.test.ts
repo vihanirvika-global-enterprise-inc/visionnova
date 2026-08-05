@@ -24,3 +24,27 @@ describe('.env.example — Grievance Officer contact', () => {
     expect(ENV_EXAMPLE).toMatch(/DPDP/)
   })
 })
+
+// EP-010 BUG-007: both encryption-at-rest keys silently fall back to a
+// hardcoded dev secret when unset (kycStorage.ts, prescriptionStorage.ts) —
+// undocumented here, a deployer had no signal to set a real one, so a
+// production deployment could ship encrypting medical/KYC documents with a
+// secret published in this repo's own source.
+describe('.env.example — encryption-at-rest keys', () => {
+  it.each(['KYC_ENCRYPTION_KEY', 'PRESCRIPTION_ENCRYPTION_KEY'])('documents %s', (name) => {
+    expect(ENV_EXAMPLE).toMatch(new RegExp(`^${name}=`, 'm'))
+  })
+})
+
+// EP-010 BUG-001/005/012: the regulatory risk register on /admin/compliance
+// reads these — undocumented, nobody would know the flags exist to flip once
+// the real business action happens.
+describe('.env.example — regulatory risk register flags', () => {
+  it.each([
+    'REGULATORY_ESTABLISHMENT_REGISTRATION_CONFIRMED_AT',
+    'BACKUP_PAYMENT_PROCESSOR_NAME',
+    'LICENSED_OPTOMETRIST_COUNT',
+  ])('documents %s', (name) => {
+    expect(ENV_EXAMPLE).toMatch(new RegExp(`^#? ?${name}=`, 'm'))
+  })
+})

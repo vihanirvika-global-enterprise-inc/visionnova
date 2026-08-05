@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getOrdersAwaitingDispatch } from '@/lib/orders'
 import { formatPrice } from '@/lib/formatters'
 import { markOrderShipped } from './actions'
+import BulkOrderActions from './BulkOrderActions'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +44,8 @@ export default async function AdminOrdersPage({
       {orders.length === 0 ? (
         <p className="card mt-8 p-6 text-muted">No orders awaiting dispatch.</p>
       ) : (
+        <>
+        <BulkOrderActions orderIds={orders.map((order) => order.id)} />
         <ul className="mt-8 flex flex-col gap-4">
           {orders.map((order) => {
             const address = order.shippingAddress
@@ -105,6 +108,7 @@ export default async function AdminOrdersPage({
             )
           })}
         </ul>
+        </>
       )}
     </main>
   )

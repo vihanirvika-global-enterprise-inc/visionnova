@@ -38,6 +38,7 @@ const rxProduct: Product = {
 function makePrescription(overrides: Partial<Prescription> = {}): Prescription {
   return {
     id: 'rx-1', customerId: SESSION_CUSTOMER, fileUrl: 'key.pdf', status: 'approved',
+    consentGivenAt: new Date(),
     rightSphere: null, rightCylinder: null, rightAxis: null, rightAdd: null,
     leftSphere: null, leftCylinder: null, leftAxis: null, leftAdd: null,
     pupillaryDistance: null, expiresAt: null,
@@ -274,6 +275,27 @@ describe('checkoutAction — prescription-confirmation gate', () => {
     expect(OrderItems.addOrderItem).toHaveBeenCalledWith(
       expect.objectContaining({ productId: 'prod-rx', prescriptionId: 'rx-approved' })
     )
+  })
+
+  // ST-010: this is what CheckoutForm reads to decide whether the Confirm
+  // Prescription step belongs in this checkout at all.
+  it('returns the approved prescription id in the success result', async () => {
+    const approved = makePrescription({ id: 'rx-approved', status: 'approved' })
+    vi.mocked(Prescriptions.getPrescriptionsByCustomer).mockResolvedValue([approved])
+
+    const result = await checkoutAction(
+      makeFormData(address, cartPayload([{ productId: 'prod-rx', quantity: 1, assumedPrice: 99.99 }]))
+    )
+
+    expect(result).toEqual(expect.objectContaining({ prescriptionId: 'rx-approved' }))
+  })
+
+  it('leaves prescriptionId undefined when the cart has no Rx-required items', async () => {
+    const result = await checkoutAction(
+      makeFormData(address, cartPayload([{ productId: 'prod-1', quantity: 1, assumedPrice: 99.99 }]))
+    )
+
+    expect((result as { prescriptionId?: string }).prescriptionId).toBeUndefined()
   })
 
   it('rejects the entire checkout for a mixed cart — one Rx item without approval, one non-Rx item — not just the Rx item', async () => {

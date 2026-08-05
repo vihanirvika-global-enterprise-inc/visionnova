@@ -9,6 +9,10 @@ export const metadata: Metadata = {
   description: 'Shop premium prescription eyewear from ₹799. Verified by licensed optometrists with free delivery across India.',
 }
 
+// ST-002 (A2. Eyeglasses Catalog): search, sort, and pagination are wired to
+// getCatalogProducts and verified working. Attribute filtering (frame shape,
+// lens type, color) is not implemented — the ticket's "all filters combine
+// correctly and persist" AC is only partially met.
 const PAGE_SIZE = 12
 const VALID_SORTS: ProductSort[] = ['price_asc', 'price_desc', 'newest']
 
@@ -52,6 +56,13 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
           Browse our full collection — prescription and non-prescription
         </p>
       </div>
+
+      {/* ST-003 / ST-004: the only site-wide links into the sunglasses and
+          contact lens catalogs — neither is in the main Navbar. */}
+      <nav aria-label="catalog categories" className="mb-6 flex gap-4 text-sm font-medium">
+        <Link href="/sunglasses" className="text-primary hover:text-teal">Sunglasses →</Link>
+        <Link href="/contacts" className="text-primary hover:text-teal">Contact Lenses →</Link>
+      </nav>
 
       <CatalogControls />
 

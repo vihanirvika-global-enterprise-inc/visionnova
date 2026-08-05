@@ -21,6 +21,7 @@ const mockPrescription = {
   id: 'rx-001', customerId: 'cust-001',
   fileUrl: '/uploads/rx-001.pdf',
   status: 'pending' as const,
+  consentGivenAt: now,
   rightSphere: null, rightCylinder: null, rightAxis: null, rightAdd: null,
   leftSphere: null, leftCylinder: null, leftAxis: null, leftAdd: null,
   pupillaryDistance: null, expiresAt: null,
@@ -60,6 +61,20 @@ describe('ReviewPrescriptionPage', () => {
     // session-checked route.
     const link = screen.getByRole('link', { name: /view prescription/i })
     expect(link).toHaveAttribute('href', '/api/prescriptions/rx-001/file')
+  })
+
+  // ST-023: a digitally-authored prescription (Digital Rx Writing Tool) has
+  // no uploaded document — there is nothing for this link to open.
+  it('shows "authored digitally" instead of a file link when fileUrl is null', async () => {
+    const { readPrescriptionMetadataForSession } = await import('@/lib/prescriptionAccess')
+    vi.mocked(readPrescriptionMetadataForSession).mockResolvedValue({
+      ok: true, prescription: { ...mockPrescription, fileUrl: null },
+    })
+
+    await renderPage()
+
+    expect(screen.queryByRole('link', { name: /view prescription/i })).not.toBeInTheDocument()
+    expect(screen.getByText(/authored digitally/i)).toBeInTheDocument()
   })
 
   // The trail is recorded on every read; a reviewer needs a way to reach it

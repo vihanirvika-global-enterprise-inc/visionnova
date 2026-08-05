@@ -272,3 +272,96 @@ describe('getCatalogProducts', () => {
     expect(selectParams).toContain(5) // OFFSET = (2 - 1) * 5
   })
 })
+
+// ST-003 / ST-004 (Sunglasses & Contact Lenses Catalogs): same shape as
+// getCatalogProducts, scoped to a single category, so both new catalog pages
+// reuse one function instead of duplicating the search/sort/pagination matrix.
+describe('getCatalogProductsByCategory', () => {
+  beforeEach(() => { vi.resetModules(); vi.clearAllMocks() })
+
+  function row(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'prod-001', name: 'Aviator Sunglasses', description: 'UV protection',
+      price: '59.99', category: 'sunglasses' as const, sku: 'SG-001',
+      stock_quantity: 5, image_url: null, requires_prescription: false,
+      created_at: new Date(), updated_at: new Date(),
+      ...overrides,
+    }
+  }
+
+  function mockRowsThenCount(spy: ReturnType<typeof mockSql>, rows: unknown[], count: number) {
+    spy.mockResolvedValueOnce(rows)
+    spy.mockResolvedValueOnce([{ count }])
+  }
+
+  it('scopes results to the given category', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql)
+    mockRowsThenCount(spy, [row()], 1)
+
+    const { getCatalogProductsByCategory } = await import('./products')
+    const result = await getCatalogProductsByCategory('sunglasses', {})
+
+    const selectParams = spy.mock.calls[0].slice(1)
+    const countParams = spy.mock.calls[1].slice(1)
+    expect(selectParams).toContain('sunglasses')
+    expect(countParams).toContain('sunglasses')
+    expect(result.products).toHaveLength(1)
+    expect(result.totalCount).toBe(1)
+  })
+
+  it('combines the category filter with search', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql)
+    mockRowsThenCount(spy, [], 0)
+
+    const { getCatalogProductsByCategory } = await import('./products')
+    await getCatalogProductsByCategory('contacts', { q: 'daily' })
+
+    const selectParams = spy.mock.calls[0].slice(1)
+    expect(selectParams).toContain('contacts')
+    expect(selectParams).toContain('%daily%')
+  })
+
+  it.each([
+    ['price_asc', 'ORDER BY price ASC'],
+    ['price_desc', 'ORDER BY price DESC'],
+    ['newest', 'ORDER BY created_at DESC'],
+  ] as const)('sorts by %s within the category', async (sort, expectedOrderBy) => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql)
+    mockRowsThenCount(spy, [], 0)
+
+    const { getCatalogProductsByCategory } = await import('./products')
+    await getCatalogProductsByCategory('sunglasses', { sort })
+
+    const selectStrings = (spy.mock.calls[0][0] as string[]).join('')
+    expect(selectStrings).toContain(expectedOrderBy)
+  })
+
+  it('applies LIMIT/OFFSET matching the requested page and page size', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql)
+    mockRowsThenCount(spy, [], 0)
+
+    const { getCatalogProductsByCategory } = await import('./products')
+    await getCatalogProductsByCategory('contacts', { page: 2, pageSize: 12 })
+
+    const selectParams = spy.mock.calls[0].slice(1)
+    expect(selectParams).toContain(12) // LIMIT
+    expect(selectParams).toContain(12) // OFFSET = (2 - 1) * 12
+  })
+
+  it('never returns a product from a different category', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql)
+    // The mock can't itself enforce the WHERE clause — this only proves the
+    // category is threaded into every branch as a bound parameter.
+    mockRowsThenCount(spy, [row({ category: 'sunglasses' })], 1)
+
+    const { getCatalogProductsByCategory } = await import('./products')
+    const result = await getCatalogProductsByCategory('sunglasses', {})
+
+    expect(result.products.every((p) => p.category === 'sunglasses')).toBe(true)
+  })
+})

@@ -16,6 +16,18 @@ function buildKey(ip: string, endpoint: string): string {
   return `ratelimit:${endpoint}:${ip}`
 }
 
+// Once per process: this is hit on every rate-limited request in local dev,
+// and a warning per keystroke-triggered action would bury real output.
+let warnedRateLimitDisabled = false
+function warnRateLimitDisabledOnce(): void {
+  if (warnedRateLimitDisabled) return
+  warnedRateLimitDisabled = true
+  console.warn(
+    '[rateLimit] UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN are not set — ' +
+      'rate limiting is DISABLED. This is allowed outside production only.',
+  )
+}
+
 // Raw REST calls, not the @upstash/redis SDK: the SDK's UpstashError
 // discards the original HTTP status code on any non-ok response, which makes
 // it impossible to tell "Upstash is down" (5xx) apart from "our request was
@@ -24,7 +36,16 @@ export async function checkRateLimit(ip: string, endpoint: string): Promise<Rate
   const url = process.env.UPSTASH_REDIS_REST_URL
   const token = process.env.UPSTASH_REDIS_REST_TOKEN
   if (!url || !token) {
-    throw new Error('UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN are not set')
+    // Production must never serve traffic with rate limiting silently absent:
+    // a deploy missing these should fail loudly, not accept unlimited attempts.
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN are not set')
+    }
+    // Outside production the control is simply unconfigured — not an outage,
+    // so it is not reported to Sentry. Throwing here instead made every
+    // rate-limited endpoint unusable without an Upstash account.
+    warnRateLimitDisabledOnce()
+    return { allowed: true }
   }
 
   const key = buildKey(ip, endpoint)

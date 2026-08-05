@@ -3,6 +3,13 @@
 import { createContext, useContext, useState } from 'react'
 import type { Product } from '@/types'
 
+// ST-009 (A9. Cart — "cart total recalculates correctly on qty change"):
+// `total` below is met — verified against the story's stated AC. TK-018
+// (wire cart to backend/database) is a separate, unimplemented gap: this is
+// pure in-memory client state, never persisted to the carts/cart_items
+// tables that already exist in the schema. Scoped out deliberately — no
+// stated AC currently depends on cross-device cart persistence.
+
 interface CartItem {
   product: Product
   quantity: number

@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, type InputHTMLAttributes } from 'react'
+import { forwardRef, useState, type InputHTMLAttributes } from 'react'
 
 interface AuthFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   id: string
@@ -17,6 +17,12 @@ export const AuthField = forwardRef<HTMLInputElement, AuthFieldProps>(
     const errorId = `${id}-error`
     const hintId = `${id}-hint`
 
+    // Choosing a password that clears the breach check often takes a few
+    // attempts, and retyping one blind is where people give up.
+    const [revealed, setRevealed] = useState(false)
+    const isPassword = inputProps.type === 'password'
+    const inputType = isPassword && revealed ? 'text' : inputProps.type
+
     // Points at whichever of hint/error actually exist — an aria-describedby
     // referencing a missing id is announced as nothing at all by some screen
     // readers, which would silently drop the message.
@@ -29,14 +35,39 @@ export const AuthField = forwardRef<HTMLInputElement, AuthFieldProps>(
         <label htmlFor={id} className="mb-1 block text-sm font-medium text-dark">
           {label}
         </label>
-        <input
-          {...inputProps}
-          id={id}
-          ref={ref}
-          aria-invalid={hasError || undefined}
-          aria-describedby={describedBy || undefined}
-          className="input-field"
-        />
+        <div className="relative">
+          <input
+            {...inputProps}
+            type={inputType}
+            id={id}
+            ref={ref}
+            aria-invalid={hasError || undefined}
+            aria-describedby={describedBy || undefined}
+            className={isPassword ? 'input-field pr-11' : 'input-field'}
+          />
+          {isPassword && (
+            <button
+              // Explicit type: an unset type inside a <form> defaults to
+              // submit, so revealing would fire a half-filled submission.
+              type="button"
+              onClick={() => setRevealed((current) => !current)}
+              aria-pressed={revealed}
+              aria-label={revealed ? 'Hide password' : 'Show password'}
+              className="absolute inset-y-0 right-0 flex items-center px-3 text-muted hover:text-dark"
+            >
+              {revealed ? (
+                <svg aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                </svg>
+              ) : (
+                <svg aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              )}
+            </button>
+          )}
+        </div>
         {hint && (
           <p id={hintId} className="mt-1 text-xs text-muted">
             {hint}

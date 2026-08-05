@@ -5,6 +5,9 @@ import RootLayout from './layout'
 vi.mock('@/components/layout/AuthNavbar', () => ({
   AuthNavbar: () => <nav aria-label="main navigation" />,
 }))
+vi.mock('@/components/wishlist/WishlistProviderServer', () => ({
+  WishlistProviderServer: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
 
 describe('RootLayout', () => {
   it('renders the navigation and children', () => {

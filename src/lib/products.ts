@@ -131,3 +131,86 @@ export async function getCatalogProducts(
     totalCount: (countRows[0]?.count as number) ?? 0,
   }
 }
+
+// ST-003 / ST-004 (Sunglasses & Contact Lenses Catalogs). Same flat-query
+// shape as getCatalogProducts and for the same reason — ORDER BY's column
+// can't be a bind parameter — with category as a fixed, always-present filter
+// rather than a third on/off axis, so it stays six branches, not twelve.
+export async function getCatalogProductsByCategory(
+  category: Product['category'],
+  options: CatalogQueryOptions = {}
+): Promise<CatalogQueryResult> {
+  const { q, sort = 'newest', page = 1, pageSize = DEFAULT_PAGE_SIZE } = options
+  const safePage = Math.max(1, page)
+  const safePageSize = Math.max(1, pageSize)
+  const offset = (safePage - 1) * safePageSize
+  const pattern = q ? `%${q}%` : null
+
+  let rows: Record<string, unknown>[]
+  let countRows: Record<string, unknown>[]
+
+  if (pattern) {
+    if (sort === 'price_asc') {
+      rows = await sql`
+        SELECT * FROM products
+        WHERE category = ${category} AND stock_quantity > 0
+          AND (name ILIKE ${pattern} OR description ILIKE ${pattern})
+        ORDER BY price ASC
+        LIMIT ${safePageSize} OFFSET ${offset}
+      `
+    } else if (sort === 'price_desc') {
+      rows = await sql`
+        SELECT * FROM products
+        WHERE category = ${category} AND stock_quantity > 0
+          AND (name ILIKE ${pattern} OR description ILIKE ${pattern})
+        ORDER BY price DESC
+        LIMIT ${safePageSize} OFFSET ${offset}
+      `
+    } else {
+      rows = await sql`
+        SELECT * FROM products
+        WHERE category = ${category} AND stock_quantity > 0
+          AND (name ILIKE ${pattern} OR description ILIKE ${pattern})
+        ORDER BY created_at DESC
+        LIMIT ${safePageSize} OFFSET ${offset}
+      `
+    }
+    countRows = await sql`
+      SELECT COUNT(*)::int AS count FROM products
+      WHERE category = ${category} AND stock_quantity > 0
+        AND (name ILIKE ${pattern} OR description ILIKE ${pattern})
+    `
+  } else {
+    if (sort === 'price_asc') {
+      rows = await sql`
+        SELECT * FROM products
+        WHERE category = ${category} AND stock_quantity > 0
+        ORDER BY price ASC
+        LIMIT ${safePageSize} OFFSET ${offset}
+      `
+    } else if (sort === 'price_desc') {
+      rows = await sql`
+        SELECT * FROM products
+        WHERE category = ${category} AND stock_quantity > 0
+        ORDER BY price DESC
+        LIMIT ${safePageSize} OFFSET ${offset}
+      `
+    } else {
+      rows = await sql`
+        SELECT * FROM products
+        WHERE category = ${category} AND stock_quantity > 0
+        ORDER BY created_at DESC
+        LIMIT ${safePageSize} OFFSET ${offset}
+      `
+    }
+    countRows = await sql`
+      SELECT COUNT(*)::int AS count FROM products
+      WHERE category = ${category} AND stock_quantity > 0
+    `
+  }
+
+  return {
+    products: rows.map(mapProduct),
+    totalCount: (countRows[0]?.count as number) ?? 0,
+  }
+}

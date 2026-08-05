@@ -6,6 +6,10 @@ vi.mock('@/lib/products', () => ({ getCatalogProducts: vi.fn() }))
 vi.mock('@/components/shop/CatalogControls', () => ({
   CatalogControls: () => <div data-testid="catalog-controls" />,
 }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('@/app/account/wishlist/actions', () => ({
+  toggleWishlistAction: vi.fn().mockResolvedValue({ ok: true }),
+}))
 
 function makeProduct(overrides: Record<string, unknown> = {}) {
   return {
@@ -19,8 +23,15 @@ function makeProduct(overrides: Record<string, unknown> = {}) {
 
 async function renderCatalogPage(searchParams: Record<string, string> = {}) {
   const { CartProvider } = await import('@/components/cart/CartContext')
+  const { WishlistProvider } = await import('@/components/wishlist/WishlistContext')
   const CatalogPage = (await import('./page')).default
-  render(<CartProvider>{await CatalogPage({ searchParams })}</CartProvider>)
+  render(
+    <CartProvider>
+      <WishlistProvider initialWishlistedIds={[]} isLoggedIn={false}>
+        {await CatalogPage({ searchParams })}
+      </WishlistProvider>
+    </CartProvider>
+  )
 }
 
 describe('CatalogPage', () => {
@@ -54,6 +65,16 @@ describe('CatalogPage', () => {
     await renderCatalogPage()
 
     expect(screen.getByTestId('catalog-controls')).toBeInTheDocument()
+  })
+
+  it('links to the sunglasses and contact lens catalogs', async () => {
+    const { getCatalogProducts } = await import('@/lib/products')
+    vi.mocked(getCatalogProducts).mockResolvedValueOnce({ products: [], totalCount: 0 })
+
+    await renderCatalogPage()
+
+    expect(screen.getByRole('link', { name: /sunglasses/i })).toHaveAttribute('href', '/sunglasses')
+    expect(screen.getByRole('link', { name: /contact lenses/i })).toHaveAttribute('href', '/contacts')
   })
 })
 

@@ -33,6 +33,29 @@ describe('createCustomer', () => {
     expect(result.email).toBe('jane@example.com')
     expect(result.firstName).toBe('Jane')
   })
+
+  // ST-021 (EP-007): partner onboarding creates the account with
+  // role='partner_optometrist' directly, not via a separate role-upgrade
+  // step after the fact.
+  it('inserts the given role when one is provided', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql)
+    spy.mockResolvedValueOnce([{
+      id: 'cust-002', email: 'clinic@example.com', password_hash: 'hashed_pw',
+      first_name: 'Priya', last_name: 'Sharma', phone: null,
+      role: 'partner_optometrist', created_at: new Date(), updated_at: new Date(),
+    }])
+
+    const { createCustomer } = await import('./customers')
+    const result = await createCustomer({
+      email: 'clinic@example.com', passwordHash: 'hashed_pw',
+      firstName: 'Priya', lastName: 'Sharma', role: 'partner_optometrist',
+    })
+
+    expect(result.role).toBe('partner_optometrist')
+    const params = spy.mock.calls[0].slice(1)
+    expect(params).toContain('partner_optometrist')
+  })
 })
 
 describe('getCustomerByEmail', () => {

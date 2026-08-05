@@ -33,6 +33,10 @@ export type CheckoutResult =
       priceAdjusted: boolean
       discount: number
       couponRejectionReason?: CouponRejectionReason
+      // ST-010: present only when an Rx-required item was in the cart — this
+      // is what CheckoutForm uses to decide whether the Confirm Prescription
+      // step is part of this checkout at all.
+      prescriptionId?: string
     }
   | { error: string; requiresPrescriptionUpload?: boolean }
 
@@ -177,5 +181,12 @@ export async function checkoutAction(formData: FormData): Promise<CheckoutResult
     )
   )
 
-  return { orderId: order.id, totalAmount: finalTotal, priceAdjusted, discount, couponRejectionReason }
+  return {
+    orderId: order.id,
+    totalAmount: finalTotal,
+    priceAdjusted,
+    discount,
+    couponRejectionReason,
+    prescriptionId: approvedPrescription?.id,
+  }
 }

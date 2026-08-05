@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { rm, readFile, mkdir, writeFile } from 'fs/promises'
+import { rm, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
 import {
   PRESCRIPTION_UPLOAD_DIR,
@@ -77,25 +77,65 @@ describe('resolvePrescriptionPath', () => {
 })
 
 describe('savePrescriptionFile', () => {
-  it('writes the bytes and returns the key to store', async () => {
+  it('returns a key matching the upload extension', async () => {
     const key = await savePrescriptionFile(Buffer.from('rx-bytes'), 'scan.png')
     written.push(key)
 
-    const onDisk = await readFile(join(PRESCRIPTION_UPLOAD_DIR, key))
-    expect(onDisk.toString()).toBe('rx-bytes')
     expect(key).toMatch(/\.png$/)
   })
 })
 
-describe('readPrescriptionFile', () => {
-  it('reads a stored file back by key', async () => {
-    await mkdir(PRESCRIPTION_UPLOAD_DIR, { recursive: true })
-    await writeFile(join(PRESCRIPTION_UPLOAD_DIR, 'read-me.pdf'), 'contents')
-    written.push('read-me.pdf')
+// EP-010 BUG-007 (Risk TECH-04 — production data encryption at rest).
+// kycStorage.ts already encrypted KYC documents; this file did not, despite
+// CLAUDE.md claiming all medical/Rx data is encrypted at rest — a
+// pre-existing, explicitly-flagged gap (see kycStorage.ts's prior comment).
+// Same shape as kycStorage.test.ts's encryption suite: proving the
+// plaintext never touches disk, not just that save/read round-trips.
+describe('savePrescriptionFile / readPrescriptionFile — encryption at rest', () => {
+  it('never writes the plaintext bytes to disk', async () => {
+    const plaintext = Buffer.from('CONFIDENTIAL prescription: SPH -2.50 CYL -0.75')
+    const key = await savePrescriptionFile(plaintext, 'scan.pdf')
+    written.push(key)
 
-    expect((await readPrescriptionFile('read-me.pdf')).toString()).toBe('contents')
+    const onDisk = await readFile(join(PRESCRIPTION_UPLOAD_DIR, key))
+    expect(onDisk.includes(plaintext)).toBe(false)
+    expect(onDisk.toString('latin1')).not.toContain('CONFIDENTIAL')
   })
 
+  it('decrypts back to the exact original bytes', async () => {
+    const plaintext = Buffer.from('exact original bytes, including \x00 nulls')
+    const key = await savePrescriptionFile(plaintext, 'scan.pdf')
+    written.push(key)
+
+    const decrypted = await readPrescriptionFile(key)
+    expect(decrypted.equals(plaintext)).toBe(true)
+  })
+
+  it('produces different ciphertext for the same plaintext on repeated saves', async () => {
+    const plaintext = Buffer.from('identical content')
+    const key1 = await savePrescriptionFile(plaintext, 'a.pdf')
+    const key2 = await savePrescriptionFile(plaintext, 'b.pdf')
+    written.push(key1, key2)
+
+    const bytes1 = await readFile(join(PRESCRIPTION_UPLOAD_DIR, key1))
+    const bytes2 = await readFile(join(PRESCRIPTION_UPLOAD_DIR, key2))
+    expect(bytes1.equals(bytes2)).toBe(false)
+  })
+
+  it('rejects a tampered ciphertext rather than silently returning garbage', async () => {
+    const key = await savePrescriptionFile(Buffer.from('original'), 'scan.pdf')
+    written.push(key)
+
+    const path = resolvePrescriptionPath(key)
+    const tampered = await readFile(path)
+    tampered[tampered.length - 1] ^= 0xff
+    await writeFile(path, tampered)
+
+    await expect(readPrescriptionFile(key)).rejects.toThrow()
+  })
+})
+
+describe('readPrescriptionFile', () => {
   it('refuses to read outside the upload directory', async () => {
     await expect(readPrescriptionFile('../../.env.local')).rejects.toThrow(/invalid/i)
   })

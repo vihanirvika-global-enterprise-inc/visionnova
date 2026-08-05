@@ -35,6 +35,10 @@ interface RegisterInput {
   password: string
   firstName: string
   lastName: string
+  // ST-021 (EP-007): lets partner onboarding create the account with
+  // role='partner_optometrist' directly, reusing the same hashing and
+  // duplicate-email handling rather than a separate role-upgrade step.
+  role?: Customer['role']
 }
 
 export async function registerUser(input: RegisterInput): Promise<Customer> {
@@ -45,6 +49,7 @@ export async function registerUser(input: RegisterInput): Promise<Customer> {
       passwordHash,
       firstName: input.firstName,
       lastName: input.lastName,
+      role: input.role,
     })
   } catch (error) {
     // Backstop for the race condition validateRegistration's precheck can't

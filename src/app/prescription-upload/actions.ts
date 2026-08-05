@@ -16,6 +16,13 @@ export async function uploadPrescriptionAction(
     return { error: 'Please select a file to upload' }
   }
 
+  // ST-007: gates the upload itself, not just a UI nicety — no prescription
+  // record is created without it, so "review happened but consent wasn't
+  // given" cannot occur.
+  if (!formData.get('consent')) {
+    return { error: 'You must consent to prescription review before uploading' }
+  }
+
   const bytes = await file.arrayBuffer()
 
   // Stores an opaque key, not a public path: the file is served only through
@@ -25,6 +32,7 @@ export async function uploadPrescriptionAction(
   await createPrescription({
     customerId: session.customerId,
     fileUrl: storageKey,
+    consentGivenAt: new Date(),
   })
 
   redirect('/account')

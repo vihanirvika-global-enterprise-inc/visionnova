@@ -281,3 +281,49 @@ describe('getOrdersAwaitingDispatch', () => {
     expect(query).toMatch(/ORDER BY created_at ASC/)
   })
 })
+
+// ST-027 (E1. Order Operations — "bulk status transitions apply to up to N
+// orders"). Deliberately allowlisted to statuses with no per-order side
+// effect (email, required shipment details) — 'shipped' stays the
+// single-order flow in markOrderShipped, which needs a carrier and tracking
+// number that can't sensibly be the same across a batch.
+describe('bulkUpdateOrderStatus', () => {
+  beforeEach(() => { vi.resetModules(); vi.clearAllMocks() })
+
+  it('updates every given order id to the target status in one query', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql)
+    spy.mockResolvedValueOnce([{ id: 'order-1' }, { id: 'order-2' }])
+
+    const { bulkUpdateOrderStatus } = await import('./orders')
+    const result = await bulkUpdateOrderStatus(['order-1', 'order-2'], 'processing')
+
+    expect(sql).toHaveBeenCalledOnce()
+    expect(result.updatedCount).toBe(2)
+  })
+
+  it('rejects a status outside the allowlist rather than silently no-oping', async () => {
+    const { bulkUpdateOrderStatus } = await import('./orders')
+
+    await expect(bulkUpdateOrderStatus(['order-1'], 'shipped')).rejects.toThrow(/not allowed/i)
+
+    const { sql } = await import('./db')
+    expect(sql).not.toHaveBeenCalled()
+  })
+
+  it('rejects an empty selection', async () => {
+    const { bulkUpdateOrderStatus } = await import('./orders')
+
+    await expect(bulkUpdateOrderStatus([], 'processing')).rejects.toThrow(/no orders/i)
+  })
+
+  it('rejects a selection larger than the documented cap', async () => {
+    const { bulkUpdateOrderStatus } = await import('./orders')
+    const tooMany = Array.from({ length: 51 }, (_, i) => `order-${i}`)
+
+    await expect(bulkUpdateOrderStatus(tooMany, 'processing')).rejects.toThrow(/50/)
+
+    const { sql } = await import('./db')
+    expect(sql).not.toHaveBeenCalled()
+  })
+})

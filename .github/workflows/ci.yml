@@ -39,6 +39,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      # next build runs as NODE_ENV=production, and src/lib/requiredSecret.ts
+      # deliberately fails closed there rather than defaulting to the
+      # development constant published in this repo. A throwaway CI value,
+      # same as the browser-checks job below — it never reaches a deployment.
+      # The two encryption keys are read lazily at first use, so a build does
+      # not need them.
+      SESSION_SECRET: ci-only-secret-not-production
+
     steps:
       - uses: actions/checkout@v4
 
@@ -52,7 +61,62 @@ jobs:
 
       # next build runs checks tsc --noEmit cannot: the generated .next/types
       # only exist during a build, so a route whose props violate PageProps
-      # passes typecheck and fails at deploy. No secrets are needed — the build
-      # completes with no env file at all.
+      # passes typecheck and fails at deploy.
       - name: Build
         run: npm run build
+
+  # EP-010 BUG-006 (cross-device regression) + BUG-011 (Core Web Vitals gate).
+  # One job because both need the same expensive setup the unit suite avoids:
+  # a real Postgres, a real build, and a really-running app.
+  browser-checks:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: visionnova
+          POSTGRES_PASSWORD: visionnova
+          POSTGRES_DB: visionnova
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://visionnova:visionnova@localhost:5432/visionnova
+      SESSION_SECRET: ci-only-secret-not-production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Set up database
+        run: node scripts/setup-db.js
+
+      - name: Seed database
+        run: node scripts/seed-db.js
+
+      - name: Build
+        run: npm run build
+
+      # Each tool manages its own server lifecycle against the production
+      # build: playwright.config.ts starts `npm run start` when CI is set,
+      # and lighthouserc.json declares its own startServerCommand.
+      - name: Cross-device e2e (BUG-006)
+        run: npm run test:e2e
+
+      - name: Lighthouse Core Web Vitals (BUG-011)
+        run: npx --no-install lhci autorun

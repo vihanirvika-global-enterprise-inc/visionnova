@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans, IBM_Plex_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { CartProvider } from "@/components/cart/CartContext";
+import { WishlistProviderServer } from "@/components/wishlist/WishlistProviderServer";
 import { AuthNavbar } from "@/components/layout/AuthNavbar";
 import { Footer } from "@/components/layout/Footer";
 import { PostHogProvider } from "@/components/analytics/PostHogProvider";
@@ -54,12 +55,14 @@ export default function RootLayout({
 
         <PostHogProvider>
           <CartProvider>
-            <AuthNavbar />
-            {/* tabIndex -1 so following the skip link actually moves focus */}
-            <div id="main-content" tabIndex={-1}>
-              {children}
-            </div>
-            <Footer />
+            <WishlistProviderServer>
+              <AuthNavbar />
+              {/* tabIndex -1 so following the skip link actually moves focus */}
+              <div id="main-content" tabIndex={-1}>
+                {children}
+              </div>
+              <Footer />
+            </WishlistProviderServer>
           </CartProvider>
         </PostHogProvider>
 

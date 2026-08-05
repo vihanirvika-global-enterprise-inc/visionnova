@@ -3,6 +3,8 @@ import { getProductById } from '@/lib/products'
 import { getProductImages } from '@/lib/productImages'
 import { AddToCartButton } from '@/components/ui/AddToCartButton'
 import { ProductGallery } from '@/components/shop/ProductGallery'
+import { LensBuilder } from '@/components/shop/LensBuilder'
+import { TryOnPreview } from '@/components/shop/TryOnPreview'
 import { formatPrice } from '@/lib/formatters'
 
 interface ProductPageProps {
@@ -57,7 +59,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <div className="flex flex-col">
 
           <h1 className="text-3xl font-bold text-dark">{product.name}</h1>
-          <p className="mt-2 text-2xl font-bold text-primary">{formatPrice(product.price)}</p>
+          {product.requiresPrescription ? null : (
+            <p className="mt-2 text-2xl font-bold text-primary">{formatPrice(product.price)}</p>
+          )}
 
           {product.requiresPrescription && (
             <span className="mt-3 inline-block w-fit rounded-full bg-gold px-3 py-1 text-xs text-white">
@@ -77,6 +81,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 Out of Stock
               </span>
             )}
+          </div>
+
+          {product.requiresPrescription && (
+            <div className="mt-4">
+              <LensBuilder basePrice={product.price} />
+            </div>
+          )}
+
+          <div className="mt-4">
+            <TryOnPreview frameImageUrl={product.imageUrl} productName={product.name} />
           </div>
 
           <hr className="my-6 border-slate-100" />

@@ -19,9 +19,14 @@ Phase 0 → Phase 1 MVP (14-week sprint plan)
 - Homepage, Eyeglasses Catalog, Product Detail Page
 - Cart + Checkout, Prescription Upload, Account + Orders
 - Auth (Login/Register), Help/FAQ, About/Contact
+- Static-Photo Try-On (client-side photo + frame overlay, no live-camera AR)
+- Teleoptometry / Eye-Test booking (scheduling only; no live video call
+  integration — that remains out of scope, see below)
 
 ## Out of Scope for MVP
-- AR Virtual Try-On, AI Frame Recommender, Teleoptometry
+- AR Virtual Try-On (live-camera/face-tracking), AI Frame Recommender
+- Live video calling for teleoptometry (booking/scheduling is in scope; the
+  call itself is not)
 - Native iOS/Android apps (PWA only)
 - Multiple languages/currencies (English + INR only at MVP)
 

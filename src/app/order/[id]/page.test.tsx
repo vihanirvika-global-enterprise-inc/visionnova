@@ -170,3 +170,24 @@ describe('OrderDetailPage — shipment info', () => {
     expect(screen.getByText(/tracking details are not available/i)).toBeInTheDocument()
   })
 })
+
+// ST-017 (B2. My Orders & Order Detail — return/exchange).
+describe('OrderDetailPage — return/exchange', () => {
+  it('offers a return/exchange request once the order is delivered', async () => {
+    givenOrder({ status: 'delivered', deliveredAt: new Date('2026-07-09T08:00:00Z') })
+
+    await renderPage()
+
+    const link = screen.getByRole('link', { name: /request return/i })
+    expect(link).toHaveAttribute('href', expect.stringContaining('mailto:support@visionnova.com'))
+    expect(link).toHaveAttribute('href', expect.stringContaining(ORDER_ID))
+  })
+
+  it('does not offer a return/exchange request before delivery', async () => {
+    givenOrder({ status: 'shipped' })
+
+    await renderPage()
+
+    expect(screen.queryByRole('link', { name: /request return/i })).not.toBeInTheDocument()
+  })
+})

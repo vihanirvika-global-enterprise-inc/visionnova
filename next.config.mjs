@@ -4,6 +4,7 @@ import {
   sentryCspReportUri,
   CSP_REPORT_GROUP,
 } from './src/lib/csp.mjs'
+import { serverActionAllowedOrigins } from './src/lib/serverActionOrigins.mjs'
 
 const isDev = process.env.NODE_ENV !== 'production'
 
@@ -19,6 +20,18 @@ const nextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: '**' },
     ],
+  },
+  experimental: {
+    serverActions: {
+      // undefined in production — Next keeps its strict same-host CSRF check.
+      // Set SERVER_ACTIONS_ALLOWED_ORIGINS (comma-separated hosts, with port)
+      // when developing behind a proxy, tunnel or forwarded port.
+      allowedOrigins: serverActionAllowedOrigins({
+        isDev,
+        port: process.env.PORT,
+        extraOrigins: process.env.SERVER_ACTIONS_ALLOWED_ORIGINS,
+      }),
+    },
   },
   async headers() {
     return [

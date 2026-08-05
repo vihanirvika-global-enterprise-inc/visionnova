@@ -131,6 +131,31 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           </p>
         ) : null}
       </section>
+
+      {/* ST-017: return/exchange, only offered once the order is actually
+          delivered — matches /help's real, established process (email
+          support), rather than pretending a self-service return workflow
+          exists that this app doesn't have. */}
+      {order.status === 'delivered' && (
+        <section aria-labelledby="return-heading" className="card mt-6 p-6">
+          <h2 id="return-heading" className="mb-2 text-lg font-semibold text-dark">
+            Need a return or exchange?
+          </h2>
+          <p className="mb-4 text-sm text-muted">
+            30-day returns on non-prescription frames, 14-day returns on prescription
+            glasses. Email us with your order number and we&apos;ll confirm your return
+            and arrange collection.
+          </p>
+          <a
+            href={`mailto:support@visionnova.com?subject=${encodeURIComponent(
+              `Return request — Order #${order.id}`
+            )}&body=${encodeURIComponent(`I'd like to return/exchange order #${order.id}.\n\nReason: `)}`}
+            className="btn-secondary text-sm"
+          >
+            Request Return / Exchange
+          </a>
+        </section>
+      )}
     </main>
   )
 }

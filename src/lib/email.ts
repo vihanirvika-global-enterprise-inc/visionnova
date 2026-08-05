@@ -3,6 +3,7 @@ import { createElement, type ReactElement } from 'react'
 import { OrderConfirmationEmail } from '../emails/OrderConfirmationEmail'
 import { PrescriptionStatusEmail } from '../emails/PrescriptionStatusEmail'
 import { OrderShippedEmail } from '../emails/OrderShippedEmail'
+import { LoginOtpEmail } from '../emails/LoginOtpEmail'
 
 export interface SendEmailOptions {
   to: string
@@ -37,10 +38,28 @@ export async function sendOrderShippedEmail(options: OrderShippedEmailOptions) {
   })
 }
 
+export interface PrescriptionClinicalValues {
+  rightSphere: number | null
+  rightCylinder: number | null
+  rightAxis: number | null
+  rightAdd: number | null
+  leftSphere: number | null
+  leftCylinder: number | null
+  leftAxis: number | null
+  leftAdd: number | null
+  pupillaryDistance: number | null
+}
+
 export interface PrescriptionStatusEmailOptions {
   to: string
   firstName: string
   status: 'approved' | 'rejected'
+  // FTC Eyeglass Rule (EP-010 BUG-004): on approval, the patient must
+  // automatically receive a copy of the prescription. hasFile tells the
+  // template whether to point at the account page instead of inlining
+  // clinicalValues — see PrescriptionStatusEmail.tsx.
+  hasFile?: boolean
+  clinicalValues?: PrescriptionClinicalValues
 }
 
 export async function sendPrescriptionStatusEmail(options: PrescriptionStatusEmailOptions) {
@@ -52,10 +71,56 @@ export async function sendPrescriptionStatusEmail(options: PrescriptionStatusEma
     react: createElement(PrescriptionStatusEmail, {
       firstName: options.firstName,
       status: options.status,
+      hasFile: options.hasFile,
+      clinicalValues: options.clinicalValues,
     }),
   })
 }
 
+// ST-013 (A13. Auth — OTP delivery). The email half of "2FA on login": this
+// is a hard failure, not best-effort — unlike order/shipping emails, there
+// is no other way for the customer to receive the code, so loginAction must
+// not proceed to the verify-otp step if this throws.
+export interface LoginOtpEmailOptions {
+  to: string
+  firstName: string
+  code: string
+}
+
+export async function sendLoginOtpEmail(options: LoginOtpEmailOptions) {
+  const result = await sendEmail({
+    to: options.to,
+    subject: 'Your VisionNova verification code',
+    react: createElement(LoginOtpEmail, {
+      firstName: options.firstName,
+      code: options.code,
+    }),
+  })
+
+  // The Resend SDK has two failure channels. It throws only when the request
+  // never happens (a missing API key aborts in the constructor); a key that is
+  // present but rejected — revoked, mistyped, quota exhausted, provider 5xx —
+  // comes back as a RESOLVED promise carrying { data: null, error }. Awaiting
+  // it therefore succeeds while nothing was delivered.
+  //
+  // Normalising that to a throw keeps the decision in one place: loginAction
+  // has a single try/catch and stays free of any knowledge of the SDK's
+  // result shape. The provider's own message is deliberately not interpolated
+  // — it reaches a user-facing form, and "API key is invalid" describes our
+  // deployment, not anything they can act on.
+  if (result.error) {
+    throw new Error('Failed to send the login verification code email')
+  }
+
+  return result
+}
+
+// ST-011 (A11. Order Confirmation — "confirmation page and email/SMS fire").
+// Email half is real — called from both src/app/api/stripe/webhook and
+// src/app/api/razorpay/webhook on successful payment. SMS is not
+// implemented: no SMS provider (Twilio or otherwise) exists anywhere in
+// this codebase despite being named in the project's tech stack — that's a
+// vendor/credentials gap, not something to stub without real credentials.
 export interface OrderConfirmationEmailOptions {
   to: string
   orderId: string

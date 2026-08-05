@@ -40,6 +40,13 @@ describe('Footer legal links', () => {
   })
 })
 
+describe('Footer store locator link', () => {
+  it('links to the store locator', () => {
+    render(<Footer />)
+    expect(screen.getByRole('link', { name: 'Store Locator' })).toHaveAttribute('href', '/stores')
+  })
+})
+
 describe('Footer Grievance Officer contact', () => {
   const ORIGINAL_ENV = { ...process.env }
 

@@ -1,9 +1,15 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect } from 'vitest'
+import { vi, describe, it, expect } from 'vitest'
 import { CartProvider, useCart } from '@/components/cart/CartContext'
+import { WishlistProvider } from '@/components/wishlist/WishlistContext'
 import { ProductGrid } from './ProductGrid'
 import type { Product } from '@/types'
+
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('@/app/account/wishlist/actions', () => ({
+  toggleWishlistAction: vi.fn().mockResolvedValue({ ok: true }),
+}))
 
 const mockProduct: Product = {
   id: 'prod-001', name: 'Classic Frame', description: null,
@@ -23,8 +29,10 @@ describe('ProductGrid', () => {
 
     render(
       <CartProvider>
-        <ProductGrid products={[mockProduct]} />
-        <CartInspector />
+        <WishlistProvider initialWishlistedIds={[]} isLoggedIn={false}>
+          <ProductGrid products={[mockProduct]} />
+          <CartInspector />
+        </WishlistProvider>
       </CartProvider>
     )
 

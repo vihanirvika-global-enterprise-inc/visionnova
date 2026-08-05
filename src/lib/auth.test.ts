@@ -53,6 +53,25 @@ describe('registerUser', () => {
     expect(result.email).toBe('jane@example.com')
   })
 
+  // ST-021 (EP-007): partner onboarding reuses registerUser rather than
+  // duplicating its password-hashing and duplicate-email handling.
+  it('passes the given role through to createCustomer', async () => {
+    const { createCustomer } = await import('./customers')
+    vi.mocked(createCustomer).mockResolvedValueOnce({
+      id: 'cust-002', email: 'clinic@example.com',
+      passwordHash: 'hashed_pw', firstName: 'Priya', lastName: 'Sharma',
+      role: 'partner_optometrist', phone: null, createdAt: new Date(), updatedAt: new Date(),
+    })
+
+    const { registerUser } = await import('./auth')
+    await registerUser({
+      email: 'clinic@example.com', password: 'secret123',
+      firstName: 'Priya', lastName: 'Sharma', role: 'partner_optometrist',
+    })
+
+    expect(vi.mocked(createCustomer).mock.calls[0][0].role).toBe('partner_optometrist')
+  })
+
   // The DB-level backstop for the race condition: two near-simultaneous
   // registrations for the same email can both pass validateRegistration's
   // precheck (neither has been inserted yet when the other checks), so the
