@@ -52,3 +52,31 @@ describe('sendEmailBestEffort', () => {
     expect(captureOrderError).toHaveBeenCalled()
   })
 })
+
+// Resend does not throw on a 4xx/5xx — it resolves with { data: null, error }.
+// sendEmailBestEffort only ever saw the throw channel, so a revoked key
+// produced order confirmations and prescription notifications that reported
+// success and delivered nothing, with no Sentry event to show for it. The
+// throw now originates in sendEmail; these assert the reporting either way.
+describe('sendEmailBestEffort — provider reported an error rather than throwing', () => {
+  it('reports it and still resolves, so the caller flow is not rolled back', async () => {
+    const failure = new Error('Resend rejected the request')
+    const send = vi.fn().mockRejectedValue(failure)
+
+    await expect(sendEmailBestEffort(send, { orderId: 'order-9' })).resolves.toBeUndefined()
+
+    expect(captureOrderError).toHaveBeenCalledWith(failure, { orderId: 'order-9' })
+  })
+
+  // Sentry is a no-op with no DSN configured, which is exactly the state a
+  // misconfigured deployment is in — the log line is the one that fires.
+  it('also writes the failure to the server log', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const send = vi.fn().mockRejectedValue(new Error('Resend rejected the request'))
+
+    await sendEmailBestEffort(send, { orderId: 'order-9' })
+
+    expect(spy).toHaveBeenCalled()
+    spy.mockRestore()
+  })
+})

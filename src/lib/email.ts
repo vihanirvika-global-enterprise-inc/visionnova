@@ -13,12 +13,31 @@ export interface SendEmailOptions {
 
 export async function sendEmail(options: SendEmailOptions) {
   const resend = new Resend(process.env.RESEND_API_KEY)
-  return resend.emails.send({
+  const result = await resend.emails.send({
     from: 'VisionNova <noreply@visionnova.com>',
     to: options.to,
     subject: options.subject,
     react: options.react,
   })
+
+  // The Resend SDK has two failure channels and only one of them is a throw.
+  // It throws when the request never happens — a missing API key aborts in the
+  // constructor — but a key that is present and rejected (revoked, mistyped,
+  // quota exhausted, provider 5xx) comes back as a RESOLVED promise carrying
+  // { data: null, error }. Awaiting it therefore succeeds while nothing was
+  // delivered, which is indistinguishable from success to every caller.
+  //
+  // Normalising here, at the single shared send, rather than in each sender:
+  // one check covers order confirmation, shipping and both prescription
+  // notifications, and no future sender has to remember it. The provider's own
+  // message is deliberately not interpolated — sendLoginOtpEmail's failure
+  // reaches a user-facing form, and "API key is invalid" describes our
+  // deployment rather than anything a customer can act on.
+  if (result.error) {
+    throw new Error('Email provider rejected the send request')
+  }
+
+  return result
 }
 
 export interface OrderShippedEmailOptions {
@@ -88,7 +107,10 @@ export interface LoginOtpEmailOptions {
 }
 
 export async function sendLoginOtpEmail(options: LoginOtpEmailOptions) {
-  const result = await sendEmail({
+  // The returned-error check this function used to carry now lives in
+  // sendEmail, so both of the provider's failure channels arrive here as a
+  // throw and loginAction's single try/catch still covers them.
+  return sendEmail({
     to: options.to,
     subject: 'Your VisionNova verification code',
     react: createElement(LoginOtpEmail, {
@@ -96,23 +118,6 @@ export async function sendLoginOtpEmail(options: LoginOtpEmailOptions) {
       code: options.code,
     }),
   })
-
-  // The Resend SDK has two failure channels. It throws only when the request
-  // never happens (a missing API key aborts in the constructor); a key that is
-  // present but rejected — revoked, mistyped, quota exhausted, provider 5xx —
-  // comes back as a RESOLVED promise carrying { data: null, error }. Awaiting
-  // it therefore succeeds while nothing was delivered.
-  //
-  // Normalising that to a throw keeps the decision in one place: loginAction
-  // has a single try/catch and stays free of any knowledge of the SDK's
-  // result shape. The provider's own message is deliberately not interpolated
-  // — it reaches a user-facing form, and "API key is invalid" describes our
-  // deployment, not anything they can act on.
-  if (result.error) {
-    throw new Error('Failed to send the login verification code email')
-  }
-
-  return result
 }
 
 // ST-011 (A11. Order Confirmation — "confirmation page and email/SMS fire").
