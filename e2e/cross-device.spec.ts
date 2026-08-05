@@ -38,6 +38,9 @@ test('login form is usable at every size', async ({ page }) => {
   await page.goto('/login')
 
   await expect(page.getByLabel(/email/i)).toBeVisible()
-  await expect(page.getByLabel(/password/i)).toBeVisible()
+  // Exact, not /password/i: the field's show/hide toggle is a button labelled
+  // "Show password", so a substring match resolves to two elements and fails
+  // on strict mode rather than on anything being wrong with the page.
+  await expect(page.getByLabel('Password', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /sign in|log ?in/i })).toBeVisible()
 })
