@@ -11,6 +11,11 @@ export async function sendEmailBestEffort(
   try {
     await send()
   } catch (err) {
-    captureOrderError(err instanceof Error ? err : new Error(String(err)), context)
+    const error = err instanceof Error ? err : new Error(String(err))
+    captureOrderError(error, context)
+    // Also to the server log. Sentry is a no-op with no DSN configured, which
+    // is exactly the state a deployment with a broken mail provider tends to
+    // be in — without this the only trace of a failed send is its absence.
+    console.error('[email] best-effort send failed:', context, error)
   }
 }

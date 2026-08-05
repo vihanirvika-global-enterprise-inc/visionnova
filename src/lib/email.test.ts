@@ -42,10 +42,13 @@ describe('sendLoginOtpEmail — returned-error channel', () => {
     const { sendLoginOtpEmail } = await import('./email')
 
     // The action turns this into user-facing copy. Provider wording leaking
-    // that far would tell a visitor which control failed and why.
+    // that far would tell a visitor which control failed and why. Asserted as
+    // the absence of the provider's text rather than the presence of any
+    // particular wording of ours — the message moved to sendEmail when the
+    // check was generalised, and the property that matters did not.
     await expect(
       sendLoginOtpEmail({ to: 'customer@example.com', firstName: 'Priya', code: '482913' })
-    ).rejects.toThrow(/verification code/i)
+    ).rejects.toThrow(expect.not.stringMatching(/api key|401|resend|invalid/i))
   })
 
   it('resolves normally when Resend reports success', async () => {
@@ -212,5 +215,64 @@ describe('sendOrderConfirmationEmail', () => {
         react: expect.anything(),
       })
     )
+  })
+})
+
+// The returned-error channel belongs at the shared send, not in each sender.
+// Resend reports a 4xx/5xx by RESOLVING with { data: null, error }, so every
+// caller that merely awaits sendEmail — which is all of them, via
+// sendEmailBestEffort — reads a failed delivery as a success.
+describe('sendEmail — returned-error channel', () => {
+  beforeEach(() => {
+    mockSend.mockReset()
+  })
+
+  it.each([
+    ['401 revoked or mistyped key', 401],
+    ['429 quota exhausted', 429],
+    ['500 provider outage', 500],
+  ])('throws rather than resolving when Resend returns an error (%s)', async (_label, statusCode) => {
+    mockSend.mockResolvedValue({
+      data: null,
+      error: { name: 'application_error', message: 'nope', statusCode },
+    })
+
+    const { sendEmail } = await import('./email')
+
+    await expect(
+      sendEmail({ to: 'c@example.com', subject: 'x', react: { type: 'div', props: {}, key: null } as any })
+    ).rejects.toThrow()
+  })
+
+  it('still resolves with the result when Resend accepts the mail', async () => {
+    mockSend.mockResolvedValue({ data: { id: 'email-1' }, error: null })
+
+    const { sendEmail } = await import('./email')
+
+    const result = await sendEmail({
+      to: 'c@example.com',
+      subject: 'x',
+      react: { type: 'div', props: {}, key: null } as any,
+    })
+
+    expect(result.data).toEqual({ id: 'email-1' })
+  })
+
+  // Every transactional sender goes through sendEmail, so one check covers
+  // order confirmation, shipping and both prescription notifications.
+  it.each([
+    ['sendOrderConfirmationEmail', { to: 'c@example.com', orderId: 'o-1', firstName: 'Ada', totalAmount: 100 }],
+    ['sendOrderShippedEmail', { to: 'c@example.com', firstName: 'Ada', orderId: 'o-1' }],
+    ['sendPrescriptionStatusEmail', { to: 'c@example.com', firstName: 'Ada', status: 'approved' as const }],
+  ])('%s surfaces the returned-error channel as a throw', async (fnName, options) => {
+    mockSend.mockResolvedValue({
+      data: null,
+      error: { name: 'validation_error', message: 'API key is invalid', statusCode: 401 },
+    })
+
+    const mod = await import('./email')
+    const send = (mod as Record<string, any>)[fnName]
+
+    await expect(send(options)).rejects.toThrow()
   })
 })
