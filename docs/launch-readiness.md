@@ -33,13 +33,23 @@ Seventeen variables are documented in `.env.example`. These will take the site d
 
 The lazy-read distinction matters operationally: `SESSION_SECRET` fails closed at startup, the two encryption keys fail closed at *first use*. **A green deploy is not evidence the encryption keys are set.** Verify by uploading a prescription and a KYC document in staging before opening traffic.
 
-### 2. DPDP — cookie consent does not exist
+### 2. DPDP — cookie consent — ~~unresolved~~ **RESOLVED by PR #32**
 
-`src/components/analytics/PostHogProvider.tsx:10` calls `posthog.init(key, { autocapture: true })` unconditionally. There is no consent gate, no banner, and no opt-out.
+**Was:** PostHog initialised unconditionally with `autocapture: true`. No consent gate, no banner, no opt-out. Behavioural analytics collected from every visitor of an Indian e-commerce site handling prescriptions, with no lawful basis.
 
-Autocapture on an Indian e-commerce site handling prescriptions means behavioural analytics are collected from every visitor with no lawful basis. This is the single largest compliance exposure in the codebase and it is **not a bug — it was never built.**
+**Now:** analytics load only after an explicit accept. Custom banner with equally-weighted accept and reject, a `localStorage` record that expires after twelve months, and a `useCookieConsent` hook that any future tracker reads instead of reaching for storage itself. Verified at runtime against a production build: no request to any tracker host fires before consent, and none fires after a rejection even across several page navigations.
 
-Also required and currently unset: `GRIEVANCE_OFFICER_NAME`, `GRIEVANCE_OFFICER_EMAIL`, `GRIEVANCE_OFFICER_PHONE`. The footer already degrades visibly when they are missing, so this is detectable — but it must be set, not merely detected.
+Three things surfaced during that work that were **not** in this section's original description, and are recorded here because the original was wrong or incomplete:
+
+**The scope was wider than "PostHog".** Google Analytics 4 loaded from a separate pair of `<Script>` tags in `src/app/layout.tsx`, gated only on `NEXT_PUBLIC_GA4_ID` being set. This document named only PostHog; fixing that alone would have left GA4 running and the gap open. Both are now gated through the same hook. The GA4 tags moved into a client component, because consent is only knowable on the client — a server-rendered `<Script>` is already in the markup by the time anything could check it.
+
+**The health-data finding was overstated and is downgraded.** `AnalyticsEvent` declared three prescription events. Two of them — `prescription_approved` and `prescription_rejected`, the latter carrying a rejection `reason` — existed **only in the type union and were never emitted from any live call site**. The third, `prescription_uploaded`, was live but sent `method: 'file' | 'manual'` and no clinical data. So this was a hazard the type permitted, not an active leak: the correct characterisation is defense-in-depth against a future contributor filling in the obvious gap, not containment of a breach. All three were removed rather than consent-gated, because consent is a weak basis for sensitive personal data under the DPDP Act — processing health data requires strict necessity for a stated purpose, and product analytics is not one. Upload, approval and rejection counts remain available from the prescriptions table.
+
+**The CSP "TO ENFORCE" comment was actively wrong.** The policy is emitted as `Content-Security-Policy-Report-Only`, so nothing was ever blocked and GA4 did work. But `next.config.mjs:49` claimed the policy value was already the one to enforce and only the header key needed changing. It was not: flipping that key would have killed GA4 outright and cut PostHog's recorder and surveys bundles, which load from an assets host the policy did not list. PR #32 added the GA4 and PostHog asset-host domains, so the eventual one-line flip is now the safe change the comment promises. Listing those hosts does not widen collection — CSP is not the control preventing it, the consent gate is.
+
+**Withdrawal is self-service**, on `/account/privacy`, kept visually separate from prescription-review consent because they are different purposes with different bases. DPDP Section 6 requires withdrawing consent to be as easy as giving it; without this control, Accept would have been a one-way door reversible only by clearing site data.
+
+**Still open in this section:** `GRIEVANCE_OFFICER_NAME`, `GRIEVANCE_OFFICER_EMAIL` and `GRIEVANCE_OFFICER_PHONE` remain unset. The footer degrades visibly when they are missing, so this is detectable — but it must be set, not merely detected. This is why P0-2 is not struck from the blocker list wholesale: the consent gap is closed, the statutory contact point is not.
 
 ### 3. Regulatory register — three items no code can close
 
