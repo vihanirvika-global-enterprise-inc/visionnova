@@ -27,7 +27,9 @@ describe('createLoginOtp', () => {
   it('inserts a hashed code with a 5-minute expiry and returns the raw code', async () => {
     const { sql } = await import('./db')
     const spy = mockSql(sql)
-    spy.mockResolvedValueOnce([])
+    // INSERT ... RETURNING id: the row id is what lets a failed dispatch
+    // clean up the code nobody received.
+    spy.mockResolvedValueOnce([{ id: 'otp-1' }])
 
     const { createLoginOtp } = await import('./loginOtp')
     const before = Date.now()
@@ -75,5 +77,24 @@ describe('verifyLoginOtp', () => {
 
     expect(result).toBe(false)
     expect(sql).toHaveBeenCalledTimes(1) // never reaches the consuming UPDATE
+  })
+})
+
+describe('deleteLoginOtp', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+  })
+
+  it('deletes only the row it is given', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql)
+    spy.mockResolvedValueOnce([])
+
+    const { deleteLoginOtp } = await import('./loginOtp')
+    await deleteLoginOtp('otp-1')
+
+    expect(sql).toHaveBeenCalledOnce()
+    expect(spy.mock.calls[0].slice(1)).toEqual(['otp-1'])
   })
 })

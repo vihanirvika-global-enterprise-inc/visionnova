@@ -14,6 +14,7 @@ vi.mock('@/lib/auth', () => ({
 
 vi.mock('@/lib/loginOtp', () => ({
   createLoginOtp: vi.fn(),
+  deleteLoginOtp: vi.fn(),
 }))
 
 vi.mock('@/lib/email', () => ({
@@ -45,7 +46,7 @@ beforeEach(() => {
     { set: mockSet, get: mockGet, delete: mockDelete } as any
   )
   vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true })
-  vi.mocked(LoginOtp.createLoginOtp).mockResolvedValue({ code: '123456' })
+  vi.mocked(LoginOtp.createLoginOtp).mockResolvedValue({ code: '123456', id: 'otp-1' })
   vi.mocked(Email.sendLoginOtpEmail).mockResolvedValue({} as any)
 })
 
@@ -167,4 +168,58 @@ describe('loginAction', () => {
       })
     }
   )
+})
+
+// The OTP row is written before the mail is attempted, so every send failure
+// leaves one behind. Deleting it keeps login_otps from accumulating rows for
+// codes that were never delivered; it is hygiene, not a security control —
+// rate limiting is per IP+endpoint (checkRateLimit), so a stale row consumes
+// no quota and grants nothing.
+describe('loginAction — OTP dispatch failure', () => {
+  const CREDENTIALS = { email: 'user@example.com', password: 'Str0ngPassw0rd!' }
+  const EXPECTED_MESSAGE = 'Could not send a verification code. Please try again.'
+
+  beforeEach(() => {
+    vi.mocked(Auth.loginUser).mockResolvedValue(mockCustomer())
+    vi.mocked(LoginOtp.createLoginOtp).mockResolvedValue({ code: '123456', id: 'otp-1' })
+  })
+
+  it('returns a form error and does not redirect when the send throws', async () => {
+    vi.mocked(Email.sendLoginOtpEmail).mockRejectedValue(new Error('socket hang up'))
+
+    const result = await loginAction(makeFormData(CREDENTIALS))
+
+    expect(result).toEqual({ formError: EXPECTED_MESSAGE })
+    expect(NextNavigation.redirect).not.toHaveBeenCalled()
+  })
+
+  it('deletes the orphaned OTP row when the send throws', async () => {
+    vi.mocked(Email.sendLoginOtpEmail).mockRejectedValue(new Error('socket hang up'))
+
+    await loginAction(makeFormData(CREDENTIALS))
+
+    expect(LoginOtp.deleteLoginOtp).toHaveBeenCalledWith('otp-1')
+  })
+
+  it('leaves the OTP row in place when the send succeeds', async () => {
+    vi.mocked(Email.sendLoginOtpEmail).mockResolvedValue({} as any)
+
+    await loginAction(makeFormData(CREDENTIALS))
+
+    expect(LoginOtp.deleteLoginOtp).not.toHaveBeenCalled()
+    expect(NextNavigation.redirect).toHaveBeenCalledWith('/login/verify-otp')
+  })
+
+  // Enumeration safety: a visitor must not be able to tell a dispatch failure
+  // apart from a bad password. Both are dead ends with no extra information.
+  it('uses a message that says nothing about which control failed', async () => {
+    vi.mocked(Email.sendLoginOtpEmail).mockRejectedValue(
+      new Error('Resend: API key is invalid (401)')
+    )
+
+    const result = await loginAction(makeFormData(CREDENTIALS))
+
+    expect(result.formError).toBe(EXPECTED_MESSAGE)
+    expect(result.formError).not.toMatch(/resend|api key|401|provider|smtp/i)
+  })
 })

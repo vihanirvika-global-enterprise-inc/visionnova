@@ -20,17 +20,27 @@ function hashOtpCode(code: string): string {
   return createHash('sha256').update(code).digest('hex')
 }
 
-export async function createLoginOtp(customerId: string): Promise<{ code: string }> {
+export async function createLoginOtp(customerId: string): Promise<{ code: string; id: string }> {
   const code = generateOtpCode()
   const codeHash = hashOtpCode(code)
   const expiresAt = new Date(Date.now() + EXPIRY_MS)
 
-  await sql`
+  const rows = await sql`
     INSERT INTO login_otps (customer_id, code_hash, expires_at)
     VALUES (${customerId}, ${codeHash}, ${expiresAt})
+    RETURNING id
   `
 
-  return { code }
+  return { code, id: rows[0].id as string }
+}
+
+// The row is written before the email is attempted, so a dispatch failure
+// leaves one behind for a code nobody received. Cleaning it up is hygiene
+// rather than a control: stale rows are already excluded from verification by
+// `expires_at > NOW()`, and rate limiting is per IP+endpoint, so a leftover
+// row grants nothing and consumes no quota.
+export async function deleteLoginOtp(id: string): Promise<void> {
+  await sql`DELETE FROM login_otps WHERE id = ${id}`
 }
 
 // Single-use: the matching row is marked consumed in the same call, so a

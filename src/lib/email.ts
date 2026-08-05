@@ -88,7 +88,7 @@ export interface LoginOtpEmailOptions {
 }
 
 export async function sendLoginOtpEmail(options: LoginOtpEmailOptions) {
-  return sendEmail({
+  const result = await sendEmail({
     to: options.to,
     subject: 'Your VisionNova verification code',
     react: createElement(LoginOtpEmail, {
@@ -96,6 +96,23 @@ export async function sendLoginOtpEmail(options: LoginOtpEmailOptions) {
       code: options.code,
     }),
   })
+
+  // The Resend SDK has two failure channels. It throws only when the request
+  // never happens (a missing API key aborts in the constructor); a key that is
+  // present but rejected — revoked, mistyped, quota exhausted, provider 5xx —
+  // comes back as a RESOLVED promise carrying { data: null, error }. Awaiting
+  // it therefore succeeds while nothing was delivered.
+  //
+  // Normalising that to a throw keeps the decision in one place: loginAction
+  // has a single try/catch and stays free of any knowledge of the SDK's
+  // result shape. The provider's own message is deliberately not interpolated
+  // — it reaches a user-facing form, and "API key is invalid" describes our
+  // deployment, not anything they can act on.
+  if (result.error) {
+    throw new Error('Failed to send the login verification code email')
+  }
+
+  return result
 }
 
 // ST-011 (A11. Order Confirmation — "confirmation page and email/SMS fire").

@@ -8,6 +8,57 @@ vi.mock('resend', () => ({
   }),
 }))
 
+// The Resend SDK reports a 4xx/5xx by RESOLVING with { data: null, error },
+// not by throwing — so `await send()` succeeding says nothing about whether
+// the mail went out. sendLoginOtpEmail is the one sender where that
+// distinction is load-bearing: loginAction treats a send failure as fatal and
+// must not advance to the code-entry step, and it can only do that if this
+// function surfaces the returned-error channel as a throw.
+describe('sendLoginOtpEmail — returned-error channel', () => {
+  beforeEach(() => {
+    mockSend.mockReset()
+  })
+
+  it.each([
+    ['401 invalid key', { name: 'validation_error', message: 'API key is invalid', statusCode: 401 }],
+    ['429 quota exhausted', { name: 'rate_limit_exceeded', message: 'Too many requests', statusCode: 429 }],
+    ['500 provider outage', { name: 'application_error', message: 'Internal server error', statusCode: 500 }],
+  ])('throws when Resend resolves with an error object (%s)', async (_label, error) => {
+    mockSend.mockResolvedValue({ data: null, error })
+
+    const { sendLoginOtpEmail } = await import('./email')
+
+    await expect(
+      sendLoginOtpEmail({ to: 'customer@example.com', firstName: 'Priya', code: '482913' })
+    ).rejects.toThrow()
+  })
+
+  it('does not put the provider message in the thrown error', async () => {
+    mockSend.mockResolvedValue({
+      data: null,
+      error: { name: 'validation_error', message: 'API key is invalid', statusCode: 401 },
+    })
+
+    const { sendLoginOtpEmail } = await import('./email')
+
+    // The action turns this into user-facing copy. Provider wording leaking
+    // that far would tell a visitor which control failed and why.
+    await expect(
+      sendLoginOtpEmail({ to: 'customer@example.com', firstName: 'Priya', code: '482913' })
+    ).rejects.toThrow(/verification code/i)
+  })
+
+  it('resolves normally when Resend reports success', async () => {
+    mockSend.mockResolvedValue({ data: { id: 'email-otp-1' }, error: null })
+
+    const { sendLoginOtpEmail } = await import('./email')
+
+    await expect(
+      sendLoginOtpEmail({ to: 'customer@example.com', firstName: 'Priya', code: '482913' })
+    ).resolves.toBeDefined()
+  })
+})
+
 describe('sendEmail', () => {
   beforeEach(() => {
     mockSend.mockReset()
