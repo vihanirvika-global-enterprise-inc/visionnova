@@ -282,6 +282,7 @@ describe('field-associated errors', () => {
 
 describe('validateShippingAddress', () => {
   const validAddress = {
+    fullName: 'Jane Doe', email: 'jane@example.com', phone: '5125550123',
     line1: '123 Main St', city: 'Austin',
     state: 'TX', postalCode: '78701', country: 'US',
   }
@@ -323,6 +324,113 @@ describe('validateShippingAddress', () => {
   })
 
   it('accepts IN', () => {
-    expect(validateShippingAddress({ ...validAddress, country: 'IN' }).valid).toBe(true)
+    expect(validateShippingAddress({ ...INDIAN_ADDRESS }).valid).toBe(true)
+  })
+})
+
+// India is the only serviceable region today, so its address rules are the
+// ones that actually run in production. They are applied per-country rather
+// than globally: validateShippingAddress still serves the full COUNTRIES list
+// for orders placed before a region closed, and a PIN-code rule would be
+// wrong for every one of them.
+const INDIAN_ADDRESS = {
+  fullName: 'Hemanth Kakarla',
+  email: 'hemanth@example.com',
+  phone: '9876543210',
+  line1: '22-1-53, Balaji Nagar',
+  city: 'Vijayawada',
+  state: 'Andhra Pradesh',
+  postalCode: '520010',
+  country: 'IN',
+}
+
+describe('validateShippingAddress — India-specific rules', () => {
+  it('accepts a well-formed Indian address', () => {
+    expect(validateShippingAddress(INDIAN_ADDRESS).valid).toBe(true)
+  })
+
+  it('rejects a PIN code that is not six digits starting 1-9', () => {
+    for (const postalCode of ['000000', '52001', '5200101', '52001A', '']) {
+      const result = validateShippingAddress({ ...INDIAN_ADDRESS, postalCode })
+      expect(result.valid).toBe(false)
+      expect(result.fieldErrors.postalCode).toContain(
+        'Enter a valid 6-digit PIN code'
+      )
+    }
+  })
+
+  // The screenshot case: free-typed, lowercase, no space.
+  it('rejects a state that is not an Indian state or union territory', () => {
+    for (const state of ['andhrapradesh', 'KA', 'Texas', '']) {
+      const result = validateShippingAddress({ ...INDIAN_ADDRESS, state })
+      expect(result.valid).toBe(false)
+      expect(result.fieldErrors.state).toContain(
+        'Select a valid Indian state or union territory'
+      )
+    }
+  })
+
+  it('leaves addresses outside India under the generic rules', () => {
+    const usAddress = {
+      fullName: 'Jane Doe', email: 'jane@example.com', phone: '5125550123',
+      line1: '123 Main St', city: 'Austin',
+      state: 'TX', postalCode: '78701', country: 'US',
+    }
+    expect(validateShippingAddress(usAddress).valid).toBe(true)
+  })
+
+  // The reported defect. The Phone field accepted a door number because
+  // nothing validated it — and nothing validated it because the value was
+  // dropped before it ever reached this function.
+  it('rejects free-text address content in the phone field', () => {
+    const result = validateShippingAddress({
+      ...INDIAN_ADDRESS,
+      phone: '22-1-53 A Balaji nagar',
+    })
+    expect(result.valid).toBe(false)
+    expect(result.fieldErrors.phone).toContain(
+      'Enter a valid 10-digit Indian mobile number'
+    )
+  })
+
+  it('accepts an Indian mobile written with a +91 or 0 prefix', () => {
+    for (const phone of ['+919876543210', '+91 98765 43210', '09876543210']) {
+      expect(validateShippingAddress({ ...INDIAN_ADDRESS, phone }).valid).toBe(true)
+    }
+  })
+
+  it('rejects an Indian mobile that does not start 6-9', () => {
+    const result = validateShippingAddress({ ...INDIAN_ADDRESS, phone: '5876543210' })
+    expect(result.valid).toBe(false)
+  })
+})
+
+describe('validateShippingAddress — contact fields', () => {
+  it('requires a full name', () => {
+    for (const fullName of ['', '   ']) {
+      const result = validateShippingAddress({ ...INDIAN_ADDRESS, fullName })
+      expect(result.valid).toBe(false)
+      expect(result.fieldErrors.fullName).toContain('Full name is required')
+    }
+  })
+
+  it('requires a well-formed email', () => {
+    for (const email of ['', 'not-an-email', 'jane@example']) {
+      const result = validateShippingAddress({ ...INDIAN_ADDRESS, email })
+      expect(result.valid).toBe(false)
+      expect(result.fieldErrors.email).toContain('Enter a valid email address')
+    }
+  })
+
+  it('requires a phone number', () => {
+    const result = validateShippingAddress({ ...INDIAN_ADDRESS, phone: '' })
+    expect(result.valid).toBe(false)
+    expect(result.fieldErrors.phone).toBeDefined()
+  })
+
+  // line2 is genuinely optional — a flat number is not always needed.
+  it('accepts a missing address line 2', () => {
+    expect(validateShippingAddress({ ...INDIAN_ADDRESS, line2: '' }).valid).toBe(true)
+    expect(validateShippingAddress(INDIAN_ADDRESS).valid).toBe(true)
   })
 })

@@ -78,7 +78,11 @@ function makeFormData(
   couponCode?: string
 ): FormData {
   const fd = new FormData()
+  fd.append('fullName', address.fullName ?? '')
+  fd.append('email', address.email ?? '')
+  fd.append('phone', address.phone ?? '')
   fd.append('line1', address.line1)
+  fd.append('line2', address.line2 ?? '')
   fd.append('city', address.city)
   fd.append('state', address.state)
   fd.append('postalCode', address.postalCode)
@@ -91,8 +95,11 @@ function makeFormData(
 // India-first: the serviceable-region guard rejects anything else, so the
 // happy-path fixture has to be an Indian address.
 const address: ShippingAddress = {
+  fullName: 'Asha Rao', email: 'asha@example.com', phone: '9876543210',
   line1: '123 MG Road', city: 'Bengaluru',
-  state: 'KA', postalCode: '560001', country: 'IN',
+  // State must be a canonical name from INDIAN_STATES, not a code — the
+  // checkout form now renders it as a dropdown for exactly this reason.
+  state: 'Karnataka', postalCode: '560001', country: 'IN',
 }
 
 // The wire format only ever carries productId + quantity as trusted data.
@@ -158,6 +165,55 @@ describe('checkoutAction', () => {
       unitPrice: 99.99, // server-fetched, not client-supplied
     }))
     expect(result).toEqual({ orderId: 'order-1', totalAmount: 199.98, priceAdjusted: false, discount: 0 })
+  })
+
+  // These four fields were collected by the form and then dropped before the
+  // request was built, so an order was created with no name and no contact
+  // number for the courier — and the Phone field accepted a door number
+  // because nothing downstream ever looked at it.
+  it('persists the contact fields the form collects', async () => {
+    await checkoutAction(
+      makeFormData(
+        { ...address, line2: 'Flat 4B' },
+        cartPayload([{ productId: 'prod-1', quantity: 1, assumedPrice: 99.99 }])
+      )
+    )
+
+    expect(Orders.createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      shippingAddress: expect.objectContaining({
+        fullName: 'Asha Rao',
+        email: 'asha@example.com',
+        phone: '9876543210',
+        line2: 'Flat 4B',
+      }),
+    }))
+  })
+
+  // Stored in the canonical 10-digit form regardless of how it was typed, so
+  // downstream consumers (courier handoff, SMS) never have to re-parse it.
+  it('stores the phone number normalised', async () => {
+    await checkoutAction(
+      makeFormData(
+        { ...address, phone: '+91 98765 43210' },
+        cartPayload([{ productId: 'prod-1', quantity: 1, assumedPrice: 99.99 }])
+      )
+    )
+
+    expect(Orders.createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      shippingAddress: expect.objectContaining({ phone: '9876543210' }),
+    }))
+  })
+
+  it('rejects free-text address content in the phone field', async () => {
+    const result = await checkoutAction(
+      makeFormData(
+        { ...address, phone: '22-1-53 A Balaji nagar' },
+        cartPayload([{ productId: 'prod-1', quantity: 1, assumedPrice: 99.99 }])
+      )
+    )
+
+    expect(result).toEqual({ error: 'Enter a valid 10-digit Indian mobile number' })
+    expect(Orders.createOrder).not.toHaveBeenCalled()
   })
 
   // The actual attack: a tampered client payload claims a fabricated low price.
