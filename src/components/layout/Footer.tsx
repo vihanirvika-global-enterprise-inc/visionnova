@@ -24,6 +24,15 @@ export function Footer() {
         <a href="/help">Shipping</a>
       </nav>
 
+      {/* TODO (A1): statutory identifiers go here — GSTIN, CIN, and the CDSCO
+          manufacturing licence number. Left unrendered on purpose: the
+          homepage compliance bar states "CDSCO licensed" and "BIS-certified",
+          and those claims need real registration numbers behind them before
+          launch. Placeholder-shaped strings (e.g. "GSTIN 29ABCDE1234F1Z5")
+          must never ship — an invented licence number is a claim we cannot
+          substantiate, not a styling placeholder. Ask compliance for the real
+          values, then render them in this block. */}
+
       {/* ST-014: the only site-wide link into the store locator — it isn't
           part of the main Navbar, so without this it would only be reachable
           by typing /stores directly. */}
