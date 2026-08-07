@@ -58,7 +58,39 @@ describe('WishlistPage', () => {
     expect(screen.getByText(formatPrice(89.99))).toBeInTheDocument()
   })
 
-  it('shows the empty state when the wishlist has no products', async () => {
+  // "items", not the mockup's "frames": the wishlist can hold contact lenses
+  // and lens packages too (ProductCategory has four values), so "frames saved"
+  // would be wrong the moment someone saves a box of dailies.
+  it('counts the saved items, pluralised', async () => {
+    const { getSession } = await import('@/lib/session')
+    const { getWishlist } = await import('@/lib/wishlist')
+    vi.mocked(getSession).mockReturnValue({ customerId: 'cust-1', role: 'customer' })
+    vi.mocked(getWishlist).mockResolvedValueOnce([
+      makeProduct(),
+      makeProduct({ id: 'prod-002', name: 'Round Metal', sku: 'RM-002' }),
+    ])
+
+    await renderWishlistPage()
+
+    expect(screen.getByText('2 items saved')).toBeInTheDocument()
+  })
+
+  it('uses the singular when exactly one item is saved', async () => {
+    const { getSession } = await import('@/lib/session')
+    const { getWishlist } = await import('@/lib/wishlist')
+    vi.mocked(getSession).mockReturnValue({ customerId: 'cust-1', role: 'customer' })
+    vi.mocked(getWishlist).mockResolvedValueOnce([makeProduct()])
+
+    await renderWishlistPage()
+
+    expect(screen.getByText('1 item saved')).toBeInTheDocument()
+  })
+
+  // ProductGrid's generic "No products found" is catalogue-filter language: it
+  // tells you a search matched nothing. An empty wishlist is a different
+  // situation — nothing is wrong, you just haven't saved anything — and it
+  // needs to say how saving works.
+  it('shows a wishlist-specific empty state, not the catalogue one', async () => {
     const { getSession } = await import('@/lib/session')
     const { getWishlist } = await import('@/lib/wishlist')
     vi.mocked(getSession).mockReturnValue({ customerId: 'cust-1', role: 'customer' })
@@ -66,6 +98,30 @@ describe('WishlistPage', () => {
 
     await renderWishlistPage()
 
-    expect(screen.getByText('No products found')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Nothing saved yet' })).toBeInTheDocument()
+    expect(screen.queryByText('No products found')).not.toBeInTheDocument()
+  })
+
+  it('tells the customer how to save an item and links to the catalogue', async () => {
+    const { getSession } = await import('@/lib/session')
+    const { getWishlist } = await import('@/lib/wishlist')
+    vi.mocked(getSession).mockReturnValue({ customerId: 'cust-1', role: 'customer' })
+    vi.mocked(getWishlist).mockResolvedValueOnce([])
+
+    await renderWishlistPage()
+
+    expect(screen.getByText(/save it for later/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /browse eyewear/i })).toHaveAttribute('href', '/shop')
+  })
+
+  it('reports zero saved items rather than hiding the count', async () => {
+    const { getSession } = await import('@/lib/session')
+    const { getWishlist } = await import('@/lib/wishlist')
+    vi.mocked(getSession).mockReturnValue({ customerId: 'cust-1', role: 'customer' })
+    vi.mocked(getWishlist).mockResolvedValueOnce([])
+
+    await renderWishlistPage()
+
+    expect(screen.getByText('0 items saved')).toBeInTheDocument()
   })
 })
