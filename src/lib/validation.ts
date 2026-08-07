@@ -1,5 +1,5 @@
-import { isValidCountryCode } from './countries'
 import { MIN_PASSWORD_LENGTH } from './passwordPolicy'
+import { createErrorCollector, type ValidationResult, type FieldErrors } from './validationResult'
 import { checkBreached } from './breachCheck'
 import { captureAuthWarning } from './sentry'
 import { getCustomerByEmail } from './customers'
@@ -16,33 +16,6 @@ interface RegistrationInput {
   password: string
   firstName: string
   lastName: string
-}
-
-export type FieldErrors = Record<string, string[]>
-
-interface ValidationResult {
-  valid: boolean
-  errors: string[]
-  // Same messages as `errors`, keyed by the field they belong to, so a form
-  // can mark the right input invalid and move focus to it. `errors` is kept
-  // for callers that only need a flat list.
-  fieldErrors: FieldErrors
-}
-
-// Collects messages per field and derives the flat list from them, so the two
-// views can never disagree about what went wrong.
-function createErrorCollector() {
-  const fieldErrors: FieldErrors = {}
-
-  return {
-    add(field: string, message: string) {
-      ;(fieldErrors[field] ??= []).push(message)
-    },
-    result(): ValidationResult {
-      const errors = Object.values(fieldErrors).flat()
-      return { valid: errors.length === 0, errors, fieldErrors }
-    },
-  }
 }
 
 export async function validateRegistration(input: RegistrationInput): Promise<ValidationResult> {
@@ -108,21 +81,9 @@ export function validateLogin(input: LoginInput): ValidationResult {
   return collector.result()
 }
 
-interface ShippingAddressInput {
-  line1: string
-  city: string
-  state: string
-  postalCode: string
-  country: string
-}
-
-export function validateShippingAddress(input: ShippingAddressInput): ValidationResult {
-  const collector = createErrorCollector()
-
-  if (!input.line1.trim()) collector.add('line1', 'Street address is required')
-  if (!input.city.trim()) collector.add('city', 'City is required')
-  if (!input.postalCode.trim()) collector.add('postalCode', 'Postal code is required')
-  if (!isValidCountryCode(input.country)) collector.add('country', 'A valid country is required')
-
-  return collector.result()
-}
+// Re-exported so existing server callers (checkoutAction) and the existing
+// test suite keep importing these from one place. The implementation lives in
+// shippingAddress.ts because the checkout form runs it in the browser too,
+// and this module reaches the database.
+export { validateShippingAddress, type ShippingAddressInput } from './shippingAddress'
+export type { FieldErrors, ValidationResult }

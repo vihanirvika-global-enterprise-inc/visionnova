@@ -56,6 +56,26 @@ describe('createCustomer', () => {
     const params = spy.mock.calls[0].slice(1)
     expect(params).toContain('partner_optometrist')
   })
+
+  // The stored form has to match what getCustomerByEmail will later search
+  // for, or the account is written once and never found again.
+  it('stores the email lowercased and trimmed', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql)
+    spy.mockResolvedValueOnce([{
+      id: 'cust-003', email: 'jane@example.com', password_hash: 'hashed_pw',
+      first_name: 'Jane', last_name: 'Doe', phone: null,
+      role: 'customer', created_at: new Date(), updated_at: new Date(),
+    }])
+
+    const { createCustomer } = await import('./customers')
+    await createCustomer({
+      email: '  Jane@Example.COM ', passwordHash: 'hashed_pw',
+      firstName: 'Jane', lastName: 'Doe',
+    })
+
+    expect(spy.mock.calls[0].slice(1)).toContain('jane@example.com')
+  })
 })
 
 describe('getCustomerByEmail', () => {
@@ -112,6 +132,20 @@ describe('getCustomerByEmail', () => {
     const result = await getCustomerByEmail('dr.patel@example.com')
 
     expect(result?.role).toBe('optometrist')
+  })
+
+  // Registering as Jane@Example.com and signing in as jane@example.com used to
+  // miss the row entirely, so a correct password still returned "Invalid email
+  // or password". The column is plain TEXT, so the normalisation has to happen
+  // before the value reaches the query.
+  it('looks up the email case-insensitively, ignoring surrounding whitespace', async () => {
+    const { sql } = await import('./db')
+    mockSql(sql).mockResolvedValueOnce([])
+
+    const { getCustomerByEmail } = await import('./customers')
+    await getCustomerByEmail('  Jane@Example.COM ')
+
+    expect(mockSql(sql).mock.calls[0]).toContain('jane@example.com')
   })
 })
 

@@ -4,6 +4,7 @@ import { createOrder } from '@/lib/orders'
 import { addOrderItem } from '@/lib/orderItems'
 import { getSession } from '@/lib/session'
 import { validateShippingAddress } from '@/lib/validation'
+import { normaliseIndianMobile } from '@/lib/indiaAddress'
 import { regionForCountry } from '@/lib/region'
 import { getProductById } from '@/lib/products'
 import { getPrescriptionsByCustomer } from '@/lib/prescriptions'
@@ -46,16 +47,36 @@ export async function checkoutAction(formData: FormData): Promise<CheckoutResult
   const session = getSession()
   if (!session) return { error: 'You must be logged in to checkout' }
 
-  const address = {
+  const submitted = {
+    fullName: (formData.get('fullName') as string) ?? '',
+    email: (formData.get('email') as string) ?? '',
+    phone: (formData.get('phone') as string) ?? '',
     line1: (formData.get('line1') as string) ?? '',
+    line2: (formData.get('line2') as string) ?? '',
     city: (formData.get('city') as string) ?? '',
     state: (formData.get('state') as string) ?? '',
     postalCode: (formData.get('postalCode') as string) ?? '',
     country: (formData.get('country') as string) ?? '',
   }
 
-  const { valid, errors } = validateShippingAddress(address)
+  const { valid, errors } = validateShippingAddress(submitted)
   if (!valid) return { error: errors[0] }
+
+  // Stored in canonical form so nothing downstream — courier handoff, SMS —
+  // has to re-parse however the customer happened to type it. Validation has
+  // already passed at this point, so the fallback only covers the non-India
+  // case, where no single national format is enforced.
+  const address = {
+    ...submitted,
+    fullName: submitted.fullName.trim(),
+    email: submitted.email.trim(),
+    phone: normaliseIndianMobile(submitted.phone) ?? submitted.phone.trim(),
+    line1: submitted.line1.trim(),
+    // Absent rather than empty: an order with no flat number should not carry
+    // a blank string into the JSONB that every reader then has to guard.
+    line2: submitted.line2.trim() || undefined,
+    city: submitted.city.trim(),
+  }
 
   // Refuse before the order row exists, so an unserviceable customer does not
   // leave an orphaned pending order behind.

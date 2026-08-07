@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import * as NextNavigation from 'next/navigation'
 import { mockSql } from '@/test/dbMock'
 
@@ -66,6 +66,15 @@ describe('login flow — provider rejects the OTP email', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    // This whole suite is about the seam between loginAction and a CONFIGURED
+    // Resend. Without a key the dev console fallback takes over instead, which
+    // is a different path that never reaches the provider at all — and the
+    // suite runs with NODE_ENV=test and no key by default.
+    vi.stubEnv('RESEND_API_KEY', 're_test_key')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   // The exact shape the Resend SDK returns for a revoked or mistyped key: a

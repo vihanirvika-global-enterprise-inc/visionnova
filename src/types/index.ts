@@ -30,6 +30,13 @@ export interface Coupon {
 }
 
 export interface ShippingAddress {
+  // Optional because orders placed before these fields were captured have no
+  // value for them in their shipping_address JSONB. Checkout requires all
+  // three for new orders (see validateShippingAddress) — the optionality here
+  // is about reading history, not about what a new order may omit.
+  fullName?: string
+  email?: string
+  phone?: string
   line1: string
   line2?: string
   city: string
