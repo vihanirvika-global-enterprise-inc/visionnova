@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }))
 
@@ -17,6 +17,14 @@ vi.mock('resend', () => ({
 describe('sendLoginOtpEmail — returned-error channel', () => {
   beforeEach(() => {
     mockSend.mockReset()
+    // These cover the configured-key path. Without this the suite runs with
+    // NODE_ENV=test and no key, which is the dev console fallback — a
+    // different code path that never reaches Resend at all.
+    vi.stubEnv('RESEND_API_KEY', 're_test_key')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it.each([
@@ -165,6 +173,12 @@ describe('sendPrescriptionStatusEmail', () => {
 describe('sendLoginOtpEmail', () => {
   beforeEach(() => {
     mockSend.mockReset()
+    // Asserts the real send; see the note on the returned-error block above.
+    vi.stubEnv('RESEND_API_KEY', 're_test_key')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('sends the OTP code to the customer with a verification-code subject', async () => {
@@ -274,5 +288,121 @@ describe('sendEmail — returned-error channel', () => {
     const send = (mod as Record<string, any>)[fnName]
 
     await expect(send(options)).rejects.toThrow()
+  })
+})
+
+// ── Dev-only OTP console fallback ────────────────────────────────────────────
+
+// Without RESEND_API_KEY the Resend constructor throws, so no OTP is delivered
+// and nobody can complete a login locally at all. This prints the code to the
+// server console instead — strictly when NOT in production AND no key is
+// configured. It changes delivery only: generation and the verify-otp check
+// are untouched, so the developer still types the real code into the real
+// screen.
+describe('sendLoginOtpEmail — dev-only console fallback', () => {
+  let infoSpy: ReturnType<typeof vi.spyOn>
+  let warnSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    mockSend.mockReset()
+    // The one-time warning is module-level state, so each test needs a fresh
+    // module instance or only the first would ever see it.
+    vi.resetModules()
+    infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    infoSpy.mockRestore()
+    warnSpy.mockRestore()
+  })
+
+  function loggedLines(spy: ReturnType<typeof vi.spyOn>): string {
+    return spy.mock.calls.map((args: unknown[]) => args.join(' ')).join('\n')
+  }
+
+  it.each(['development', 'test'])(
+    'logs the code instead of throwing when NODE_ENV=%s and no key is set',
+    async (nodeEnv) => {
+      vi.stubEnv('NODE_ENV', nodeEnv as 'development' | 'test')
+      vi.stubEnv('RESEND_API_KEY', '')
+      const { sendLoginOtpEmail } = await import('./email')
+
+      await expect(
+        sendLoginOtpEmail({ to: 'dev@example.com', firstName: 'Dev', code: '482913' })
+      ).resolves.not.toThrow()
+
+      expect(loggedLines(infoSpy)).toContain('[dev-otp]')
+      // Delivery was replaced, not duplicated.
+      expect(mockSend).not.toHaveBeenCalled()
+    }
+  )
+
+  it('logs the recipient and the six-digit code so it can be typed in', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('RESEND_API_KEY', '')
+    const { sendLoginOtpEmail } = await import('./email')
+
+    await sendLoginOtpEmail({ to: 'dev@example.com', firstName: 'Dev', code: '482913' })
+
+    const logged = loggedLines(infoSpy)
+    expect(logged).toContain('dev@example.com')
+    expect(logged).toMatch(/\b482913\b/)
+  })
+
+  // Silent degradation is the failure mode worth guarding against: a fallback
+  // nobody notices is one that ships.
+  it('warns once per process, not once per login', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('RESEND_API_KEY', '')
+    const { sendLoginOtpEmail } = await import('./email')
+
+    await sendLoginOtpEmail({ to: 'a@example.com', firstName: 'A', code: '111111' })
+    await sendLoginOtpEmail({ to: 'b@example.com', firstName: 'B', code: '222222' })
+
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    // Both codes still printed — only the banner is throttled.
+    expect(loggedLines(infoSpy)).toMatch(/111111[\s\S]*222222/)
+  })
+
+  it('uses the real sender and logs no code once a key is configured', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('RESEND_API_KEY', 're_a_real_looking_key')
+    mockSend.mockResolvedValue({ data: { id: 'email-otp-1' }, error: null })
+    const { sendLoginOtpEmail } = await import('./email')
+
+    await sendLoginOtpEmail({ to: 'customer@example.com', firstName: 'Priya', code: '482913' })
+
+    expect(mockSend).toHaveBeenCalledOnce()
+    expect(loggedLines(infoSpy)).not.toContain('[dev-otp]')
+    expect(loggedLines(warnSpy)).not.toContain('[dev-otp]')
+  })
+
+  // The whole point of the NODE_ENV half of the guard. A production deploy
+  // that lost its key must fail loudly, not start printing OTPs to a log
+  // aggregator that a great many people can read.
+  it('still throws in production when no key is set', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('RESEND_API_KEY', '')
+    const { sendLoginOtpEmail } = await import('./email')
+
+    await expect(
+      sendLoginOtpEmail({ to: 'customer@example.com', firstName: 'Priya', code: '482913' })
+    ).rejects.toThrow()
+
+    expect(loggedLines(infoSpy)).not.toContain('[dev-otp]')
+  })
+
+  it('never prints a code in production even when a key is present', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('RESEND_API_KEY', 're_a_real_looking_key')
+    mockSend.mockResolvedValue({ data: { id: 'email-otp-1' }, error: null })
+    const { sendLoginOtpEmail } = await import('./email')
+
+    await sendLoginOtpEmail({ to: 'customer@example.com', firstName: 'Priya', code: '482913' })
+
+    expect(loggedLines(infoSpy)).not.toContain('[dev-otp]')
+    expect(mockSend).toHaveBeenCalledOnce()
   })
 })
