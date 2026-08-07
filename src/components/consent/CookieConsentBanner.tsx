@@ -1,10 +1,45 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useCookieConsent } from './CookieConsentProvider'
 
+const RESERVED_HEIGHT_PROPERTY = '--cookie-banner-height'
+
 export function CookieConsentBanner() {
   const { decision, hydrated, accept, reject } = useCookieConsent()
+  const bannerRef = useRef<HTMLDivElement | null>(null)
+
+  // position:fixed takes the banner out of flow, so it reserves no space and
+  // sits on top of whatever is at the bottom of the viewport — checkout form
+  // fields, the homepage price tiers. Publishing the measured height lets the
+  // page pad itself by exactly that much. Measured rather than hard-coded
+  // because the copy wraps to a different number of lines by breakpoint.
+  useEffect(() => {
+    const banner = bannerRef.current
+    const root = document.documentElement
+    if (!banner) {
+      root.style.removeProperty(RESERVED_HEIGHT_PROPERTY)
+      return
+    }
+
+    function publishHeight() {
+      root.style.setProperty(RESERVED_HEIGHT_PROPERTY, `${banner!.offsetHeight}px`)
+    }
+
+    publishHeight()
+
+    // jsdom has no ResizeObserver; the initial measurement is what the tests
+    // assert, and a browser gets the live updates.
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(publishHeight)
+    observer?.observe(banner)
+
+    return () => {
+      observer?.disconnect()
+      root.style.removeProperty(RESERVED_HEIGHT_PROPERTY)
+    }
+  })
 
   // Nothing until the stored decision is known. Rendering optimistically and
   // correcting after hydration is the flash this exists to avoid, and it would
@@ -13,10 +48,15 @@ export function CookieConsentBanner() {
 
   return (
     <div
+      ref={bannerRef}
       role="dialog"
       aria-modal="false"
       aria-labelledby="cookie-consent-heading"
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white p-4 shadow-lg sm:p-6"
+      // bottom-16 clears MobileBottomNav, which is fixed to bottom-0 at z-40
+      // and h-16: at bottom-0/z-50 this banner covered the whole mobile
+      // navigation until the visitor answered. The nav is md:hidden, so the
+      // offset is dropped from md up.
+      className="fixed inset-x-0 bottom-16 z-50 border-t border-slate-200 bg-white p-4 shadow-lg sm:p-6 md:bottom-0"
     >
       <div className="mx-auto flex max-w-4xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
