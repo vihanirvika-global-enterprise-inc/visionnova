@@ -99,16 +99,15 @@ describe('HomePage', () => {
 
 // ── A1 enrichment ────────────────────────────────────────────────────────────
 
-// Statutory badge text is approved copy; the GSTIN/CIN/CDSCO *numbers* are
-// deliberately absent until real ones exist (see the footer TODO).
+// The compliance bar moved to the root layout — the claims apply to the
+// business, not to the homepage, and the mockup repeated them on every page.
+// Its own assertions now live in ComplianceBar.test.tsx; what matters here is
+// that the homepage does not render a second copy.
 describe('HomePage — compliance bar', () => {
-  it('states the four compliance claims', async () => {
+  it('does not render its own compliance bar, which the layout now owns', async () => {
     await renderHomePage()
 
-    const bar = screen.getByRole('note', { name: /compliance/i })
-    for (const claim of [/made in india/i, /cdsco licensed/i, /bis[- ]certified/i, /dpdp compliant/i]) {
-      expect(within(bar).getByText(claim)).toBeInTheDocument()
-    }
+    expect(screen.queryByRole('note', { name: /compliance/i })).not.toBeInTheDocument()
   })
 
   it('prints no statutory identifier numbers', async () => {
@@ -116,7 +115,7 @@ describe('HomePage — compliance bar', () => {
 
     // GSTIN / CIN / licence numbers must never be invented. If real ones are
     // added later they belong in the footer, not as placeholder-shaped strings.
-    expect(container.textContent).not.toMatch(/GSTIN|\bCIN\b|MFG\/\d/i)
+    expect(container.textContent).not.toMatch(/GSTIN|CIN|MFG\/\d/i)
   })
 })
 

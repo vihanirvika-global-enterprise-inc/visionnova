@@ -5,6 +5,7 @@ import { CartProvider } from "@/components/cart/CartContext";
 import { WishlistProviderServer } from "@/components/wishlist/WishlistProviderServer";
 import { AuthNavbar } from "@/components/layout/AuthNavbar";
 import { Footer } from "@/components/layout/Footer";
+import { ComplianceBar } from "@/components/home/ComplianceBar";
 import { PostHogProvider } from "@/components/analytics/PostHogProvider";
 import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
 import { CookieConsentProvider } from "@/components/consent/CookieConsentProvider";
@@ -62,6 +63,11 @@ export default function RootLayout({
             <CartProvider>
               <WishlistProviderServer>
                 <AuthNavbar />
+                {/* Hoisted out of the homepage: the four claims describe the
+                    business, not one screen, and the mockup repeated them in
+                    the header on every page. Owning them here is what keeps
+                    them from drifting apart screen by screen. */}
+                <ComplianceBar />
                 {/* tabIndex -1 so following the skip link actually moves focus */}
                 <div id="main-content" tabIndex={-1}>
                   {children}
