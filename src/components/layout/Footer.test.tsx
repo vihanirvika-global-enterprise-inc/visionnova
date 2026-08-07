@@ -40,6 +40,121 @@ describe('Footer legal links', () => {
   })
 })
 
+// The strongest guard in this file: rather than asserting a hand-written list
+// of hrefs, it derives the real route table from src/app and requires every
+// footer link to be in it. A renamed or deleted route fails here instead of
+// shipping a 404 on every page of the site.
+describe('Footer link destinations', () => {
+  function realRoutes(): Set<string> {
+    const fs = require('fs') as typeof import('fs')
+    const path = require('path') as typeof import('path')
+    const appDir = path.join(process.cwd(), 'src', 'app')
+    const routes = new Set<string>()
+
+    function walk(dir: string, segments: string[]) {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) {
+          if (entry.name === 'page.tsx') routes.add('/' + segments.join('/'))
+          continue
+        }
+        // (auth) and friends are route groups — they don't appear in the URL.
+        const isGroup = entry.name.startsWith('(') && entry.name.endsWith(')')
+        walk(path.join(dir, entry.name), isGroup ? segments : [...segments, entry.name])
+      }
+    }
+    walk(appDir, [])
+    return routes
+  }
+
+  it('links only to routes that exist', () => {
+    const { container } = render(<Footer />)
+    const routes = realRoutes()
+
+    const internal = Array.from(container.querySelectorAll('a[href^="/"]'))
+      .map((a) => a.getAttribute('href') as string)
+      .map((href) => href.split(/[?#]/)[0])
+      .map((href) => (href.length > 1 ? href.replace(/\/$/, '') : href))
+
+    expect(internal.length).toBeGreaterThan(0)
+    const missing = internal.filter((href) => !routes.has(href))
+    expect(missing).toEqual([])
+  })
+})
+
+describe('Footer navigation columns', () => {
+  it('groups the shop links under a labelled Shop nav', () => {
+    render(<Footer />)
+    const shop = screen.getByRole('navigation', { name: 'Shop' })
+
+    expect(within(shop).getByRole('link', { name: 'Eyeglasses' })).toHaveAttribute('href', '/shop')
+    expect(within(shop).getByRole('link', { name: 'Sunglasses' })).toHaveAttribute('href', '/sunglasses')
+    expect(within(shop).getByRole('link', { name: 'Contact lenses' })).toHaveAttribute('href', '/contacts')
+  })
+
+  it('groups the clinical links under a labelled Eye care nav', () => {
+    render(<Footer />)
+    const care = screen.getByRole('navigation', { name: 'Eye care' })
+
+    expect(within(care).getByRole('link', { name: 'Book an eye test' })).toHaveAttribute('href', '/eye-test')
+    expect(within(care).getByRole('link', { name: 'Upload prescription' })).toHaveAttribute('href', '/prescription-upload')
+    expect(within(care).getByRole('link', { name: 'For optometrists' })).toHaveAttribute('href', '/partner-portal/register')
+  })
+
+  it('groups the company links under a labelled About nav', () => {
+    render(<Footer />)
+    const about = screen.getByRole('navigation', { name: 'About' })
+
+    expect(within(about).getByRole('link', { name: 'About VisionNova' })).toHaveAttribute('href', '/about')
+    expect(within(about).getByRole('link', { name: 'Contact us' })).toHaveAttribute('href', '/about')
+  })
+
+  // The roadmap lists a Legal column, but no Terms, Privacy Policy or Cookie
+  // Policy document exists to link to. An empty column heading is worse than
+  // no column — it advertises documents we cannot produce — so the heading is
+  // withheld until the routes exist.
+  it('does not render an empty Legal column', () => {
+    render(<Footer />)
+    expect(screen.queryByRole('navigation', { name: 'Legal' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Footer statutory identifiers', () => {
+  // Ruling: omit the numbers, keep the TODO. An invented GSTIN or CDSCO
+  // licence number is a claim we cannot substantiate, not a styling
+  // placeholder — so the mockup's values must not appear even as filler.
+  it('renders no GSTIN, CIN or CDSCO number', () => {
+    const { container } = render(<Footer />)
+    const text = container.textContent ?? ''
+
+    expect(text).not.toMatch(/GSTIN/i)
+    expect(text).not.toMatch(/\bCIN\b/i)
+    expect(text).not.toMatch(/CDSCO/i)
+    expect(text).not.toMatch(/29ABCDE1234F1Z5|U74999KA2024PTC012345|MFG\/2024\/00123/)
+  })
+
+  it('does not state an unverified legal entity name', () => {
+    const { container } = render(<Footer />)
+    expect(container.textContent ?? '').not.toMatch(/Pvt\.? ?Ltd/i)
+  })
+})
+
+describe('Footer anti-spam contact', () => {
+  it('renders the configured anti-spam mailbox', () => {
+    process.env.ANTI_SPAM_CONTACT_EMAIL = 'unsubscribe@example.com'
+    render(<Footer />)
+
+    expect(screen.getByRole('link', { name: 'unsubscribe@example.com' }))
+      .toHaveAttribute('href', 'mailto:unsubscribe@example.com')
+  })
+
+  it('renders nothing rather than inventing an address when unconfigured', () => {
+    delete process.env.ANTI_SPAM_CONTACT_EMAIL
+    const { container } = render(<Footer />)
+
+    expect(container.textContent ?? '').not.toMatch(/unsubscribe|anti-spam/i)
+  })
+})
+
 describe('Footer store locator link', () => {
   it('links to the store locator', () => {
     render(<Footer />)

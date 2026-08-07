@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { getInStockProducts } from '@/lib/products'
 import { formatPrice } from '@/lib/formatters'
 import { ProductGrid } from '@/components/ui/ProductGrid'
-import { ComplianceBar } from '@/components/home/ComplianceBar'
 import { ValueStrip } from '@/components/home/ValueStrip'
 import { PriceTiers } from '@/components/home/PriceTiers'
 import { EyeTestBanner } from '@/components/home/EyeTestBanner'
@@ -15,9 +14,6 @@ export default async function HomePage() {
 
   return (
     <main>
-      <ComplianceBar />
-
-
       {/* ── Hero ─────────────────────────────────────────────── */}
       <section className="bg-surface py-16 md:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

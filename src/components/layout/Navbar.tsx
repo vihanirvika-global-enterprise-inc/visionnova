@@ -10,6 +10,18 @@ interface NavbarProps {
   isLoggedIn?: boolean
 }
 
+// Roadmap-confirmed top-level nav. Deliberately plain links: the mockup's
+// mega-menu opened on mouseenter only, which is unreachable by keyboard and
+// touch, so the hover panels are a separate ticket rather than an
+// inaccessible interaction shipped now. About and Help moved to the footer.
+const CATEGORY_LINKS = [
+  { label: 'Eyeglasses', href: '/shop' },
+  { label: 'Sunglasses', href: '/sunglasses' },
+  { label: 'Contact Lenses', href: '/contacts' },
+  { label: 'Eye Test', href: '/eye-test' },
+  { label: 'Stores', href: '/stores' },
+]
+
 export function Navbar({ isLoggedIn = false }: NavbarProps) {
   const { items } = useCart()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -32,14 +44,33 @@ export function Navbar({ isLoggedIn = false }: NavbarProps) {
         </Link>
 
         {/* Center nav — desktop only */}
-        <div className="hidden items-center gap-8 md:flex">
-          <Link href="/shop" className="text-sm font-medium text-slate-300 transition-colors hover:text-white">Shop</Link>
-          <Link href="/about" className="text-sm font-medium text-slate-300 transition-colors hover:text-white">About</Link>
-          <Link href="/help" className="text-sm font-medium text-slate-300 transition-colors hover:text-white">Help</Link>
+        <div className="hidden items-center gap-6 md:flex">
+          {CATEGORY_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="text-sm font-medium text-slate-300 transition-colors hover:text-white"
+            >
+              {link.label}
+            </Link>
+          ))}
         </div>
 
         {/* Right side */}
         <div className="flex items-center gap-3">
+
+          {/* The wishlist screen and wishlist_items have existed since TK-029,
+              but nothing linked to them — /account/wishlist was reachable only
+              by typing the URL. Icon-only, so it carries an explicit label. */}
+          <Link
+            href="/account/wishlist"
+            aria-label="Wishlist"
+            className="p-1 text-white transition-colors hover:text-slate-300"
+          >
+            <svg aria-hidden="true" className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+            </svg>
+          </Link>
 
           {/* Cart icon with badge */}
           <Link
@@ -118,9 +149,16 @@ export function Navbar({ isLoggedIn = false }: NavbarProps) {
       {mobileOpen && (
         <div className="border-t border-slate-700 bg-dark px-4 pb-4 pt-2 md:hidden">
           <div className="flex flex-col gap-3">
-            <Link href="/shop" onClick={() => setMobileOpen(false)} className="text-sm font-medium text-slate-300 transition-colors hover:text-white">Shop</Link>
-            <Link href="/about" onClick={() => setMobileOpen(false)} className="text-sm font-medium text-slate-300 transition-colors hover:text-white">About</Link>
-            <Link href="/help" onClick={() => setMobileOpen(false)} className="text-sm font-medium text-slate-300 transition-colors hover:text-white">Help</Link>
+            {CATEGORY_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setMobileOpen(false)}
+                className="text-sm font-medium text-slate-300 transition-colors hover:text-white"
+              >
+                {link.label}
+              </Link>
+            ))}
             <div className="flex flex-col gap-3 border-t border-slate-700 pt-3">
               {isLoggedIn ? (
                 <>

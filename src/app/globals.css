@@ -9,6 +9,21 @@
 
   body {
     @apply bg-white font-sans text-dark antialiased;
+
+    /* Both bottom bars are position:fixed, so neither reserves layout space
+       and both sit on top of whatever is at the bottom of the page — checkout
+       form fields, the homepage price tiers, the last row of any list.
+       CookieConsentBanner publishes its measured height into
+       --cookie-banner-height while it is on screen and removes the property
+       once answered, so this collapses to zero by itself. MobileBottomNav is
+       a fixed h-16 (4rem) and is md:hidden, hence the breakpoint. */
+    padding-bottom: var(--cookie-banner-height, 0px);
+  }
+
+  @media (max-width: 767px) {
+    body {
+      padding-bottom: calc(var(--cookie-banner-height, 0px) + 4rem);
+    }
   }
 
   h1 { @apply text-4xl font-bold tracking-tight; }

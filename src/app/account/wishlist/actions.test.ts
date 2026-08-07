@@ -5,6 +5,7 @@ import { toggleWishlistAction } from './actions'
 
 vi.mock('@/lib/wishlist', () => ({ addToWishlist: vi.fn(), removeFromWishlist: vi.fn() }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -37,5 +38,34 @@ describe('toggleWishlistAction', () => {
     expect(Wishlist.removeFromWishlist).toHaveBeenCalledWith('cust-1', 'product-1')
     expect(Wishlist.addToWishlist).not.toHaveBeenCalled()
     expect(result).toEqual({ ok: true })
+  })
+
+  // Without this, unhearting an item on /account/wishlist deletes the row and
+  // flips the heart, but the card stays in the grid and the saved count keeps
+  // its old number — the listing is a server render of getWishlist() and
+  // nothing tells it to run again.
+  it('revalidates the wishlist listing after a removal', async () => {
+    const { revalidatePath } = await import('next/cache')
+
+    await toggleWishlistAction('product-1', false)
+
+    expect(revalidatePath).toHaveBeenCalledWith('/account/wishlist')
+  })
+
+  it('revalidates the wishlist listing after an addition', async () => {
+    const { revalidatePath } = await import('next/cache')
+
+    await toggleWishlistAction('product-1', true)
+
+    expect(revalidatePath).toHaveBeenCalledWith('/account/wishlist')
+  })
+
+  it('does not revalidate when the toggle was rejected for having no session', async () => {
+    const { revalidatePath } = await import('next/cache')
+    vi.mocked(Session.getSession).mockReturnValue(null)
+
+    await toggleWishlistAction('product-1', true)
+
+    expect(revalidatePath).not.toHaveBeenCalled()
   })
 })

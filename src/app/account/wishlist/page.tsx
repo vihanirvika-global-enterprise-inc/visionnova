@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { getWishlist } from '@/lib/wishlist'
 import { ProductGrid } from '@/components/ui/ProductGrid'
+import { WishlistEmptyState } from '@/components/wishlist/WishlistEmptyState'
 
 // ST-015 / TK-029 (A15. Wishlist — build UI): the listing screen. The toggle
 // itself lives on ProductCard (src/components/ui/WishlistButton.tsx), not
@@ -21,14 +22,20 @@ export default async function WishlistPage() {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-dark">My Wishlist</h1>
-          <p className="mt-2 text-muted">Products you&apos;ve saved for later</p>
+          <p className="mt-2 text-muted">
+            {products.length === 1 ? '1 item saved' : `${products.length} items saved`}
+          </p>
         </div>
         <Link href="/account" className="text-sm font-medium text-primary hover:text-teal">
           ← Back to Account
         </Link>
       </div>
 
-      <ProductGrid products={products} />
+      {products.length === 0 ? (
+        <WishlistEmptyState />
+      ) : (
+        <ProductGrid products={products} />
+      )}
     </main>
   )
 }

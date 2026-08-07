@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { getSession } from '@/lib/session'
 import { addToWishlist, removeFromWishlist } from '@/lib/wishlist'
 
@@ -18,6 +19,11 @@ export async function toggleWishlistAction(
   } else {
     await removeFromWishlist(session.customerId, productId)
   }
+
+  // The listing at /account/wishlist is a server render of getWishlist(), so
+  // without this an item unhearted from that page keeps its card and its place
+  // in the saved count until a manual reload.
+  revalidatePath('/account/wishlist')
 
   return { ok: true }
 }
