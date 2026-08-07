@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import type { Product } from '@/types'
 
@@ -60,12 +60,15 @@ describe('HomePage', () => {
     expect(html).not.toMatch(/cyan-800/)
   })
 
-  it('renders all three trust strip items', async () => {
+  // Replaces the old trust strip + "Why VisionNova" trio, which between them
+  // stated "30-Day Returns" twice with no mention of the shorter prescription
+  // window. ValueStrip states the FAQ policy in full instead.
+  it('surfaces optometrist verification in the value strip', async () => {
     await renderHomePage()
 
-    expect(screen.getByText('Licensed Optometrists')).toBeInTheDocument()
-    expect(screen.getByText('Prescription Verified')).toBeInTheDocument()
-    expect(screen.getByText('30-Day Returns')).toBeInTheDocument()
+    // Scoped: the hero paragraph carries the same phrase.
+    const strip = screen.getByRole('list', { name: /why visionnova/i })
+    expect(within(strip).getByText(/verified by licensed optometrists/i)).toBeInTheDocument()
   })
 
   // Proves the product grid actually receives and renders what the DB query
@@ -87,12 +90,138 @@ describe('HomePage', () => {
     expect(screen.queryByText(/featured eyewear/i)).not.toBeInTheDocument()
   })
 
-  it('renders the Why VisionNova value-prop tiles', async () => {
+  it('keeps a Why VisionNova heading for the value strip', async () => {
     await renderHomePage()
 
     expect(screen.getByRole('heading', { name: /why visionnova/i })).toBeInTheDocument()
-    expect(screen.getByText('Premium Quality')).toBeInTheDocument()
-    expect(screen.getByText('Optometrist-Checked')).toBeInTheDocument()
-    expect(screen.getByText('Easy 30-Day Returns')).toBeInTheDocument()
+  })
+})
+
+// ── A1 enrichment ────────────────────────────────────────────────────────────
+
+// Statutory badge text is approved copy; the GSTIN/CIN/CDSCO *numbers* are
+// deliberately absent until real ones exist (see the footer TODO).
+describe('HomePage — compliance bar', () => {
+  it('states the four compliance claims', async () => {
+    await renderHomePage()
+
+    const bar = screen.getByRole('note', { name: /compliance/i })
+    for (const claim of [/made in india/i, /cdsco licensed/i, /bis[- ]certified/i, /dpdp compliant/i]) {
+      expect(within(bar).getByText(claim)).toBeInTheDocument()
+    }
+  })
+
+  it('prints no statutory identifier numbers', async () => {
+    const { container } = await renderHomePage()
+
+    // GSTIN / CIN / licence numbers must never be invented. If real ones are
+    // added later they belong in the footer, not as placeholder-shaped strings.
+    expect(container.textContent).not.toMatch(/GSTIN|\bCIN\b|MFG\/\d/i)
+  })
+})
+
+describe('HomePage — value strip', () => {
+  it('states only claims the FAQ actually supports', async () => {
+    await renderHomePage()
+
+    const strip = screen.getByRole('list', { name: /why visionnova/i })
+    expect(within(strip).getByText(/5–7 business days/i)).toBeInTheDocument()
+    expect(within(strip).getByText(/30-day returns/i)).toBeInTheDocument()
+    expect(within(strip).getByText(/14 days on prescription/i)).toBeInTheDocument()
+  })
+
+  // The mockup carried both; neither appears anywhere in the FAQ or the
+  // catalogue, so shipping them would be an invented promise.
+  it('makes no free-shipping or warranty promise', async () => {
+    const { container } = await renderHomePage()
+
+    expect(container.textContent).not.toMatch(/free shipping/i)
+    expect(container.textContent).not.toMatch(/year warranty/i)
+  })
+})
+
+describe('HomePage — price tiers', () => {
+  it('offers the three approved tiers, each linking into the catalogue', async () => {
+    await renderHomePage()
+
+    const tiers = screen.getByRole('list', { name: /shop by price/i })
+    for (const name of [/budget/i, /standard/i, /premium/i]) {
+      expect(within(tiers).getByRole('link', { name })).toBeInTheDocument()
+    }
+  })
+
+  // BLOCKED on A2: getCatalogProducts takes only { q, sort, page, pageSize } —
+  // there is no price filter to link into yet. Until /shop supports one these
+  // tiles are browse entry points, so they must not carry a query parameter
+  // that the catalogue would silently ignore.
+  it('links to the catalogue without a parameter /shop cannot honour', async () => {
+    await renderHomePage()
+
+    const tiers = screen.getByRole('list', { name: /shop by price/i })
+    for (const name of [/budget/i, /standard/i, /premium/i]) {
+      expect(within(tiers).getByRole('link', { name })).toHaveAttribute('href', '/shop')
+    }
+  })
+
+  it('formats every band with the shared ₹ formatter', async () => {
+    await renderHomePage()
+
+    const tiers = screen.getByRole('list', { name: /shop by price/i })
+    // en-IN grouping (₹2,499 not ₹2499) comes from formatPrice, so a band
+    // typed by hand would fail here.
+    expect(within(tiers).getByText('₹999 – ₹2,499')).toBeInTheDocument()
+    expect(within(tiers).getByText('₹2,500 – ₹6,000')).toBeInTheDocument()
+    expect(within(tiers).getByText('₹6,000+')).toBeInTheDocument()
+  })
+})
+
+describe('HomePage — hero', () => {
+  it('leads with the approved price-led headline', async () => {
+    await renderHomePage()
+
+    expect(screen.getByRole('heading', { level: 1, name: /quality eyewear from ₹999/i })).toBeInTheDocument()
+  })
+
+  // Only the ₹999 slide is confirmed real. The eye-test and buy-one-give-one
+  // slides are pending confirmation that they are actual offers, so the hero
+  // must not render carousel affordances for a single slide.
+  it('shows no carousel controls while there is one slide', async () => {
+    await renderHomePage()
+
+    expect(screen.queryByRole('button', { name: /next slide/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /previous slide/i })).not.toBeInTheDocument()
+  })
+
+  it('makes no unconfirmed offer claim', async () => {
+    const { container } = await renderHomePage()
+
+    expect(container.textContent).not.toMatch(/buy one, give one/i)
+    expect(container.textContent).not.toMatch(/free (home )?eye test/i)
+  })
+})
+
+describe('HomePage — service banners', () => {
+  it('routes visitors to the eye-test booking screen that exists', async () => {
+    await renderHomePage()
+
+    const banner = screen.getByRole('region', { name: /eye test/i })
+    expect(within(banner).getByRole('link', { name: /book/i })).toHaveAttribute('href', '/eye-test')
+  })
+
+  it('makes no price claim about the consultation', async () => {
+    await renderHomePage()
+
+    // Nothing in the repo establishes the consult is free; the mockup's
+    // "Free video eye test / ₹0 for first-time customers" is unsourced.
+    const banner = screen.getByRole('region', { name: /eye test/i })
+    expect(banner.textContent).not.toMatch(/free|₹0/i)
+  })
+
+  // CLAUDE.md scopes static-photo try-on into the MVP, but no route exists
+  // under src/app yet. Linking to it would 404.
+  it('does not link to the unbuilt try-on screen', async () => {
+    const { container } = await renderHomePage()
+
+    expect(container.querySelector('a[href*="try-on"]')).toBeNull()
   })
 })
