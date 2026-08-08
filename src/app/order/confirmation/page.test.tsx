@@ -27,7 +27,7 @@ import { getOrderById } from '@/lib/orders'
 import ConfirmationPage from './page'
 
 const OWNER = 'cust-owner'
-const ORDER_ID = 'order-1'
+const ORDER_ID = '8c1d5e02-3f47-4b90-a6d1-5e2c9b8a7d41'
 
 const mockRetrieve = vi.fn()
 const mockFetchPayment = vi.fn()
@@ -343,6 +343,135 @@ describe('ConfirmationPage — ownership gate', () => {
 
     await expect(
       ConfirmationPage({ searchParams: { razorpay_payment_id: 'pay_test_1' } })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+})
+
+// orders.id is a uuid column. The orderId here is not a path segment — it
+// comes back from Stripe metadata or Razorpay notes — but it still reaches
+// getOrderById unvalidated, so a payment carrying a malformed or legacy
+// reference threw `invalid input syntax for type uuid` and 500'd the customer's
+// confirmation page immediately after they paid. Same guard as /order/[id]
+// and the PDP.
+describe('ConfirmationPage — malformed order reference', () => {
+  it('404s rather than 500s when Stripe metadata carries a non-UUID orderId', async () => {
+    vi.mocked(getSession).mockReturnValue({ customerId: OWNER, role: 'customer' })
+    mockRetrieve.mockResolvedValue({
+      id: 'pi_1', status: 'succeeded', amount: 99900, metadata: { orderId: 'order-1' },
+    })
+
+    await expect(
+      ConfirmationPage({ searchParams: { payment_intent: 'pi_1' } })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+
+    expect(getOrderById).not.toHaveBeenCalled()
+  })
+
+  it('404s rather than 500s when Razorpay notes carry a non-UUID orderId', async () => {
+    vi.mocked(getSession).mockReturnValue({ customerId: OWNER, role: 'customer' })
+    mockFetchPayment.mockResolvedValue({
+      id: 'pay_1', status: 'captured', amount: 99900, notes: { orderId: '../../etc/passwd' },
+    })
+
+    await expect(
+      ConfirmationPage({ searchParams: { razorpay_payment_id: 'pay_1' } })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+
+    expect(getOrderById).not.toHaveBeenCalled()
+  })
+
+  it('still looks up a well-formed order reference', async () => {
+    vi.mocked(getSession).mockReturnValue({ customerId: OWNER, role: 'customer' })
+    givenOrder()
+    mockRetrieve.mockResolvedValue({
+      id: 'pi_1', status: 'succeeded', amount: 99900, metadata: { orderId: ORDER_ID },
+    })
+
+    render(await ConfirmationPage({ searchParams: { payment_intent: 'pi_1' } }))
+
+    expect(getOrderById).toHaveBeenCalledWith(ORDER_ID)
+  })
+})
+
+// A11 omission. The mockup offered "Download invoice"; no generator, PDF
+// dependency or invoice-number series exists in this repo, and a GST invoice
+// is a statutory document that needs a GSTIN we do not yet hold.
+describe('ConfirmationPage — ships no invoice affordance', () => {
+  it('offers no invoice download it cannot produce', async () => {
+    vi.mocked(getSession).mockReturnValue({ customerId: OWNER, role: 'customer' })
+    givenOrder()
+    mockRetrieve.mockResolvedValue({
+      id: 'pi_1', status: 'succeeded', amount: 99900, metadata: { orderId: ORDER_ID },
+    })
+
+    const { container } = render(await ConfirmationPage({ searchParams: { payment_intent: 'pi_1' } }))
+
+    expect(container.textContent ?? '').not.toMatch(/invoice|download/i)
+    expect(screen.queryByRole('button', { name: /invoice|download/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /invoice|download/i })).not.toBeInTheDocument()
+  })
+
+  it('states no GSTIN or tax breakdown it cannot substantiate', async () => {
+    vi.mocked(getSession).mockReturnValue({ customerId: OWNER, role: 'customer' })
+    givenOrder()
+    mockRetrieve.mockResolvedValue({
+      id: 'pi_1', status: 'succeeded', amount: 99900, metadata: { orderId: ORDER_ID },
+    })
+
+    const { container } = render(await ConfirmationPage({ searchParams: { payment_intent: 'pi_1' } }))
+
+    expect(container.textContent ?? '').not.toMatch(/GSTIN|HSN|GST \(/i)
+  })
+})
+
+// A stale, mistyped or replayed payment id made the provider lookup throw, and
+// the customer got a 500 on the page they land on immediately after paying.
+// The InvalidOrder UI already existed for the no-params case and says exactly
+// the right thing — "contact support if you were charged" — so failures route
+// there instead.
+describe('ConfirmationPage — unresolvable payment reference', () => {
+  it('shows the invalid-order UI when Stripe cannot resolve the intent', async () => {
+    vi.mocked(getSession).mockReturnValue({ customerId: OWNER, role: 'customer' })
+    mockRetrieve.mockRejectedValue(new Error('No such payment_intent: junk'))
+
+    render(await ConfirmationPage({ searchParams: { payment_intent: 'junk' } }))
+
+    expect(screen.getByRole('heading', { name: /something went wrong/i })).toBeInTheDocument()
+    expect(screen.getByText(/contact support if you were charged/i)).toBeInTheDocument()
+  })
+
+  it('shows the invalid-order UI when Razorpay cannot resolve the payment', async () => {
+    vi.mocked(getSession).mockReturnValue({ customerId: OWNER, role: 'customer' })
+    mockFetchPayment.mockRejectedValue(new Error('The id provided does not exist'))
+
+    render(await ConfirmationPage({ searchParams: { razorpay_payment_id: 'junk' } }))
+
+    expect(screen.getByRole('heading', { name: /something went wrong/i })).toBeInTheDocument()
+  })
+
+  it('shows it when the provider client itself cannot be constructed', async () => {
+    vi.mocked(getSession).mockReturnValue({ customerId: OWNER, role: 'customer' })
+    vi.mocked(getServerRazorpay).mockImplementation(() => {
+      throw new Error('RAZORPAY_KEY_ID is not set')
+    })
+
+    render(await ConfirmationPage({ searchParams: { razorpay_payment_id: 'pay_1' } }))
+
+    expect(screen.getByRole('heading', { name: /something went wrong/i })).toBeInTheDocument()
+  })
+
+  // The whole point of the PDP 404 investigation: a catch on this path must not
+  // eat the not-found thrown by the ownership gate, or an order belonging to
+  // someone else would render as a successful confirmation.
+  it('still 404s for a non-owner — the catch must not swallow notFound', async () => {
+    vi.mocked(getSession).mockReturnValue({ customerId: 'cust-other', role: 'customer' })
+    givenOrder()
+    mockRetrieve.mockResolvedValue({
+      id: 'pi_1', status: 'succeeded', amount: 99900, metadata: { orderId: ORDER_ID },
+    })
+
+    await expect(
+      ConfirmationPage({ searchParams: { payment_intent: 'pi_1' } })
     ).rejects.toThrow('NEXT_NOT_FOUND')
   })
 })
