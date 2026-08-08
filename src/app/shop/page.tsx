@@ -6,7 +6,11 @@ import { CatalogControls } from '@/components/shop/CatalogControls'
 
 export const metadata: Metadata = {
   title: 'Eyeglasses',
-  description: 'Shop premium prescription eyewear from ₹799. Verified by licensed optometrists with free delivery across India.',
+  // ₹999 matches the homepage hero and the Budget tier floor. This read ₹799,
+  // which put a third entry price into approved copy — and this string is what
+  // search engines show. Separate from the catalogue reprice, which is about
+  // the seeded data being wrong, not the copy.
+  description: 'Shop premium prescription eyewear from ₹999. Verified by licensed optometrists with free delivery across India.',
 }
 
 // ST-002 (A2. Eyeglasses Catalog): search, sort, pagination, the wishlist

@@ -25,11 +25,11 @@ const ibmPlexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: { default: "VisionNova", template: "%s | VisionNova" },
   description:
-    "Premium prescription eyewear from ₹799. Verified by licensed optometrists. Free delivery across India.",
+    "Premium prescription eyewear from ₹999. Verified by licensed optometrists. Free delivery across India.",
   openGraph: {
     title: "VisionNova",
     description:
-      "Premium prescription eyewear from ₹799. Verified by licensed optometrists. Free delivery across India.",
+      "Premium prescription eyewear from ₹999. Verified by licensed optometrists. Free delivery across India.",
     type: "website",
     url: "https://visionnova.com",
     siteName: "VisionNova",
