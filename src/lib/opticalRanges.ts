@@ -10,6 +10,17 @@ const AXIS_RANGE: [number, number] = [0, 180]
 const ADD_RANGE: [number, number] = [0.75, 3.5]
 const PD_RANGE: [number, number] = [40, 80]
 
+// Exported so the write-rx form can state the accepted range beside each
+// field. A form advertising a different range than the validator rejects on
+// is worse than no hint at all — a clinician trusts what the field says.
+export const OPTICAL_RANGES = {
+  sphere: SPHERE_RANGE,
+  cylinder: CYLINDER_RANGE,
+  axis: AXIS_RANGE,
+  add: ADD_RANGE,
+  pupillaryDistance: PD_RANGE,
+} as const
+
 export interface OpticalValues {
   rightSphere?: number | null
   rightCylinder?: number | null
