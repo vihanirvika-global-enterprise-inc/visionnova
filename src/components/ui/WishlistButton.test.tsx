@@ -18,6 +18,19 @@ const mockProduct: Product = {
   createdAt: new Date(), updatedAt: new Date(),
 }
 
+function renderButton(
+  { placement, wishlisted = false }: { placement?: 'card' | 'inline'; wishlisted?: boolean } = {}
+) {
+  return render(
+    <WishlistProvider
+      initialWishlistedIds={wishlisted ? [mockProduct.id] : []}
+      isLoggedIn={true}
+    >
+      <WishlistButton product={mockProduct} {...(placement ? { placement } : {})} />
+    </WishlistProvider>
+  )
+}
+
 beforeEach(() => vi.clearAllMocks())
 
 describe('WishlistButton', () => {
@@ -63,5 +76,38 @@ describe('WishlistButton', () => {
       'aria-pressed',
       'true'
     )
+  })
+})
+
+// The button was hard-coded to the card corner (absolute right-3 top-3). The
+// PDP needs the same control in normal flow, so placement became a prop rather
+// than a second copy of the component.
+describe('WishlistButton placement', () => {
+  it('defaults to the card corner, so existing callers are unchanged', () => {
+    renderButton()
+
+    const button = screen.getByRole('button', { name: /wishlist/i })
+    expect(button.className).toContain('absolute')
+  })
+
+  it('sits in normal flow when placed inline', () => {
+    renderButton({ placement: 'inline' })
+
+    const button = screen.getByRole('button', { name: /wishlist/i })
+    expect(button.className).not.toContain('absolute')
+  })
+
+  // Icon-only in the corner, but the PDP has room for a label — and a lone
+  // heart in a column of full-width controls reads as decoration.
+  it('shows visible text when placed inline', () => {
+    renderButton({ placement: 'inline' })
+
+    expect(screen.getByRole('button', { name: /wishlist/i })).toHaveTextContent(/wishlist/i)
+  })
+
+  it('keeps the accessible name reflecting saved state in both placements', () => {
+    renderButton({ placement: 'inline', wishlisted: true })
+
+    expect(screen.getByRole('button', { name: 'Remove from wishlist' })).toBeInTheDocument()
   })
 })

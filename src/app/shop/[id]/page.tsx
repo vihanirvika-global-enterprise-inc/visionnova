@@ -1,7 +1,10 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import { getProductById } from '@/lib/products'
 import { getProductImages } from '@/lib/productImages'
 import { AddToCartButton } from '@/components/ui/AddToCartButton'
+import { WishlistButton } from '@/components/ui/WishlistButton'
 import { ProductGallery } from '@/components/shop/ProductGallery'
 import { LensBuilder } from '@/components/shop/LensBuilder'
 import { TryOnPreview } from '@/components/shop/TryOnPreview'
@@ -9,6 +12,28 @@ import { formatPrice } from '@/lib/formatters'
 
 interface ProductPageProps {
   params: { id: string }
+}
+
+// Every product page previously inherited the root <title>, on the most-linked
+// page type in the site. Both fields come straight from the row: a generated
+// description would be marketing copy nobody approved, on a listing for a
+// medical device. A product with no description gets none.
+export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
+  const product = await getProductById(params.id)
+
+  // notFound() here, not a fallback title. Returning metadata lets Next
+  // resolve the head and start the response, so the notFound() in the page
+  // body below lands after the status is committed — the 404 silently becomes
+  // a 200 serving not-found-looking content. Confirmed against a production
+  // build: with a fallback title, /shop/<bad-id> returned 200.
+  if (!product) {
+    notFound()
+  }
+
+  return {
+    title: product.name,
+    ...(product.description ? { description: product.description } : {}),
+  }
 }
 
 function CheckIcon() {
@@ -28,12 +53,11 @@ function CheckIcon() {
 export default async function ProductPage({ params }: ProductPageProps) {
   const product = await getProductById(params.id)
 
+  // Previously a 200 response whose body read "Product not found", so every
+  // stale or mistyped id indexed as a live page. notFound() is what actually
+  // returns a 404, and it is the convention the admin routes already follow.
   if (!product) {
-    return (
-      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
-        <p className="text-muted">Product not found</p>
-      </main>
-    )
+    notFound()
   }
 
   const images = await getProductImages(product.id)
@@ -108,11 +132,30 @@ export default async function ProductPage({ params }: ProductPageProps) {
             </p>
           )}
 
-          {product.stockQuantity > 0 && (
-            <div className="mt-6">
-              <AddToCartButton product={product} />
-            </div>
-          )}
+          <div className="mt-6 flex flex-col gap-3">
+            {product.stockQuantity > 0 && <AddToCartButton product={product} />}
+            {/* Rendered even out of stock: saving something you cannot buy yet
+                is the main reason a wishlist exists. Inline placement, because
+                the card variant is absolutely positioned and would float over
+                the gallery in this layout. */}
+            <WishlistButton product={product} placement="inline" />
+          </div>
+
+          {/* TODO (A5): the mockup also carried ratings and a review list, a
+              millimetre frame-dimension table, colour swatches and a
+              struck-through MRP. None of them ships, and none is an oversight:
+                - reviews: no table. drop-optometrist-reviews.sql removed the
+                  only one that existed. Inventing "4.8 from 812 reviews" is a
+                  fabricated trust signal on a medical device.
+                - dimensions: no lens-width/bridge/temple columns on `products`.
+                - colour swatches: would come from product_variants, a table
+                  with zero accessors anywhere in src/.
+                - MRP / "40% off": no MRP column, and a struck-through price is
+                  a representation under the Legal Metrology (Packaged
+                  Commodities) Rules.
+              All four are bundled with the product-attributes schema task, to
+              be built against real data. A guard in page.test.tsx asserts none
+              of them creeps back in. */}
 
           {/* Policy text mirrors /help exactly (return window depends on
               requiresPrescription there too) so the two pages never
