@@ -83,7 +83,9 @@ describe('SupportConsolePage — gating', () => {
     expect(getCustomerByEmail).not.toHaveBeenCalled()
   })
 
-  it.each(['optometrist', 'admin'])('allows a %s', async (role) => {
+  // Contract change: the ops console admits ops, not optometrist. An
+  // optometrist's gate is the prescription review queue, which is unchanged.
+  it.each(['ops', 'admin'])('allows a %s', async (role) => {
     vi.mocked(getSession).mockReturnValue({ customerId: 'staff-1', role })
 
     await renderPage({ email: 'sam@example.com' })

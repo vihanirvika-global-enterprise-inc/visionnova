@@ -13,6 +13,14 @@ import { getRecentAccessLogs } from '@/lib/prescriptionAccessLogs'
 import { getRegulatoryRiskStatus } from '@/lib/regulatoryRiskStatus'
 import CompliancePage from './page'
 
+const STAFF_ID = 'a58630d6-35ef-4135-8f79-c39c2e99fa4b'
+
+// Shared so the gating tests below render exactly the way the existing ones
+// do, rather than a second harness that could drift.
+async function renderPage() {
+  return render(await CompliancePage())
+}
+
 const logEntry = {
   id: 'log-001',
   prescriptionId: 'rx-001',
@@ -64,7 +72,9 @@ describe('CompliancePage — gating', () => {
     expect(getRecentAccessLogs).not.toHaveBeenCalled()
   })
 
-  it.each(['optometrist', 'admin'])('allows a %s', async (role) => {
+  // Contract change: the ops console admits ops, not optometrist. An
+  // optometrist's gate is the prescription review queue, which is unchanged.
+  it.each(['ops', 'admin'])('allows a %s', async (role) => {
     vi.mocked(getSession).mockReturnValue({ customerId: 'staff-1', role })
 
     render(await CompliancePage())
@@ -142,5 +152,47 @@ describe('CompliancePage — regulatory risk register', () => {
     render(await CompliancePage())
 
     expect(screen.getByText(/Confirmed 2026-08-01/)).toBeInTheDocument()
+  })
+})
+
+// The ops console belongs to `ops`. Before this the page re-checked
+// REVIEWER_ROLES, so even with middleware admitting ops the page itself
+// returned a 404 — a gate change in one layer only would have looked fixed
+// and not been.
+describe('CompliancePage — ops console gating', () => {
+  it.each(['ops', 'admin'])('renders for a %s session', async (role) => {
+    const { getSession } = await import('@/lib/session')
+    vi.mocked(getSession).mockReturnValue({ customerId: STAFF_ID, role })
+
+    await renderPage()
+
+    expect(screen.getByRole('heading', { name: /compliance & audit log/i })).toBeInTheDocument()
+  })
+
+  it.each(['optometrist', 'customer', 'partner_optometrist'])('404s a %s session', async (role) => {
+    const { getSession } = await import('@/lib/session')
+    vi.mocked(getSession).mockReturnValue({ customerId: STAFF_ID, role })
+
+    await expect(renderPage()).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it('404s with no session at all', async () => {
+    const { getSession } = await import('@/lib/session')
+    vi.mocked(getSession).mockReturnValue(null)
+
+    await expect(renderPage()).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+})
+
+// The mockup offered "Export CSV" beside the audit table.
+describe('CompliancePage — no unbacked export', () => {
+  it('offers no CSV export it cannot generate', async () => {
+    const { getSession } = await import('@/lib/session')
+    vi.mocked(getSession).mockReturnValue({ customerId: STAFF_ID, role: 'ops' })
+
+    const { container } = await renderPage()
+
+    expect(screen.queryByRole('button', { name: /export|csv|download/i })).not.toBeInTheDocument()
+    expect(container.querySelector('a[download]')).toBeNull()
   })
 })
