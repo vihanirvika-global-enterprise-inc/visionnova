@@ -15,7 +15,7 @@ import { notFound } from 'next/navigation'
 import OrderDetailPage from './page'
 
 const OWNER = 'cust-owner'
-const ORDER_ID = 'order-1'
+const ORDER_ID = '3f2a1b6c-9d4e-4a71-8c05-2e6b7d9a1f34'
 
 const shippingAddress = {
   line1: '123 MG Road',
@@ -189,5 +189,40 @@ describe('OrderDetailPage — return/exchange', () => {
     await renderPage()
 
     expect(screen.queryByRole('link', { name: /request return/i })).not.toBeInTheDocument()
+  })
+})
+
+// orders.id is a uuid column, so a malformed segment reached Postgres as a raw
+// string and threw `invalid input syntax for type uuid`. On this route that
+// surfaced as a 500 — an authenticated customer mistyping a URL got a server
+// error instead of a not-found. Same defect class the PDP had, different
+// symptom: there it was swallowed into a 200.
+describe('OrderDetailPage — malformed id', () => {
+  it('404s a non-UUID id without querying the database', async () => {
+    await expect(OrderDetailPage({ params: { id: 'not-a-uuid' } })).rejects.toThrow('NEXT_NOT_FOUND')
+
+    expect(notFound).toHaveBeenCalled()
+    expect(getOrderById).not.toHaveBeenCalled()
+  })
+
+  it('404s a path-traversal style id without querying', async () => {
+    await expect(OrderDetailPage({ params: { id: '../../etc/passwd' } })).rejects.toThrow('NEXT_NOT_FOUND')
+
+    expect(getOrderById).not.toHaveBeenCalled()
+  })
+
+  // The shape check must not become a way to tell a real id from a fake one.
+  it('checks the session before anything else, so shape leaks nothing to anonymous callers', async () => {
+    vi.mocked(getSession).mockReturnValue(null)
+
+    await expect(OrderDetailPage({ params: { id: 'not-a-uuid' } })).rejects.toThrow('NEXT_NOT_FOUND')
+
+    expect(getOrderById).not.toHaveBeenCalled()
+  })
+
+  it('still queries for a well-formed uuid', async () => {
+    await expect(OrderDetailPage({ params: { id: ORDER_ID } })).resolves.toBeTruthy()
+
+    expect(getOrderById).toHaveBeenCalledWith(ORDER_ID)
   })
 })

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getProductById } from '@/lib/products'
+import { isUuid } from '@/lib/uuid'
 import { getProductImages } from '@/lib/productImages'
 import { AddToCartButton } from '@/components/ui/AddToCartButton'
 import { WishlistButton } from '@/components/ui/WishlistButton'
@@ -18,10 +19,10 @@ interface ProductPageProps {
 // raw string and threw `invalid input syntax for type uuid` — an unhandled DB
 // error served through global-error.tsx as a 200, before notFound() was ever
 // reached. Checking the shape first means a junk id never touches the query.
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
+// The check lives in @/lib/uuid because /order/[id] needs the same guard, and
+// two copies of a regex that decides what reaches the database would drift.
 async function findProductOr404(id: string) {
-  if (!UUID_PATTERN.test(id)) {
+  if (!isUuid(id)) {
     notFound()
   }
 
