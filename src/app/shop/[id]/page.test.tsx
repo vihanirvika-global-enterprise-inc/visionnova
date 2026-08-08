@@ -1,9 +1,41 @@
 import { render, screen } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { axe } from 'jest-axe'
 import { formatPrice } from '@/lib/formatters'
+import { AXE_OPTIONS } from '@/test/axeOptions'
 
 vi.mock('@/lib/products', () => ({ getProductById: vi.fn() }))
 vi.mock('@/lib/productImages', () => ({ getProductImages: vi.fn() }))
+vi.mock('next/navigation', () => ({
+  notFound: vi.fn(() => { throw new Error('NEXT_NOT_FOUND') }),
+  useRouter: () => ({ push: vi.fn() }),
+}))
+vi.mock('@/app/account/wishlist/actions', () => ({
+  toggleWishlistAction: vi.fn().mockResolvedValue({ ok: true }),
+}))
+
+function makeProduct(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'prod-001', name: 'Classic Frame', description: 'Timeless design',
+    price: 89.99, category: 'frames' as const, sku: 'CF-001',
+    stockQuantity: 10, imageUrl: null, requiresPrescription: false,
+    createdAt: new Date(), updatedAt: new Date(),
+    ...overrides,
+  }
+}
+
+async function renderProductPage(id = 'prod-001') {
+  const { CartProvider } = await import('@/components/cart/CartContext')
+  const { WishlistProvider } = await import('@/components/wishlist/WishlistContext')
+  const ProductPage = (await import('./page')).default
+  return render(
+    <CartProvider>
+      <WishlistProvider initialWishlistedIds={[]} isLoggedIn={true}>
+        {await ProductPage({ params: { id } })}
+      </WishlistProvider>
+    </CartProvider>
+  )
+}
 
 describe('ProductPage', () => {
   beforeEach(async () => {
@@ -22,23 +54,35 @@ describe('ProductPage', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
-    const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+    await renderProductPage('prod-001')
 
     expect(screen.getByText('Classic Frame')).toBeInTheDocument()
     expect(screen.getByText(formatPrice(89.99))).toBeInTheDocument()
   })
 
-  it('shows a not found message when the product does not exist', async () => {
+  // Was a 200 response containing the words "Product not found", so every bad
+  // or stale product id indexed as a live page. notFound() is the convention
+  // five admin routes already follow, and it is what actually returns 404.
+  it('returns a 404 rather than a 200 page when the product does not exist', async () => {
+    const { getProductById } = await import('@/lib/products')
+    vi.mocked(getProductById).mockResolvedValueOnce(null)
+    const { notFound } = await import('next/navigation')
+
+    const ProductPage = (await import('./page')).default
+    await expect(ProductPage({ params: { id: 'nonexistent' } })).rejects.toThrow('NEXT_NOT_FOUND')
+
+    expect(notFound).toHaveBeenCalled()
+  })
+
+  it('does not render a soft not-found body of its own', async () => {
     const { getProductById } = await import('@/lib/products')
     vi.mocked(getProductById).mockResolvedValueOnce(null)
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
     const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'nonexistent' } })}</CartProvider>)
+    await expect(ProductPage({ params: { id: 'nonexistent' } })).rejects.toThrow()
 
-    expect(screen.getByText('Product not found')).toBeInTheDocument()
+    // Nothing rendered: the not-found UI belongs to Next's boundary, not here.
+    expect(screen.queryByText('Product not found')).not.toBeInTheDocument()
   })
 
   it('renders the description when present', async () => {
@@ -50,9 +94,7 @@ describe('ProductPage', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
-    const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+    await renderProductPage('prod-001')
 
     expect(screen.getByText('Timeless design')).toBeInTheDocument()
   })
@@ -66,9 +108,7 @@ describe('ProductPage', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
-    const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+    await renderProductPage('prod-001')
 
     expect(screen.queryByTestId('product-description')).not.toBeInTheDocument()
   })
@@ -82,9 +122,7 @@ describe('ProductPage', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
-    const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+    await renderProductPage('prod-001')
 
     expect(screen.getByText('Out of Stock')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add to cart/i })).not.toBeInTheDocument()
@@ -108,9 +146,7 @@ describe('ProductPage — lens builder', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
-    const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'prod-002' } })}</CartProvider>)
+    await renderProductPage('prod-002')
 
     expect(screen.getByText('Build Your Lenses')).toBeInTheDocument()
     expect(screen.getByLabelText(/lens type/i)).toBeInTheDocument()
@@ -125,9 +161,7 @@ describe('ProductPage — lens builder', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
-    const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+    await renderProductPage('prod-001')
 
     expect(screen.queryByText('Build Your Lenses')).not.toBeInTheDocument()
   })
@@ -150,9 +184,7 @@ describe('ProductPage — try-on preview', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
-    const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+    await renderProductPage('prod-001')
 
     expect(screen.getByText('Try It On')).toBeInTheDocument()
   })
@@ -166,9 +198,7 @@ describe('ProductPage — try-on preview', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
-    const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+    await renderProductPage('prod-001')
 
     expect(screen.queryByText('Try It On')).not.toBeInTheDocument()
   })
@@ -195,9 +225,7 @@ describe('ProductPage — image gallery', () => {
       { id: 'img-3', productId: 'prod-001', url: 'https://cdn.example/3.jpg', alt: 'Case included', sortOrder: 2, createdAt: new Date() },
     ])
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
-    const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+    await renderProductPage('prod-001')
 
     const thumbnails = screen.getAllByRole('tab')
     expect(thumbnails).toHaveLength(3)
@@ -211,9 +239,7 @@ describe('ProductPage — image gallery', () => {
     const { getProductImages } = await import('@/lib/productImages')
     vi.mocked(getProductImages).mockResolvedValueOnce([])
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
-    const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+    await renderProductPage('prod-001')
 
     expect(screen.queryAllByRole('tab')).toHaveLength(0)
     expect(screen.getByAltText('Classic Frame')).toHaveAttribute(
@@ -239,9 +265,7 @@ describe('ProductPage — return policy & delivery reassurance', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
-    const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+    await renderProductPage('prod-001')
 
     expect(screen.getByText(/30-day returns/i)).toBeInTheDocument()
     expect(screen.queryByText(/14-day returns/i)).not.toBeInTheDocument()
@@ -256,9 +280,7 @@ describe('ProductPage — return policy & delivery reassurance', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
-    const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'prod-002' } })}</CartProvider>)
+    await renderProductPage('prod-002')
 
     expect(screen.getByText(/14-day returns/i)).toBeInTheDocument()
     expect(screen.queryByText(/30-day returns/i)).not.toBeInTheDocument()
@@ -273,9 +295,7 @@ describe('ProductPage — return policy & delivery reassurance', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
-    const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+    await renderProductPage('prod-001')
 
     expect(screen.getByText(/free return shipping/i)).toBeInTheDocument()
   })
@@ -289,9 +309,7 @@ describe('ProductPage — return policy & delivery reassurance', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
-    const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+    await renderProductPage('prod-001')
 
     expect(screen.getByText(/5–7 business days/i)).toBeInTheDocument()
   })
@@ -305,9 +323,7 @@ describe('ProductPage — return policy & delivery reassurance', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
-    const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+    await renderProductPage('prod-001')
 
     expect(screen.getByRole('link', { name: /full policy/i })).toHaveAttribute('href', '/help')
   })
@@ -321,10 +337,162 @@ describe('ProductPage — return policy & delivery reassurance', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    const { CartProvider } = await import('@/components/cart/CartContext')
-    const ProductPage = (await import('./page')).default
-    render(<CartProvider>{await ProductPage({ params: { id: 'prod-001' } })}</CartProvider>)
+    await renderProductPage('prod-001')
 
     expect(screen.getByText(/30-day returns/i)).toBeInTheDocument()
+  })
+})
+
+// The PDP had no metadata at all — every product inherited the root <title>,
+// on the most-linked page type in the site. generateMetadata is used nowhere
+// else in the app, so this is new ground rather than an inconsistency.
+describe('ProductPage — metadata', () => {
+  it('titles the page after the real product', async () => {
+    const { getProductById } = await import('@/lib/products')
+    vi.mocked(getProductById).mockResolvedValueOnce(
+      makeProduct({ name: 'Classic Tortoise Frame' })
+    )
+    const { generateMetadata } = await import('./page')
+
+    const meta = await generateMetadata({ params: { id: 'prod-001' } })
+
+    expect(meta.title).toBe('Classic Tortoise Frame')
+  })
+
+  it("describes it with the product's own description, not invented copy", async () => {
+    const { getProductById } = await import('@/lib/products')
+    vi.mocked(getProductById).mockResolvedValueOnce(
+      makeProduct({ description: 'Handcrafted acetate with single-vision lenses.' })
+    )
+    const { generateMetadata } = await import('./page')
+
+    const meta = await generateMetadata({ params: { id: 'prod-001' } })
+
+    expect(meta.description).toBe('Handcrafted acetate with single-vision lenses.')
+  })
+
+  // A product with no description gets none — a generated one would be
+  // marketing copy nobody approved, on a medical-device listing.
+  it('omits the description rather than inventing one', async () => {
+    const { getProductById } = await import('@/lib/products')
+    vi.mocked(getProductById).mockResolvedValueOnce(makeProduct({ description: null }))
+    const { generateMetadata } = await import('./page')
+
+    const meta = await generateMetadata({ params: { id: 'prod-001' } })
+
+    expect(meta.description).toBeUndefined()
+  })
+
+  // Must call notFound() rather than returning a fallback title. Returning
+  // metadata lets Next resolve the head and begin the response, so by the time
+  // the page body calls notFound() the status is already committed and the
+  // 404 degrades into a 200 with not-found-looking content. Verified against a
+  // production build: with a fallback title /shop/nope returned 200.
+  it('triggers the 404 from metadata, before the response can commit', async () => {
+    const { getProductById } = await import('@/lib/products')
+    vi.mocked(getProductById).mockResolvedValueOnce(null)
+    const { generateMetadata } = await import('./page')
+
+    await expect(generateMetadata({ params: { id: 'nope' } })).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+})
+
+describe('ProductPage — wishlist', () => {
+  it('offers a wishlist toggle for the product', async () => {
+    const { getProductById } = await import('@/lib/products')
+    vi.mocked(getProductById).mockResolvedValueOnce(makeProduct())
+
+    await renderProductPage()
+
+    expect(screen.getByRole('button', { name: /wishlist/i })).toBeInTheDocument()
+  })
+
+  // Inline placement, not the card corner: an absolutely-positioned heart
+  // would float over the gallery in this layout.
+  it('places the toggle in normal flow, not pinned to a corner', async () => {
+    const { getProductById } = await import('@/lib/products')
+    vi.mocked(getProductById).mockResolvedValueOnce(makeProduct())
+
+    await renderProductPage()
+
+    expect(screen.getByRole('button', { name: /wishlist/i }).className)
+      .not.toContain('absolute')
+  })
+
+  it('offers the toggle even when the product is out of stock', async () => {
+    const { getProductById } = await import('@/lib/products')
+    vi.mocked(getProductById).mockResolvedValueOnce(makeProduct({ stockQuantity: 0 }))
+
+    await renderProductPage()
+
+    // Saving something you cannot buy yet is the main reason a wishlist exists.
+    expect(screen.getByRole('button', { name: /wishlist/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add to cart/i })).not.toBeInTheDocument()
+  })
+})
+
+// A5 omissions. The mockup carried ratings, a review list, a millimetre spec
+// table, colour swatches and a struck-through MRP. None has a data source:
+// there is no reviews table (see drop-optometrist-reviews.sql), no dimension
+// columns on `products`, no accessor for product_variants, and no MRP column.
+describe('ProductPage — ships no fabricated content', () => {
+  async function renderWithProduct() {
+    const { getProductById } = await import('@/lib/products')
+    vi.mocked(getProductById).mockResolvedValueOnce(makeProduct())
+    return renderProductPage()
+  }
+
+  it('shows no rating, star or review count', async () => {
+    const { container } = await renderWithProduct()
+    const text = container.textContent ?? ''
+
+    expect(text).not.toMatch(/\breviews?\b/i)
+    expect(text).not.toMatch(/verified purchases?/i)
+    expect(text).not.toMatch(/\d(\.\d)?\s*(★|\/\s*5\b)/)
+    expect(text).not.toMatch(/★/)
+  })
+
+  it('shows no frame-dimension spec table', async () => {
+    const { container } = await renderWithProduct()
+    const text = container.textContent ?? ''
+
+    expect(text).not.toMatch(/lens width|bridge|temple/i)
+    expect(text).not.toMatch(/\b\d{2,3}\s?mm\b/i)
+  })
+
+  it('shows no MRP, strike-through or discount percentage', async () => {
+    const { container } = await renderWithProduct()
+    const text = container.textContent ?? ''
+
+    expect(text).not.toMatch(/M\.?R\.?P/i)
+    expect(text).not.toMatch(/%\s*off/i)
+    expect(container.querySelector('.line-through')).toBeNull()
+  })
+
+  // Colour would come from product_variants — a table that exists with zero
+  // accessors anywhere in src/. Swatches would be invented, not read.
+  it('offers no colour-swatch control', async () => {
+    const { container } = await renderWithProduct()
+
+    const labels = Array.from(container.querySelectorAll('[aria-label], label'))
+      .map((el) => (el.getAttribute('aria-label') || el.textContent || '').toLowerCase())
+    expect(labels.some((l) => /colou?r/.test(l))).toBe(false)
+  })
+
+  it('offers no "pair with these" upsell, which has no relation model', async () => {
+    const { container } = await renderWithProduct()
+
+    expect(container.textContent ?? '').not.toMatch(/pair with|you may also like|customers also/i)
+  })
+})
+
+describe('ProductPage — accessibility', () => {
+  it('has no WCAG 2.1 AA violations axe can detect', async () => {
+    const { getProductById } = await import('@/lib/products')
+    vi.mocked(getProductById).mockResolvedValueOnce(makeProduct())
+
+    const { container } = await renderProductPage()
+
+    expect((await axe(container, AXE_OPTIONS)).violations).toEqual([])
   })
 })
