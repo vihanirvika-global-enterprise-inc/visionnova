@@ -5,6 +5,7 @@ import { getServerStripe } from '@/lib/stripe'
 import { getServerRazorpay } from '@/lib/razorpay'
 import { getSession } from '@/lib/session'
 import { getOrderById } from '@/lib/orders'
+import { isUuid } from '@/lib/uuid'
 import { formatPrice } from '@/lib/formatters'
 import { OrderCompletedTracker } from './OrderCompletedTracker'
 
@@ -86,6 +87,14 @@ function PaymentSuccess({ amount, orderReference }: { amount: number; orderRefer
           <li>Order dispatched with tracking number via email</li>
         </ol>
       </div>
+      {/* TODO (A11): the mockup offered a "Download invoice" button. Not
+          built — there is no invoice generator anywhere in this repo, no PDF
+          dependency, and no invoice number series. A GST invoice is a
+          statutory document under the CGST Rules: it needs the seller's GSTIN
+          (still TODO in the footer), a sequential invoice number, HSN codes
+          and a tax breakdown. A button producing anything less would be worse
+          than none, and inventing the numbers is not an option. Bundled with
+          the registered-entity details on the schema/compliance backlog. */}
       <Link href="/account" className="btn-primary mt-6">Track Your Order</Link>
       <Link href="/shop" className="btn-secondary mt-2">Continue Shopping</Link>
     </>
@@ -137,10 +146,35 @@ interface PageProps {
 // is itself a disclosure. Same reasoning as order/[id]/page.tsx.
 async function assertOwnership(orderId: string | undefined) {
   const session = getSession()
-  const order = session && orderId ? await getOrderById(orderId) : null
+
+  // orders.id is a uuid column. This id is not a path segment — it comes back
+  // from Stripe metadata or Razorpay notes — but it still reaches the query
+  // unvalidated, so a payment carrying a malformed or legacy reference threw
+  // `invalid input syntax for type uuid` and 500'd the confirmation page for a
+  // customer who had just been charged. Same guard as /order/[id] and the PDP.
+  const resolvable = Boolean(session && orderId && isUuid(orderId))
+  const order = resolvable ? await getOrderById(orderId as string) : null
 
   if (!session || !order || order.customerId !== session.customerId) {
     notFound()
+  }
+}
+
+// The try/catch wraps ONLY the provider lookup, never the ownership check
+// below it. notFound() travels as a thrown error, so a catch placed around the
+// whole render would swallow it and turn someone else's order into a
+// successful confirmation — the same class of mistake that made the PDP serve
+// 200s for missing products. Scoping the catch this tightly means the
+// not-found signal is never in its path at all, which is stronger than
+// re-throwing on inspection.
+async function resolvePayment<T>(lookup: () => Promise<T>): Promise<T | null> {
+  try {
+    return await lookup()
+  } catch {
+    // A stale, mistyped or replayed id, or an unconfigured provider client.
+    // Either way we cannot confirm anything, and the customer may have been
+    // charged — InvalidOrder says exactly that.
+    return null
   }
 }
 
@@ -148,8 +182,10 @@ async function assertOwnership(orderId: string | undefined) {
 // UX only — this looks the payment up against Razorpay's own API rather than
 // trusting the fact that the id is present in the URL.
 async function renderRazorpayResult(paymentId: string) {
-  const razorpay = getServerRazorpay()
-  const payment = await razorpay.fetchPayment(paymentId)
+  const payment = await resolvePayment(() => getServerRazorpay().fetchPayment(paymentId))
+  if (!payment) {
+    return <Wrapper><InvalidOrder /></Wrapper>
+  }
 
   await assertOwnership(payment.notes?.orderId)
 
@@ -165,8 +201,12 @@ async function renderRazorpayResult(paymentId: string) {
 }
 
 async function renderStripeResult(paymentIntentId: string) {
-  const stripe = getServerStripe()
-  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
+  const paymentIntent = await resolvePayment(() =>
+    getServerStripe().paymentIntents.retrieve(paymentIntentId)
+  )
+  if (!paymentIntent) {
+    return <Wrapper><InvalidOrder /></Wrapper>
+  }
 
   await assertOwnership(paymentIntent.metadata?.orderId)
 
