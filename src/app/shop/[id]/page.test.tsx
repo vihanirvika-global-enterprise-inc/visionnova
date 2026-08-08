@@ -16,7 +16,7 @@ vi.mock('@/app/account/wishlist/actions', () => ({
 
 function makeProduct(overrides: Record<string, unknown> = {}) {
   return {
-    id: 'prod-001', name: 'Classic Frame', description: 'Timeless design',
+    id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', name: 'Classic Frame', description: 'Timeless design',
     price: 89.99, category: 'frames' as const, sku: 'CF-001',
     stockQuantity: 10, imageUrl: null, requiresPrescription: false,
     createdAt: new Date(), updatedAt: new Date(),
@@ -24,7 +24,7 @@ function makeProduct(overrides: Record<string, unknown> = {}) {
   }
 }
 
-async function renderProductPage(id = 'prod-001') {
+async function renderProductPage(id = '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6') {
   const { CartProvider } = await import('@/components/cart/CartContext')
   const { WishlistProvider } = await import('@/components/wishlist/WishlistContext')
   const ProductPage = (await import('./page')).default
@@ -48,13 +48,13 @@ describe('ProductPage', () => {
   it('renders the product name and price', async () => {
     const { getProductById } = await import('@/lib/products')
     vi.mocked(getProductById).mockResolvedValueOnce({
-      id: 'prod-001', name: 'Classic Frame', description: 'Timeless design',
+      id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', name: 'Classic Frame', description: 'Timeless design',
       price: 89.99, category: 'frames' as const, sku: 'CF-001',
       stockQuantity: 10, imageUrl: null, requiresPrescription: false,
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    await renderProductPage('prod-001')
+    await renderProductPage('6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6')
 
     expect(screen.getByText('Classic Frame')).toBeInTheDocument()
     expect(screen.getByText(formatPrice(89.99))).toBeInTheDocument()
@@ -69,7 +69,7 @@ describe('ProductPage', () => {
     const { notFound } = await import('next/navigation')
 
     const ProductPage = (await import('./page')).default
-    await expect(ProductPage({ params: { id: 'nonexistent' } })).rejects.toThrow('NEXT_NOT_FOUND')
+    await expect(ProductPage({ params: { id: '00000000-0000-0000-0000-000000000000' } })).rejects.toThrow('NEXT_NOT_FOUND')
 
     expect(notFound).toHaveBeenCalled()
   })
@@ -79,7 +79,7 @@ describe('ProductPage', () => {
     vi.mocked(getProductById).mockResolvedValueOnce(null)
 
     const ProductPage = (await import('./page')).default
-    await expect(ProductPage({ params: { id: 'nonexistent' } })).rejects.toThrow()
+    await expect(ProductPage({ params: { id: '00000000-0000-0000-0000-000000000000' } })).rejects.toThrow()
 
     // Nothing rendered: the not-found UI belongs to Next's boundary, not here.
     expect(screen.queryByText('Product not found')).not.toBeInTheDocument()
@@ -88,13 +88,13 @@ describe('ProductPage', () => {
   it('renders the description when present', async () => {
     const { getProductById } = await import('@/lib/products')
     vi.mocked(getProductById).mockResolvedValueOnce({
-      id: 'prod-001', name: 'Classic Frame', description: 'Timeless design',
+      id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', name: 'Classic Frame', description: 'Timeless design',
       price: 89.99, category: 'frames' as const, sku: 'CF-001',
       stockQuantity: 10, imageUrl: null, requiresPrescription: false,
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    await renderProductPage('prod-001')
+    await renderProductPage('6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6')
 
     expect(screen.getByText('Timeless design')).toBeInTheDocument()
   })
@@ -102,13 +102,13 @@ describe('ProductPage', () => {
   it('renders nothing for description when it is null', async () => {
     const { getProductById } = await import('@/lib/products')
     vi.mocked(getProductById).mockResolvedValueOnce({
-      id: 'prod-001', name: 'Classic Frame', description: null,
+      id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', name: 'Classic Frame', description: null,
       price: 89.99, category: 'frames' as const, sku: 'CF-001',
       stockQuantity: 10, imageUrl: null, requiresPrescription: false,
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    await renderProductPage('prod-001')
+    await renderProductPage('6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6')
 
     expect(screen.queryByTestId('product-description')).not.toBeInTheDocument()
   })
@@ -116,13 +116,13 @@ describe('ProductPage', () => {
   it('shows out of stock message when product has no stock', async () => {
     const { getProductById } = await import('@/lib/products')
     vi.mocked(getProductById).mockResolvedValueOnce({
-      id: 'prod-001', name: 'Classic Frame', description: null,
+      id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', name: 'Classic Frame', description: null,
       price: 89.99, category: 'frames' as const, sku: 'CF-001',
       stockQuantity: 0, imageUrl: null, requiresPrescription: false,
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    await renderProductPage('prod-001')
+    await renderProductPage('6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6')
 
     expect(screen.getByText('Out of Stock')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add to cart/i })).not.toBeInTheDocument()
@@ -146,7 +146,7 @@ describe('ProductPage — lens builder', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    await renderProductPage('prod-002')
+    await renderProductPage('7ab391c5-82df-4e11-9c02-1d5b7e6a4f88')
 
     expect(screen.getByText('Build Your Lenses')).toBeInTheDocument()
     expect(screen.getByLabelText(/lens type/i)).toBeInTheDocument()
@@ -155,13 +155,13 @@ describe('ProductPage — lens builder', () => {
   it('does not show the lens builder for a non-prescription product', async () => {
     const { getProductById } = await import('@/lib/products')
     vi.mocked(getProductById).mockResolvedValueOnce({
-      id: 'prod-001', name: 'Classic Frame', description: null,
+      id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', name: 'Classic Frame', description: null,
       price: 89.99, category: 'frames' as const, sku: 'CF-001',
       stockQuantity: 10, imageUrl: null, requiresPrescription: false,
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    await renderProductPage('prod-001')
+    await renderProductPage('6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6')
 
     expect(screen.queryByText('Build Your Lenses')).not.toBeInTheDocument()
   })
@@ -178,13 +178,13 @@ describe('ProductPage — try-on preview', () => {
   it('shows the try-on upload prompt when the product has an image', async () => {
     const { getProductById } = await import('@/lib/products')
     vi.mocked(getProductById).mockResolvedValueOnce({
-      id: 'prod-001', name: 'Classic Frame', description: null,
+      id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', name: 'Classic Frame', description: null,
       price: 89.99, category: 'frames' as const, sku: 'CF-001',
       stockQuantity: 10, imageUrl: 'https://cdn.example/frame.png', requiresPrescription: false,
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    await renderProductPage('prod-001')
+    await renderProductPage('6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6')
 
     expect(screen.getByText('Try It On')).toBeInTheDocument()
   })
@@ -192,13 +192,13 @@ describe('ProductPage — try-on preview', () => {
   it('does not show the try-on section when the product has no image', async () => {
     const { getProductById } = await import('@/lib/products')
     vi.mocked(getProductById).mockResolvedValueOnce({
-      id: 'prod-001', name: 'Classic Frame', description: null,
+      id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', name: 'Classic Frame', description: null,
       price: 89.99, category: 'frames' as const, sku: 'CF-001',
       stockQuantity: 10, imageUrl: null, requiresPrescription: false,
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    await renderProductPage('prod-001')
+    await renderProductPage('6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6')
 
     expect(screen.queryByText('Try It On')).not.toBeInTheDocument()
   })
@@ -210,7 +210,7 @@ describe('ProductPage — image gallery', () => {
     vi.clearAllMocks()
     const { getProductById } = await import('@/lib/products')
     vi.mocked(getProductById).mockResolvedValue({
-      id: 'prod-001', name: 'Classic Frame', description: null,
+      id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', name: 'Classic Frame', description: null,
       price: 89.99, category: 'frames' as const, sku: 'CF-001',
       stockQuantity: 10, imageUrl: 'https://cdn.example/legacy.jpg', requiresPrescription: false,
       createdAt: new Date(), updatedAt: new Date(),
@@ -220,12 +220,12 @@ describe('ProductPage — image gallery', () => {
   it('renders every real product_images row, in order, with real alt text', async () => {
     const { getProductImages } = await import('@/lib/productImages')
     vi.mocked(getProductImages).mockResolvedValueOnce([
-      { id: 'img-1', productId: 'prod-001', url: 'https://cdn.example/1.jpg', alt: 'Front view', sortOrder: 0, createdAt: new Date() },
-      { id: 'img-2', productId: 'prod-001', url: 'https://cdn.example/2.jpg', alt: 'Side view', sortOrder: 1, createdAt: new Date() },
-      { id: 'img-3', productId: 'prod-001', url: 'https://cdn.example/3.jpg', alt: 'Case included', sortOrder: 2, createdAt: new Date() },
+      { id: 'img-1', productId: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', url: 'https://cdn.example/1.jpg', alt: 'Front view', sortOrder: 0, createdAt: new Date() },
+      { id: 'img-2', productId: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', url: 'https://cdn.example/2.jpg', alt: 'Side view', sortOrder: 1, createdAt: new Date() },
+      { id: 'img-3', productId: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', url: 'https://cdn.example/3.jpg', alt: 'Case included', sortOrder: 2, createdAt: new Date() },
     ])
 
-    await renderProductPage('prod-001')
+    await renderProductPage('6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6')
 
     const thumbnails = screen.getAllByRole('tab')
     expect(thumbnails).toHaveLength(3)
@@ -239,7 +239,7 @@ describe('ProductPage — image gallery', () => {
     const { getProductImages } = await import('@/lib/productImages')
     vi.mocked(getProductImages).mockResolvedValueOnce([])
 
-    await renderProductPage('prod-001')
+    await renderProductPage('6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6')
 
     expect(screen.queryAllByRole('tab')).toHaveLength(0)
     expect(screen.getByAltText('Classic Frame')).toHaveAttribute(
@@ -259,13 +259,13 @@ describe('ProductPage — return policy & delivery reassurance', () => {
   it('shows the 30-day return window for a non-prescription product, matching /help', async () => {
     const { getProductById } = await import('@/lib/products')
     vi.mocked(getProductById).mockResolvedValueOnce({
-      id: 'prod-001', name: 'Classic Frame', description: null,
+      id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', name: 'Classic Frame', description: null,
       price: 89.99, category: 'frames' as const, sku: 'CF-001',
       stockQuantity: 10, imageUrl: null, requiresPrescription: false,
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    await renderProductPage('prod-001')
+    await renderProductPage('6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6')
 
     expect(screen.getByText(/30-day returns/i)).toBeInTheDocument()
     expect(screen.queryByText(/14-day returns/i)).not.toBeInTheDocument()
@@ -280,7 +280,7 @@ describe('ProductPage — return policy & delivery reassurance', () => {
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    await renderProductPage('prod-002')
+    await renderProductPage('7ab391c5-82df-4e11-9c02-1d5b7e6a4f88')
 
     expect(screen.getByText(/14-day returns/i)).toBeInTheDocument()
     expect(screen.queryByText(/30-day returns/i)).not.toBeInTheDocument()
@@ -289,13 +289,13 @@ describe('ProductPage — return policy & delivery reassurance', () => {
   it('shows a free return shipping callout', async () => {
     const { getProductById } = await import('@/lib/products')
     vi.mocked(getProductById).mockResolvedValueOnce({
-      id: 'prod-001', name: 'Classic Frame', description: null,
+      id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', name: 'Classic Frame', description: null,
       price: 89.99, category: 'frames' as const, sku: 'CF-001',
       stockQuantity: 10, imageUrl: null, requiresPrescription: false,
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    await renderProductPage('prod-001')
+    await renderProductPage('6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6')
 
     expect(screen.getByText(/free return shipping/i)).toBeInTheDocument()
   })
@@ -303,13 +303,13 @@ describe('ProductPage — return policy & delivery reassurance', () => {
   it('shows a static delivery estimate matching the figure already on /help', async () => {
     const { getProductById } = await import('@/lib/products')
     vi.mocked(getProductById).mockResolvedValueOnce({
-      id: 'prod-001', name: 'Classic Frame', description: null,
+      id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', name: 'Classic Frame', description: null,
       price: 89.99, category: 'frames' as const, sku: 'CF-001',
       stockQuantity: 10, imageUrl: null, requiresPrescription: false,
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    await renderProductPage('prod-001')
+    await renderProductPage('6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6')
 
     expect(screen.getByText(/5–7 business days/i)).toBeInTheDocument()
   })
@@ -317,13 +317,13 @@ describe('ProductPage — return policy & delivery reassurance', () => {
   it('links to /help for the full policy rather than duplicating it', async () => {
     const { getProductById } = await import('@/lib/products')
     vi.mocked(getProductById).mockResolvedValueOnce({
-      id: 'prod-001', name: 'Classic Frame', description: null,
+      id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', name: 'Classic Frame', description: null,
       price: 89.99, category: 'frames' as const, sku: 'CF-001',
       stockQuantity: 10, imageUrl: null, requiresPrescription: false,
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    await renderProductPage('prod-001')
+    await renderProductPage('6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6')
 
     expect(screen.getByRole('link', { name: /full policy/i })).toHaveAttribute('href', '/help')
   })
@@ -331,13 +331,13 @@ describe('ProductPage — return policy & delivery reassurance', () => {
   it('shows the reassurance section even when the product is out of stock', async () => {
     const { getProductById } = await import('@/lib/products')
     vi.mocked(getProductById).mockResolvedValueOnce({
-      id: 'prod-001', name: 'Classic Frame', description: null,
+      id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6', name: 'Classic Frame', description: null,
       price: 89.99, category: 'frames' as const, sku: 'CF-001',
       stockQuantity: 0, imageUrl: null, requiresPrescription: false,
       createdAt: new Date(), updatedAt: new Date(),
     })
 
-    await renderProductPage('prod-001')
+    await renderProductPage('6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6')
 
     expect(screen.getByText(/30-day returns/i)).toBeInTheDocument()
   })
@@ -354,7 +354,7 @@ describe('ProductPage — metadata', () => {
     )
     const { generateMetadata } = await import('./page')
 
-    const meta = await generateMetadata({ params: { id: 'prod-001' } })
+    const meta = await generateMetadata({ params: { id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6' } })
 
     expect(meta.title).toBe('Classic Tortoise Frame')
   })
@@ -366,7 +366,7 @@ describe('ProductPage — metadata', () => {
     )
     const { generateMetadata } = await import('./page')
 
-    const meta = await generateMetadata({ params: { id: 'prod-001' } })
+    const meta = await generateMetadata({ params: { id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6' } })
 
     expect(meta.description).toBe('Handcrafted acetate with single-vision lenses.')
   })
@@ -378,7 +378,7 @@ describe('ProductPage — metadata', () => {
     vi.mocked(getProductById).mockResolvedValueOnce(makeProduct({ description: null }))
     const { generateMetadata } = await import('./page')
 
-    const meta = await generateMetadata({ params: { id: 'prod-001' } })
+    const meta = await generateMetadata({ params: { id: '6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6' } })
 
     expect(meta.description).toBeUndefined()
   })
@@ -393,7 +393,7 @@ describe('ProductPage — metadata', () => {
     vi.mocked(getProductById).mockResolvedValueOnce(null)
     const { generateMetadata } = await import('./page')
 
-    await expect(generateMetadata({ params: { id: 'nope' } })).rejects.toThrow('NEXT_NOT_FOUND')
+    await expect(generateMetadata({ params: { id: '00000000-0000-0000-0000-000000000000' } })).rejects.toThrow('NEXT_NOT_FOUND')
   })
 })
 
@@ -494,5 +494,40 @@ describe('ProductPage — accessibility', () => {
     const { container } = await renderProductPage()
 
     expect((await axe(container, AXE_OPTIONS)).violations).toEqual([])
+  })
+})
+
+// A malformed id reached Postgres as a raw string against a uuid column and
+// threw `invalid input syntax for type uuid` before notFound() was ever
+// considered — an unhandled DB error, served through global-error.tsx as a
+// 200. Guarding the shape means it never reaches the query.
+describe('ProductPage — malformed id', () => {
+  // This block asserts on call history, so it needs its own reset — the
+  // beforeEach above belongs to the first describe only.
+  beforeEach(() => { vi.resetModules(); vi.clearAllMocks() })
+
+  it('404s a non-UUID id without querying the database', async () => {
+    const { getProductById } = await import('@/lib/products')
+    const ProductPage = (await import('./page')).default
+
+    await expect(ProductPage({ params: { id: 'not-a-uuid' } })).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(getProductById).not.toHaveBeenCalled()
+  })
+
+  it('404s from metadata too, without querying', async () => {
+    const { getProductById } = await import('@/lib/products')
+    const { generateMetadata } = await import('./page')
+
+    await expect(generateMetadata({ params: { id: '../../etc/passwd' } })).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(getProductById).not.toHaveBeenCalled()
+  })
+
+  it('still queries for a well-formed uuid', async () => {
+    const { getProductById } = await import('@/lib/products')
+    vi.mocked(getProductById).mockResolvedValueOnce(makeProduct())
+
+    await renderProductPage('6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6')
+
+    expect(getProductById).toHaveBeenCalledWith('6fd472e4-71cf-4dd0-bd57-3f9452ccd3f6')
   })
 })

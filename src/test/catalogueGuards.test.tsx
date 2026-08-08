@@ -40,7 +40,7 @@ function makeProduct(overrides: Record<string, unknown> = {}) {
 }
 
 const CATALOGUES = [
-  { name: '/shop', importPath: '@/app/shop/page', accessor: 'getCatalogProducts' },
+  { name: '/shop', importPath: '@/app/shop/(catalog)/page', accessor: 'getCatalogProducts' },
   { name: '/sunglasses', importPath: '@/app/sunglasses/page', accessor: 'getCatalogProductsByCategory' },
   { name: '/contacts', importPath: '@/app/contacts/page', accessor: 'getCatalogProductsByCategory' },
 ] as const
