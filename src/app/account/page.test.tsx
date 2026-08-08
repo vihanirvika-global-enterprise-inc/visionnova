@@ -578,3 +578,94 @@ describe('AccountPage — session id guard', () => {
     expect(getOrdersByCustomer).not.toHaveBeenCalled()
   })
 })
+
+// ── B2: order tabs, verify-and-guard ─────────────────────────────────────────
+
+// The tabs were already built (ORDER_TABS + filterOrdersByTab + ?orderTab=).
+// Only the "shipped" filter was covered, and nothing asserted what an
+// unrecognised tab does — the case a stale bookmark or a hand-edited URL
+// actually produces.
+describe('AccountPage — order tab filtering', () => {
+  const processing = makeOrder({ id: 'o-processing', status: 'processing' })
+  const shipped = makeOrder({ id: 'o-shipped', status: 'shipped' })
+  const delivered = makeOrder({ id: 'o-delivered', status: 'delivered' })
+  const cancelled = makeOrder({ id: 'o-cancelled', status: 'cancelled' })
+  const all = [processing, shipped, delivered, cancelled]
+
+  it.each([
+    ['processing', 'o-processing'],
+    ['shipped', 'o-shipped'],
+    ['delivered', 'o-delivered'],
+    ['cancelled', 'o-cancelled'],
+  ])('shows only %s orders under that tab', async (tab, expectedId) => {
+    await setup({ orders: all, searchParams: { orderTab: tab } })
+
+    expect(screen.getByTestId(`order-status-${expectedId}`)).toBeInTheDocument()
+    for (const other of all.filter((o) => o.id !== expectedId)) {
+      expect(screen.queryByTestId(`order-status-${other.id}`)).not.toBeInTheDocument()
+    }
+  })
+
+  it('shows every order under the all tab', async () => {
+    await setup({ orders: all })
+
+    for (const order of all) {
+      expect(screen.getByTestId(`order-status-${order.id}`)).toBeInTheDocument()
+    }
+  })
+})
+
+describe('AccountPage — unrecognised order tab', () => {
+  it('falls back to showing every order rather than an empty page', async () => {
+    const orders = [makeOrder({ id: 'o-1', status: 'shipped' }), makeOrder({ id: 'o-2', status: 'delivered' })]
+    await setup({ orders, searchParams: { orderTab: 'junk' } })
+
+    expect(screen.getByTestId('order-status-o-1')).toBeInTheDocument()
+    expect(screen.getByTestId('order-status-o-2')).toBeInTheDocument()
+  })
+
+  it('marks the all tab active, so the UI does not claim a filter it is not applying', async () => {
+    await setup({ orders: [makeOrder()], searchParams: { orderTab: 'junk' } })
+
+    const allTab = screen.getByRole('link', { name: 'All' })
+    expect(allTab).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('does not reflect the unrecognised value back into the page', async () => {
+    const { container } = await setup({ orders: [makeOrder()], searchParams: { orderTab: '<script>x</script>' } })
+
+    expect(container.textContent ?? '').not.toMatch(/<script>|script>x/)
+  })
+
+  it('marks exactly one tab active for any input', async () => {
+    await setup({ orders: [makeOrder()], searchParams: { orderTab: 'junk' } })
+
+    expect(screen.getAllByRole('link', { current: true })).toHaveLength(1)
+  })
+})
+
+// The mockup put "Invoice" and "Return / exchange" buttons on every order row.
+// Neither ships from this list: there is no invoice generator (same as A11),
+// and the real returns path is the mailto flow on /order/[id], offered only
+// once an order is actually delivered.
+describe('AccountPage — order list ships no unbacked actions', () => {
+  it('offers no invoice download from the order list', async () => {
+    const { container } = await setup({ orders: [makeOrder({ status: 'delivered' })] })
+
+    expect(container.textContent ?? '').not.toMatch(/invoice/i)
+  })
+
+  it('offers no return or exchange control from the order list', async () => {
+    await setup({ orders: [makeOrder({ status: 'delivered' })] })
+
+    expect(screen.queryByRole('button', { name: /return|exchange/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /return|exchange/i })).not.toBeInTheDocument()
+  })
+
+  // The route that does exist, and is where returns are actually offered.
+  it('links each order to its detail page, which carries the real returns path', async () => {
+    await setup({ orders: [makeOrder({ id: 'o-9' })] })
+
+    expect(screen.getByRole('link', { name: /view details/i })).toHaveAttribute('href', '/order/o-9')
+  })
+})

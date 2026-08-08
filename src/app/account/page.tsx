@@ -358,6 +358,16 @@ export default async function AccountPage({ searchParams = {} }: AccountPageProp
                     >
                       View Details →
                     </Link>
+                    {/* TODO (B2): the mockup put "Invoice" and "Return /
+                        exchange" buttons on every row. Neither ships from this
+                        list. Invoice has no generator — same reason as A11's
+                        confirmation page, and a GST invoice needs a GSTIN we
+                        do not yet hold. Returns are not absent: the real path
+                        is the support mailto on /order/[id], offered only once
+                        an order is actually delivered, because that is the
+                        process /help documents. A per-row button here would
+                        imply a self-service returns workflow that does not
+                        exist. Revisit when there is a returns model. */}
                   </div>
                   <div className="text-right">
                     <p
