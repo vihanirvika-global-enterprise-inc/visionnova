@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
@@ -44,7 +44,7 @@ async function setup({
   vi.mocked(getAppointmentsByOptometrist).mockResolvedValue(queue as never)
 
   const PartnerDashboardPage = (await import('./page')).default
-  render(await PartnerDashboardPage())
+  return render(await PartnerDashboardPage())
 }
 
 beforeEach(() => {
@@ -129,5 +129,67 @@ describe('PartnerDashboardPage — booking queue', () => {
     expect(screen.getByRole('link', { name: /referral.*commission/i })).toHaveAttribute(
       'href', '/partner-portal/commissions'
     )
+  })
+})
+
+// Counted from the queue that is already loaded — no new query, no new claim.
+// The mockup's tiles ("Referred customers 148", "Rx written 96",
+// "Conversion 64%") have no source and are asserted absent below.
+describe('PartnerDashboardPage — appointment summary', () => {
+  it('counts today separately from later appointments', async () => {
+    const now = new Date()
+    const laterToday = new Date(now.getTime() + 2 * 3_600_000)
+    const tomorrow = new Date(now.getTime() + 26 * 3_600_000)
+
+    await setup({
+      queue: [
+        makeAppointment({ id: 'a-1', scheduledAt: laterToday }),
+        makeAppointment({ id: 'a-2', scheduledAt: tomorrow }),
+      ],
+    })
+
+    const summary = screen.getByRole('region', { name: /at a glance/i })
+    expect(within(summary).getByTestId('summary-today')).toHaveTextContent('1')
+    expect(within(summary).getByTestId('summary-upcoming')).toHaveTextContent('1')
+  })
+
+  it('shows zeroes rather than hiding the summary on an empty queue', async () => {
+    await setup({ queue: [] })
+
+    const summary = screen.getByRole('region', { name: /at a glance/i })
+    expect(within(summary).getByTestId('summary-today')).toHaveTextContent('0')
+  })
+
+  it('counts completed appointments, which the queue itself filters out', async () => {
+    await setup({
+      queue: [makeAppointment({ id: 'a-3', status: 'completed' })],
+    })
+
+    const summary = screen.getByRole('region', { name: /at a glance/i })
+    expect(within(summary).getByTestId('summary-completed')).toHaveTextContent('1')
+  })
+})
+
+// Every one of these needs data nothing in this app records.
+describe('PartnerDashboardPage — ships no fabricated performance figures', () => {
+  it('states no referred-customer count, Rx-written count or conversion rate', async () => {
+    const { container } = await setup({ queue: [makeAppointment()] })
+    const text = container.textContent ?? ''
+
+    expect(text).not.toMatch(/referred customers|rx written|conversion/i)
+  })
+
+  it('states no commission figure on the dashboard', async () => {
+    const { container } = await setup({ queue: [] })
+
+    // The ledger lives on /partner-portal/commissions and is honest about
+    // being empty. A headline number here would imply earnings exist.
+    expect(container.textContent ?? '').not.toMatch(/₹[\d,]+/)
+  })
+
+  it('makes no claim about this month or a delta', async () => {
+    const { container } = await setup({ queue: [] })
+
+    expect(container.textContent ?? '').not.toMatch(/this month|\+\d+ this|vs last/i)
   })
 })
