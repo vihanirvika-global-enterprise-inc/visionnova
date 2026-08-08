@@ -252,3 +252,106 @@ describe('registration form — pre-hydration submit safety', () => {
     expect(form).toHaveAttribute('method', 'post')
   })
 })
+
+// The meter reports what the server actually enforces — a minimum length and
+// a breach check — and nothing else. A bar that scores digits and symbols
+// would tell someone their password is weak for failing a rule we do not
+// have, and imply that adding a symbol is required when it is not.
+describe('RegisterPage — password strength meter', () => {
+  it('says nothing until something is typed', () => {
+    render(<RegisterPage />)
+
+    expect(screen.queryByTestId('password-strength')).not.toBeInTheDocument()
+  })
+
+  it('tells the customer how many more characters are needed', async () => {
+    const user = userEvent.setup()
+    render(<RegisterPage />)
+
+    await user.type(screen.getByLabelText(/^password$/i), 'a'.repeat(MIN_PASSWORD_LENGTH - 3))
+
+    expect(screen.getByTestId('password-strength')).toHaveTextContent(/3 more characters/)
+  })
+
+  it('confirms once the password meets the enforced minimum', async () => {
+    const user = userEvent.setup()
+    render(<RegisterPage />)
+
+    await user.type(screen.getByLabelText(/^password$/i), 'a'.repeat(MIN_PASSWORD_LENGTH))
+
+    expect(screen.getByTestId('password-strength')).toHaveTextContent(/meets the minimum/i)
+  })
+
+  it('never asks for a character class the validator does not require', async () => {
+    const user = userEvent.setup()
+    render(<RegisterPage />)
+
+    await user.type(screen.getByLabelText(/^password$/i), 'short')
+
+    expect(screen.getByTestId('password-strength').textContent ?? '')
+      .not.toMatch(/symbol|uppercase|number|digit|special/i)
+  })
+
+  // Screen readers get the assessment too, and only when it changes — a
+  // per-keystroke live region would be unusable.
+  it('exposes the assessment to assistive technology', async () => {
+    const user = userEvent.setup()
+    render(<RegisterPage />)
+
+    await user.type(screen.getByLabelText(/^password$/i), 'a'.repeat(MIN_PASSWORD_LENGTH))
+
+    expect(screen.getByTestId('password-strength')).toHaveAttribute('role', 'status')
+  })
+
+  // The breach check runs server-side on submit and is the other half of what
+  // is enforced; saying so before submit stops it reading as an arbitrary
+  // rejection afterwards.
+  it('mentions the breach check that will run on submit', () => {
+    render(<RegisterPage />)
+
+    expect(screen.getByText(/checked against known data breaches/i)).toBeInTheDocument()
+  })
+})
+
+// Until now only a code comment stopped these coming back. No Terms of
+// Service or Privacy Policy document exists — /privacy is still a 404 — so
+// asking someone to agree to them collects consent to nothing, which is worse
+// than not asking. Tied to the /privacy P0.
+describe('RegisterPage — no consent to documents that do not exist', () => {
+  it('does not ask the customer to accept Terms or a Privacy Policy', () => {
+    render(<RegisterPage />)
+
+    expect(screen.queryByRole('checkbox', { name: /terms|privacy/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^terms/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /privacy policy/i })).not.toBeInTheDocument()
+  })
+
+  it('links to no route under /terms or /privacy', () => {
+    const { container } = render(<RegisterPage />)
+
+    expect(container.querySelector('a[href^="/terms"]')).toBeNull()
+    expect(container.querySelector('a[href^="/privacy"]')).toBeNull()
+  })
+
+  it('still says where questions about terms and data go', () => {
+    render(<RegisterPage />)
+
+    expect(screen.getByRole('link', { name: /support@visionnova\.com/i })).toBeInTheDocument()
+  })
+
+  // The mockup's brand panel promised "Free first video eye test". No fee
+  // model exists — eye_test_appointments has no price column — and the
+  // homepage rejected the same claim.
+  it('promises no free eye test, which nothing in this app prices', () => {
+    const { container } = render(<RegisterPage />)
+
+    expect(container.textContent ?? '').not.toMatch(/free .{0,20}eye test|eye test .{0,10}free|₹0/i)
+  })
+
+  it('offers no "keep me signed in", which would control nothing', () => {
+    render(<RegisterPage />)
+
+    expect(screen.queryByRole('checkbox', { name: /keep me signed in|remember me/i }))
+      .not.toBeInTheDocument()
+  })
+})

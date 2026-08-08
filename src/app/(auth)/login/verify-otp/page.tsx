@@ -1,18 +1,53 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { AuthField } from '@/components/auth/AuthField'
 import type { AuthFormState } from '@/lib/authFormState'
-import { verifyOtpAction } from './actions'
+import { verifyOtpAction, resendOtpAction } from './actions'
 
 // ST-013 (A13. Auth — OTP as a second factor on login). Reached only after
 // loginAction confirms the password and sets the pending_login cookie — if
 // that cookie is missing or expired, verifyOtpAction itself redirects back
 // to /login rather than this page trying to detect that client-side.
+// Long enough that a double-tap costs nothing, short enough that someone
+// whose code genuinely did not arrive is not stuck staring at the screen.
+const RESEND_COOLDOWN_SECONDS = 30
+
 export default function VerifyOtpPage() {
   const [state, setState] = useState<AuthFormState>({})
   const [isPending, startTransition] = useTransition()
   const codeInput = useRef<HTMLInputElement | null>(null)
+
+  // Starts on cooldown: loginAction has just sent a code, so an immediate
+  // resend is always a wasted send and a wasted rate-limit slot.
+  //
+  // Derived from a deadline rather than decremented by a timer. A ticking
+  // counter drifts whenever the tab is backgrounded — the browser throttles
+  // the interval — and would leave the button disabled long after the
+  // cooldown really expired. This recomputes from the clock instead, so it is
+  // correct however unreliable the ticks are.
+  const [deadline, setDeadline] = useState(() => Date.now() + RESEND_COOLDOWN_SECONDS * 1000)
+  const [now, setNow] = useState(() => Date.now())
+  const [resendMessage, setResendMessage] = useState('')
+  const [isResending, startResend] = useTransition()
+
+  const cooldown = Math.max(0, Math.ceil((deadline - now) / 1000))
+
+  useEffect(() => {
+    const ticker = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(ticker)
+  }, [])
+
+  function handleResend() {
+    setResendMessage('')
+    startResend(async () => {
+      const result = await resendOtpAction()
+      setDeadline(Date.now() + RESEND_COOLDOWN_SECONDS * 1000)
+      setResendMessage(
+        result.sent ? 'A new code is on its way.' : result.message ?? 'Could not send a new code.'
+      )
+    })
+  }
 
   const fieldErrors = state.fieldErrors ?? {}
   const allMessages = [
@@ -97,6 +132,30 @@ export default function VerifyOtpPage() {
           </button>
 
         </form>
+
+        {/* Outside the form: a resend must never be reachable by pressing
+            Enter in the code field, which is the one thing someone is most
+            likely to do here. */}
+        <div className="mt-6 text-center">
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={cooldown > 0 || isResending}
+            className="text-sm font-medium text-primary underline disabled:cursor-not-allowed disabled:text-muted disabled:no-underline"
+          >
+            Resend code
+          </button>
+          {cooldown > 0 && (
+            <span data-testid="resend-cooldown" className="ml-2 text-xs text-muted">
+              available in {cooldown}s
+            </span>
+          )}
+          {resendMessage && (
+            <p role="status" className="mt-2 text-xs text-muted">
+              {resendMessage}
+            </p>
+          )}
+        </div>
 
       </div>
     </main>

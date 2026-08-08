@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { AuthField } from '@/components/auth/AuthField'
 import { MIN_PASSWORD_LENGTH } from '@/lib/passwordPolicy'
+import { describePasswordStrength } from '@/lib/passwordStrength'
 import type { AuthFormState } from '@/lib/authFormState'
 import { registerAction } from './actions'
 
@@ -15,6 +16,12 @@ export default function RegisterPage() {
   const [state, setState] = useState<AuthFormState>({})
   const [isPending, startTransition] = useTransition()
   const inputs = useRef<Record<string, HTMLInputElement | null>>({})
+  const [password, setPassword] = useState('')
+
+  // Reports only what validation.ts enforces: the minimum length, and the
+  // breach check named below. Scoring digits and symbols would tell someone
+  // their password is weak for failing a rule this app does not have.
+  const strength = describePasswordStrength(password)
 
   const fieldErrors = state.fieldErrors ?? {}
   const allMessages = [
@@ -131,8 +138,42 @@ export default function RegisterPage() {
             minLength={MIN_PASSWORD_LENGTH}
             hint={`At least ${MIN_PASSWORD_LENGTH} characters`}
             errors={fieldErrors.password}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             ref={(el) => { inputs.current.password = el }}
           />
+
+          {strength && (
+            <div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className={`h-full transition-all ${strength.meetsPolicy ? 'bg-teal' : 'bg-gold'}`}
+                  style={{ width: `${strength.percent}%` }}
+                />
+              </div>
+              {/* role=status, not alert: this updates as you type, and an
+                  assertive region would interrupt on every keystroke. */}
+              <p
+                data-testid="password-strength"
+                role="status"
+                className="mt-1 text-xs text-muted"
+              >
+                {strength.label}
+              </p>
+            </div>
+          )}
+
+          {/* The other half of what is enforced. Saying so before submit stops
+              a breach rejection reading as an arbitrary refusal afterwards. */}
+          <p className="text-xs text-muted">
+            Passwords are checked against known data breaches when you submit.
+          </p>
+
+          {/* TODO (A13): the mockup also had a "Keep me signed in" checkbox.
+              Not built — session.ts fixes MAX_AGE at 7 days, so the box would
+              change nothing. A control that does not control anything is a
+              false affordance, and on a login form it is one people rely on.
+              Add it when the session length is actually variable. */}
 
           <button
             type="submit"
