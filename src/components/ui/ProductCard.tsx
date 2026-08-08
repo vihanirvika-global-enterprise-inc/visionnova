@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import Link from 'next/link'
 import type { Product } from '@/types'
 import { AddToCartButton } from './AddToCartButton'
 import { WishlistButton } from './WishlistButton'
@@ -14,8 +15,17 @@ export function ProductCard({ product }: ProductCardProps) {
 
       <WishlistButton product={product} />
 
-      {/* Image area */}
-      <div className="aspect-video overflow-hidden rounded-t-xl bg-slate-100">
+      {/* Image area. A second route to the same page for mouse users, so the
+          whole picture stays clickable — but hidden from assistive tech and
+          out of the tab order, because two indistinguishable links per card
+          is a worse experience than one well-named one. The title link below
+          carries the accessible name. */}
+      <Link
+        href={`/shop/${product.id}`}
+        aria-hidden="true"
+        tabIndex={-1}
+        className="block aspect-video overflow-hidden rounded-t-xl bg-slate-100"
+      >
         {product.imageUrl ? (
           <Image
             src={product.imageUrl}
@@ -39,11 +49,19 @@ export function ProductCard({ product }: ProductCardProps) {
             </svg>
           </div>
         )}
-      </div>
+      </Link>
 
       {/* Body */}
       <div className="flex flex-1 flex-col gap-2 p-4">
-        <p className="truncate text-base font-semibold text-dark">{product.name}</p>
+        {/* The product name is the accessible name: a screen-reader user
+            listing the links on /shop hears the frames, not a column of
+            identical "View product"s. */}
+        <Link
+          href={`/shop/${product.id}`}
+          className="truncate text-base font-semibold text-dark hover:text-primary"
+        >
+          {product.name}
+        </Link>
         <p className="text-lg font-bold text-primary">{formatPrice(product.price)}</p>
 
         {product.requiresPrescription && (

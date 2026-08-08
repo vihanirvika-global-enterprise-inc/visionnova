@@ -82,3 +82,62 @@ describe('ProductCard', () => {
     expect(screen.getByRole('button', { name: /add to wishlist/i })).toBeInTheDocument()
   })
 })
+
+// The catalogue was a dead end: ProductCard rendered no link at all, so no
+// product on /shop, /sunglasses, /contacts, /account/wishlist or the homepage
+// could be clicked through to its detail page. Recorded as a P1 in
+// docs/launch-readiness.md — a broken purchase funnel, not a nicety.
+describe('ProductCard link to the product detail page', () => {
+  it('links to the PDP route for its own product', () => {
+    renderWithProviders(<ProductCard product={mockProduct} />)
+
+    expect(screen.getByRole('link', { name: mockProduct.name }))
+      .toHaveAttribute('href', `/shop/${mockProduct.id}`)
+  })
+
+  it('uses the product id, not a fixed path', () => {
+    const other = { ...mockProduct, id: 'prod-999', name: 'Round Metal Frame' }
+    renderWithProviders(<ProductCard product={other} />)
+
+    expect(screen.getByRole('link', { name: 'Round Metal Frame' }))
+      .toHaveAttribute('href', '/shop/prod-999')
+  })
+
+  // The product name is the accessible name. A "Read more"-style label, or an
+  // image link whose name is the alt text, both leave a screen-reader user
+  // with a list of links they cannot tell apart.
+  it('names the link after the product, and keeps it keyboard-focusable', () => {
+    renderWithProviders(<ProductCard product={mockProduct} />)
+    const link = screen.getByRole('link', { name: mockProduct.name })
+
+    expect(link.tagName).toBe('A')
+    expect(link).not.toHaveAttribute('tabindex', '-1')
+  })
+
+  // The image is a second route to the same page for mouse users. Exposing it
+  // as its own link would put two indistinguishable stops in the tab order for
+  // every card, so it is hidden from assistive tech instead.
+  it('exposes exactly one link per card to assistive technology', () => {
+    renderWithProviders(<ProductCard product={mockProduct} />)
+
+    expect(screen.getAllByRole('link')).toHaveLength(1)
+  })
+
+  it('still lets a mouse user click the image through to the PDP', () => {
+    const { container } = renderWithProviders(<ProductCard product={mockProduct} />)
+
+    const hrefs = Array.from(container.querySelectorAll('a[href]'))
+      .map((a) => a.getAttribute('href'))
+    expect(hrefs.filter((h) => h === `/shop/${mockProduct.id}`)).toHaveLength(2)
+  })
+
+  // Nesting the Add to Cart button or the wishlist toggle inside the anchor
+  // would be invalid HTML and would swallow their clicks.
+  it('does not nest the cart or wishlist controls inside the link', () => {
+    const { container } = renderWithProviders(<ProductCard product={mockProduct} />)
+
+    for (const anchor of Array.from(container.querySelectorAll('a'))) {
+      expect(anchor.querySelector('button')).toBeNull()
+    }
+  })
+})
