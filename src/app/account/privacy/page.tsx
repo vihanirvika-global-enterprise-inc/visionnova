@@ -6,6 +6,8 @@ import { getSession } from '@/lib/session'
 import { getCustomerById } from '@/lib/customers'
 import { getPrescriptionsByCustomer } from '@/lib/prescriptions'
 import { getOrdersByCustomer } from '@/lib/orders'
+import { getAccessLogsByCustomer } from '@/lib/prescriptionAccessLogs'
+import { isUuid } from '@/lib/uuid'
 
 export const metadata: Metadata = {
   title: 'My Privacy',
@@ -35,10 +37,19 @@ export default async function PrivacyPage() {
     redirect('/login')
   }
 
-  const [customer, prescriptions, orders] = await Promise.all([
+  // getSession already rejects a malformed id, so this is defence in depth
+  // rather than the primary guard — but every id below reaches a uuid column,
+  // and this page must not depend on another module's validation to avoid a
+  // 500 while someone is exercising a statutory right.
+  if (!isUuid(session.customerId)) {
+    redirect('/login')
+  }
+
+  const [customer, prescriptions, orders, accessLogs] = await Promise.all([
     getCustomerById(session.customerId),
     getPrescriptionsByCustomer(session.customerId),
     getOrdersByCustomer(session.customerId),
+    getAccessLogsByCustomer(session.customerId),
   ])
 
   const grievanceOfficerName = process.env.GRIEVANCE_OFFICER_NAME
@@ -146,17 +157,95 @@ export default async function PrivacyPage() {
             Withdraw Consent
           </a>
 
-          {/* Analytics consent is separate from prescription-review consent:
-              different purpose, different lawful basis, and this one is
-              self-service because it has to be — DPDP requires withdrawal to
-              be as easy as giving. */}
-          <div className="mt-6 border-t border-slate-100 pt-6">
-            <h3 className="mb-2 text-sm font-semibold text-dark">Analytics cookies</h3>
-            <p className="mb-4 text-sm text-muted">
-              Separate from prescription review. Changing this takes effect immediately.
+        </section>
+
+        {/* ── Cookie preferences ───────────────────────────── */}
+        {/* Analytics consent is separate from prescription-review consent:
+            different purpose, different lawful basis, and this one is
+            self-service because it has to be — DPDP requires withdrawal to be
+            as easy as giving.
+
+            TODO (B4): the mockup offered four toggles — essential, analytics,
+            marketing and personalisation. Only analytics ships, because only
+            analytics has a consent mechanism behind it. A marketing or
+            personalisation switch would set nothing anywhere, which is worse
+            than absent: it tells someone exercising a data right that they
+            have controlled something they have not. Add each one when the
+            category actually exists. */}
+        <section aria-labelledby="cookie-prefs-heading" className="card p-6">
+          <h2 id="cookie-prefs-heading" className="mb-2 text-lg font-semibold text-dark">
+            Cookie Preferences
+          </h2>
+          <p className="mb-4 text-sm text-muted">
+            Analytics cookies only. Changing this takes effect immediately.
+          </p>
+          <AnalyticsConsentControl />
+        </section>
+
+        {/* ── Who has accessed your data ───────────────────── */}
+        {/* prescription_access_logs has recorded this all along for the
+            review screen and the ops console; nothing surfaced it to the
+            person it is about, which is the one place DPDP actually requires
+            it. Read straight from the log — no summarising, no rounding. */}
+        <section aria-labelledby="access-log-heading" className="card p-6">
+          <h2 id="access-log-heading" className="mb-2 text-lg font-semibold text-dark">
+            Who Has Accessed Your Data
+          </h2>
+          <p className="mb-4 text-sm text-muted">
+            Every read of your prescriptions is recorded. This is the full trail.
+          </p>
+
+          {accessLogs.length === 0 ? (
+            <p className="text-sm text-muted">
+              No one has accessed your prescription records.
             </p>
-            <AnalyticsConsentControl />
-          </div>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {accessLogs.map((log) => (
+                <li key={log.id} className="border-b border-slate-100 pb-3 text-sm last:border-0 last:pb-0">
+                  <span className="block font-medium text-dark">{log.accessorName}</span>
+                  <span className="block text-muted">
+                    {log.accessorRole} · viewed{' '}
+                    {log.accessType === 'file' ? 'the prescription file' : 'prescription details'}
+                    {' · '}
+                    {log.accessedAt.toLocaleDateString('en-IN')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* ── Consent history ──────────────────────────────── */}
+        <section aria-labelledby="consent-history-heading" className="card p-6">
+          <h2 id="consent-history-heading" className="mb-2 text-lg font-semibold text-dark">
+            Consent History
+          </h2>
+          <p className="mb-4 text-sm text-muted">
+            When you granted consent for us to process your health data.
+          </p>
+
+          {prescriptions.length === 0 ? (
+            <p className="text-sm text-muted">No consent events recorded.</p>
+          ) : (
+            <ul className="flex flex-col gap-2 text-sm">
+              {prescriptions.map((rx, index) => (
+                <li key={rx.id} className="flex items-center justify-between">
+                  <span className="text-dark">
+                    Health-data consent · Prescription #{index + 1}
+                  </span>
+                  <span className="text-muted">
+                    {/* A row uploaded before consent capture existed has no
+                        timestamp. Rendering "consented" for it would be a
+                        fabricated legal record, so it says what is true. */}
+                    {rx.consentGivenAt
+                      ? rx.consentGivenAt.toLocaleDateString('en-IN')
+                      : 'Not recorded'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         {/* ── Grievance Officer ──────────────────────────────── */}
