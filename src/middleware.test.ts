@@ -28,11 +28,11 @@ function makeSignedSession(payload: { customerId: string; role: string }): strin
 // Correctly base64url-encoded payload, but signed with nothing valid — this
 // is what a tampered or forged cookie actually looks like on the wire.
 const TAMPERED_TOKEN = 'dGVzdA.fakesig'
-const CUSTOMER_TOKEN = makeSignedSession({ customerId: 'cust-001', role: 'customer' })
-const OPTOMETRIST_TOKEN = makeSignedSession({ customerId: 'cust-002', role: 'optometrist' })
-const ADMIN_TOKEN = makeSignedSession({ customerId: 'cust-003', role: 'admin' })
-const OPS_TOKEN = makeSignedSession({ customerId: 'cust-004', role: 'ops' })
-const PARTNER_TOKEN = makeSignedSession({ customerId: 'cust-005', role: 'partner_optometrist' })
+const CUSTOMER_TOKEN = makeSignedSession({ customerId: '00000001-0000-4000-8000-000000000001', role: 'customer' })
+const OPTOMETRIST_TOKEN = makeSignedSession({ customerId: '00000002-0000-4000-8000-000000000002', role: 'optometrist' })
+const ADMIN_TOKEN = makeSignedSession({ customerId: '00000003-0000-4000-8000-000000000003', role: 'admin' })
+const OPS_TOKEN = makeSignedSession({ customerId: '00000004-0000-4000-8000-000000000004', role: 'ops' })
+const PARTNER_TOKEN = makeSignedSession({ customerId: '00000005-0000-4000-8000-000000000005', role: 'partner_optometrist' })
 
 describe('middleware', () => {
   it('redirects unauthenticated requests to /account to /login', async () => {
@@ -95,7 +95,7 @@ describe('middleware — signature verification on protected non-admin routes', 
   it('redirects a cookie whose payload was swapped but signature left stale', async () => {
     const [, signature] = CUSTOMER_TOKEN.split('.')
     const forgedPayload = Buffer.from(
-      JSON.stringify({ customerId: 'cust-victim', role: 'customer', iat: Date.now() })
+      JSON.stringify({ customerId: '00000007-0000-4000-8000-000000000007', role: 'customer', iat: Date.now() })
     ).toString('base64url')
 
     const req = makeRequest('/account', `${forgedPayload}.${signature}`)

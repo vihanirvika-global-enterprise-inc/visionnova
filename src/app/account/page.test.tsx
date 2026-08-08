@@ -14,7 +14,7 @@ vi.mock('next/navigation', () => ({
   redirect: vi.fn(() => { throw new Error('NEXT_REDIRECT') }),
 }))
 
-const CUSTOMER_ID = 'cust-001'
+const CUSTOMER_ID = 'b7d41e90-2c85-4a63-9f18-6d0e3a7c5b22'
 
 function makeOrder(overrides: Partial<Order> = {}): Order {
   const now = new Date()
@@ -88,7 +88,13 @@ async function setup({
   vi.mocked(getOptometrists).mockResolvedValueOnce(optometrists)
 
   const AccountPage = (await import('./page')).default
-  render(await AccountPage({ searchParams }))
+  return render(await AccountPage({ searchParams }))
+}
+
+// Same fixtures, but hands back the render result for the whole-page
+// assertions that check something is absent.
+async function setupReturningContainer(options: Parameters<typeof setup>[0] = {}) {
+  return setup(options)
 }
 
 beforeEach(async () => {
@@ -416,5 +422,159 @@ describe('AccountPage — eye test appointments', () => {
     })
 
     expect(screen.getByText(/appt-001/i)).toBeInTheDocument()
+  })
+})
+
+// ── B3: prescription vault ───────────────────────────────────────────────────
+
+// The vault previously showed only "Expires 14/09/2026", which makes the
+// reader do the arithmetic that people get wrong about a prescription about to
+// lapse. Everything below is derived from the real expires_at column.
+describe('AccountPage — prescription expiry', () => {
+  const inWeeks = (n: number) => new Date(Date.now() + n * 7 * 86_400_000)
+
+  it('states how long a prescription has left, not just its date', async () => {
+    await setup({ prescriptions: [makePrescription({ expiresAt: inWeeks(6) })] })
+
+    expect(screen.getByText(/expires in 6 weeks/i)).toBeInTheDocument()
+  })
+
+  it('says a lapsed prescription has expired', async () => {
+    await setup({ prescriptions: [makePrescription({ expiresAt: inWeeks(-2) })] })
+
+    expect(screen.getByText(/^expired on /i)).toBeInTheDocument()
+  })
+
+  it('says so when a row carries no expiry rather than inventing a window', async () => {
+    await setup({ prescriptions: [makePrescription({ expiresAt: null })] })
+
+    expect(screen.getByText(/no expiry on file/i)).toBeInTheDocument()
+  })
+
+  // Emphasis, not a new fact: the same real date, surfaced where it matters.
+  it('prompts an eye test only for a prescription lapsing soon', async () => {
+    await setup({ prescriptions: [makePrescription({ expiresAt: inWeeks(3) })] })
+
+    // Scoped to the renewal wording: the appointments section further down
+    // already has its own "Book an eye test" link.
+    expect(screen.getByRole('link', { name: /eye test to renew/i }))
+      .toHaveAttribute('href', '/eye-test')
+  })
+
+  it('does not prompt one for a prescription with plenty of time left', async () => {
+    await setup({ prescriptions: [makePrescription({ expiresAt: inWeeks(30) })] })
+
+    expect(screen.queryByRole('link', { name: /eye test to renew/i })).not.toBeInTheDocument()
+  })
+})
+
+// ── B1: delivery addresses ───────────────────────────────────────────────────
+
+// There is no addresses table and no saved-address book. What does exist is
+// the shipping_address JSONB on real orders, so the section shows where this
+// customer has actually had orders delivered — read-only, and labelled as
+// exactly that rather than implying an address book that can be edited.
+describe('AccountPage — delivery addresses', () => {
+  it('lists an address taken from a real order', async () => {
+    await setup({ orders: [makeOrder()] })
+
+    const section = screen.getByRole('region', { name: /delivery addresses/i })
+    expect(within(section).getByText(/1 MG Road/)).toBeInTheDocument()
+    expect(within(section).getByText(/Bengaluru/)).toBeInTheDocument()
+  })
+
+  it('shows each distinct address once, however many orders went there', async () => {
+    await setup({
+      orders: [
+        makeOrder({ id: 'order-001' }),
+        makeOrder({ id: 'order-002' }),
+        makeOrder({
+          id: 'order-003',
+          shippingAddress: { line1: '9 Residency Rd', city: 'Bengaluru', state: 'KA', postalCode: '560025', country: 'IN' },
+        }),
+      ],
+    })
+
+    const section = screen.getByRole('region', { name: /delivery addresses/i })
+    expect(within(section).getAllByText(/1 MG Road/)).toHaveLength(1)
+    expect(within(section).getByText(/9 Residency Rd/)).toBeInTheDocument()
+  })
+
+  it('says where the addresses come from, so it does not read as an address book', async () => {
+    await setup({ orders: [makeOrder()] })
+
+    const section = screen.getByRole('region', { name: /delivery addresses/i })
+    expect(within(section).getByText(/from your past orders/i)).toBeInTheDocument()
+  })
+
+  it('offers no add or edit control it cannot honour', async () => {
+    await setup({ orders: [makeOrder()] })
+
+    const section = screen.getByRole('region', { name: /delivery addresses/i })
+    expect(within(section).queryByRole('button', { name: /add|edit|delete|remove/i })).not.toBeInTheDocument()
+    expect(within(section).queryByRole('link', { name: /add|edit/i })).not.toBeInTheDocument()
+  })
+
+  it('renders an empty state for a customer with no orders yet', async () => {
+    await setup({ orders: [] })
+
+    const section = screen.getByRole('region', { name: /delivery addresses/i })
+    expect(within(section).getByText(/no delivery addresses yet/i)).toBeInTheDocument()
+  })
+})
+
+// ── B1: account controls ─────────────────────────────────────────────────────
+
+describe('AccountPage — account controls', () => {
+  it('offers a sign-out from the dashboard, not only the navbar', async () => {
+    await setup()
+
+    expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument()
+  })
+
+  it('shows the signed-in email so the customer can see which account this is', async () => {
+    await setup({ customer: makeCustomer({ email: 'rohan@example.com' }) })
+
+    expect(screen.getByText('rohan@example.com')).toBeInTheDocument()
+  })
+})
+
+// ── Omissions ────────────────────────────────────────────────────────────────
+
+// The mockup carried a membership tier ("Silver", "₹4,200 to Gold") and a
+// "3 try-on looks saved" tile. Neither has any model behind it.
+describe('AccountPage — ships no fabricated widgets', () => {
+  it('states no membership tier or points balance', async () => {
+    const { container } = await setupReturningContainer()
+
+    const text = container.textContent ?? ''
+    expect(text).not.toMatch(/\b(silver|gold|platinum|bronze)\b/i)
+    expect(text).not.toMatch(/membership|loyalty|points|tier/i)
+  })
+
+  it('offers no saved try-on looks', async () => {
+    const { container } = await setupReturningContainer()
+
+    expect(container.textContent ?? '').not.toMatch(/try-on|try on look/i)
+  })
+
+  it('offers no prescription download it cannot generate', async () => {
+    const { container } = await setupReturningContainer()
+
+    expect(container.textContent ?? '').not.toMatch(/download/i)
+  })
+})
+
+describe('AccountPage — session id guard', () => {
+  it('redirects to login when the session carries a non-UUID customer id', async () => {
+    const { getSession } = await import('@/lib/session')
+    vi.mocked(getSession).mockReturnValue({ customerId: 'not-a-uuid', role: 'customer' })
+    const { getOrdersByCustomer } = await import('@/lib/orders')
+
+    const AccountPage = (await import('./page')).default
+    await expect(AccountPage({})).rejects.toThrow('NEXT_REDIRECT')
+
+    // A stale cookie must not reach a uuid column and 500 the dashboard.
+    expect(getOrdersByCustomer).not.toHaveBeenCalled()
   })
 })

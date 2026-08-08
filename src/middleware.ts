@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isUuid } from '@/lib/uuid'
 import { requiredSecret } from './lib/requiredSecret'
 
 const SECRET = requiredSecret('SESSION_SECRET')
@@ -52,9 +53,11 @@ async function decodeSessionCookie(cookieValue: string): Promise<{ customerId: s
   if (expected !== sig) return null
   try {
     const payload = JSON.parse(Buffer.from(data, 'base64url').toString('utf8'))
-    // A signed payload with no customerId is not a usable session — treating
-    // it as one hands downstream pages an undefined id to query with.
-    if (!payload?.customerId) return null
+    // A signed payload with no customerId — or one that is not a uuid — is not
+    // a usable session. customer_id is a uuid column, so anything else hands
+    // downstream pages an id that throws at the database. Rejecting here means
+    // the visitor is redirected to /login rather than served a 500.
+    if (!payload?.customerId || !isUuid(payload.customerId)) return null
     return { customerId: payload.customerId, role: payload.role ?? 'customer' }
   } catch {
     return null

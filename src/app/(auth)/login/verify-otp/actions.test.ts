@@ -66,7 +66,7 @@ describe('verifyOtpAction', () => {
   })
 
   it('checks the rate limit under the "verify-otp" key', async () => {
-    setPendingLoginCookie('cust-1', 'customer')
+    setPendingLoginCookie('00000006-0000-4000-8000-000000000006', 'customer')
 
     await verifyOtpAction(makeFormData('123456'))
 
@@ -74,7 +74,7 @@ describe('verifyOtpAction', () => {
   })
 
   it('returns a friendly error and never verifies when rate limited', async () => {
-    setPendingLoginCookie('cust-1', 'customer')
+    setPendingLoginCookie('00000006-0000-4000-8000-000000000006', 'customer')
     vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, retryAfterSeconds: 9 })
 
     const result = await verifyOtpAction(makeFormData('123456'))
@@ -84,7 +84,7 @@ describe('verifyOtpAction', () => {
   })
 
   it('rejects a non-6-digit code without hitting the database', async () => {
-    setPendingLoginCookie('cust-1', 'customer')
+    setPendingLoginCookie('00000006-0000-4000-8000-000000000006', 'customer')
 
     const result = await verifyOtpAction(makeFormData('12'))
 
@@ -93,7 +93,7 @@ describe('verifyOtpAction', () => {
   })
 
   it('returns an error for an invalid or expired code', async () => {
-    setPendingLoginCookie('cust-1', 'customer')
+    setPendingLoginCookie('00000006-0000-4000-8000-000000000006', 'customer')
     vi.mocked(LoginOtp.verifyLoginOtp).mockResolvedValue(false)
 
     const result = await verifyOtpAction(makeFormData('999999'))
@@ -103,12 +103,12 @@ describe('verifyOtpAction', () => {
   })
 
   it('creates a real session, clears the pending login, and redirects to /account on a valid code', async () => {
-    setPendingLoginCookie('cust-1', 'optometrist')
+    setPendingLoginCookie('00000006-0000-4000-8000-000000000006', 'optometrist')
     vi.mocked(LoginOtp.verifyLoginOtp).mockResolvedValue(true)
 
     await expect(verifyOtpAction(makeFormData('123456'))).rejects.toThrow('NEXT_REDIRECT')
 
-    expect(LoginOtp.verifyLoginOtp).toHaveBeenCalledWith('cust-1', '123456')
+    expect(LoginOtp.verifyLoginOtp).toHaveBeenCalledWith('00000006-0000-4000-8000-000000000006', '123456')
     expect(mockDelete).toHaveBeenCalledWith('pending_login')
     expect(mockSet).toHaveBeenCalledWith(
       'session', expect.any(String), expect.objectContaining({ httpOnly: true })
@@ -125,7 +125,7 @@ describe('verifyOtpAction', () => {
   // ST-021/022 (EP-007): a partner clinic must land on their own portal, not
   // the customer account dashboard, which has nothing relevant to them.
   it('redirects a partner_optometrist to /partner-portal instead of /account', async () => {
-    setPendingLoginCookie('cust-1', 'partner_optometrist')
+    setPendingLoginCookie('00000006-0000-4000-8000-000000000006', 'partner_optometrist')
     vi.mocked(LoginOtp.verifyLoginOtp).mockResolvedValue(true)
 
     await expect(verifyOtpAction(makeFormData('123456'))).rejects.toThrow('NEXT_REDIRECT')

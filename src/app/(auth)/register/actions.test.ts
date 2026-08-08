@@ -134,7 +134,7 @@ describe('registerAction', () => {
 
   it('sets a session cookie and redirects on successful registration', async () => {
     vi.mocked(Auth.registerUser).mockResolvedValue({
-      id: 'cust-1', email: 'ada@example.com',
+      id: '00000006-0000-4000-8000-000000000006', email: 'ada@example.com',
       firstName: 'Ada', lastName: 'Lovelace',
       passwordHash: 'hash', phone: null, role: 'customer',
       createdAt: new Date(), updatedAt: new Date(),
@@ -159,7 +159,7 @@ describe('registerAction', () => {
     (role) => {
       it(`sets the session role to ${role}`, async () => {
         vi.mocked(Auth.registerUser).mockResolvedValue({
-          id: 'cust-1', email: 'ada@example.com',
+          id: '00000006-0000-4000-8000-000000000006', email: 'ada@example.com',
           firstName: 'Ada', lastName: 'Lovelace',
           passwordHash: 'hash', phone: null, role,
           createdAt: new Date(), updatedAt: new Date(),

@@ -1,6 +1,7 @@
 import { createHmac } from 'crypto'
 import { cookies } from 'next/headers'
 import { requiredSecret } from './requiredSecret'
+import { isUuid } from './uuid'
 
 const SESSION_COOKIE = 'session'
 const SECRET = requiredSecret('SESSION_SECRET')
@@ -26,7 +27,16 @@ function decode(token: string): SessionPayload | null {
   if (!data || !sig) return null
   if (sign(data) !== sig) return null
   try {
-    return JSON.parse(Buffer.from(data, 'base64url').toString('utf8'))
+    const payload = JSON.parse(Buffer.from(data, 'base64url').toString('utf8')) as SessionPayload
+
+    // A signed cookie can outlive the id format. customer_id is a uuid column,
+    // so a session carrying anything else reaches Postgres through the root
+    // layout's wishlist provider — before any page guard can run — and 500s
+    // every authenticated route. Failing closed here covers every consumer at
+    // once, which a per-page check cannot.
+    if (!payload?.customerId || !isUuid(payload.customerId)) return null
+
+    return payload
   } catch {
     return null
   }
