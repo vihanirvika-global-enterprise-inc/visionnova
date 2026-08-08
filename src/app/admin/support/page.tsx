@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/session'
-import { REVIEWER_ROLES } from '@/lib/prescriptionAccess'
+import { OPS_CONSOLE_ROLES } from '@/lib/roles'
 import { getCustomerByEmail } from '@/lib/customers'
 import { getOrdersByCustomer } from '@/lib/orders'
 import { getPrescriptionsByCustomer } from '@/lib/prescriptions'
@@ -21,7 +21,7 @@ export default async function SupportConsolePage({
 
   // Middleware gates /admin, but this screen surfaces order and health data
   // for whichever customer is searched, so it re-checks independently.
-  if (!session || !REVIEWER_ROLES.includes(session.role)) {
+  if (!session || !OPS_CONSOLE_ROLES.includes(session.role)) {
     notFound()
   }
 

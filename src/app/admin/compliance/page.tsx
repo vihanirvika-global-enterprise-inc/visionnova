@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/session'
-import { REVIEWER_ROLES } from '@/lib/prescriptionAccess'
+import { OPS_CONSOLE_ROLES } from '@/lib/roles'
 import { getRecentAccessLogs } from '@/lib/prescriptionAccessLogs'
 import type { PrescriptionAccessType } from '@/lib/prescriptionAccessLogs'
 import { getRegulatoryRiskStatus } from '@/lib/regulatoryRiskStatus'
@@ -23,10 +23,11 @@ const ACCESS_TYPE_LABELS: Record<PrescriptionAccessType, string> = {
 export default async function CompliancePage() {
   const session = getSession()
 
-  // Middleware gates /admin, but this console names staff and patients across
-  // every prescription, so it re-checks rather than trusting a matcher stays
-  // correct.
-  if (!session || !REVIEWER_ROLES.includes(session.role)) {
+  // Middleware gates the ops console, but this page names staff and patients
+  // across every prescription, so it re-checks rather than trusting a matcher
+  // stays correct. OPS_CONSOLE_ROLES, not REVIEWER_ROLES: this is an
+  // operations view of who read what, not a clinical one.
+  if (!session || !OPS_CONSOLE_ROLES.includes(session.role)) {
     notFound()
   }
 

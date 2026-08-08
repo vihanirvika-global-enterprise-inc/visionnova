@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isUuid } from '@/lib/uuid'
+import { OPS_CONSOLE_ROLES, isOpsConsolePath } from '@/lib/roles'
 import { requiredSecret } from './lib/requiredSecret'
 
 const SECRET = requiredSecret('SESSION_SECRET')
@@ -83,6 +84,22 @@ export async function middleware(request: NextRequest) {
       'VisionNova is not available in your region — we currently serve India only.',
       { status: 451, headers: { 'content-type': 'text/plain; charset=utf-8' } }
     )
+  }
+
+  // /admin holds two consoles with different owners. The ops console —
+  // dispatch, customer service, the audit trail — belongs to `ops`, a role
+  // that existed in the schema but could not open a single route while this
+  // gate was one blanket list. The clinical queues below keep ADMIN_ROLES:
+  // routing them here would lock optometrists out of prescription review.
+  if (isOpsConsolePath(pathname)) {
+    if (!sessionCookie) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+    const session = await decodeSessionCookie(sessionCookie.value)
+    if (!session || !OPS_CONSOLE_ROLES.includes(session.role)) {
+      return NextResponse.redirect(new URL('/unauthorized', request.url))
+    }
+    return NextResponse.next()
   }
 
   if (pathname.startsWith('/admin')) {
