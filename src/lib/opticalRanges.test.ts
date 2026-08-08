@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { validateOpticalValues } from './opticalRanges'
+import { validateOpticalValues, OPTICAL_RANGES } from './opticalRanges'
 
 describe('validateOpticalValues', () => {
   it('is valid when every field is within range', () => {
@@ -67,5 +67,42 @@ describe('validateOpticalValues', () => {
       rightAdd: 0.75, leftAdd: 3.5, pupillaryDistance: 40,
     })
     expect(result.valid).toBe(true)
+  })
+})
+
+// The write-rx form states the accepted range beside each field. Exporting
+// the bounds means the hint cannot drift from what validateOpticalValues
+// actually enforces — a form that advertises a different range than the
+// validator rejects is worse than no hint, because a clinician trusts it.
+describe('OPTICAL_RANGES', () => {
+  it('exposes a range for every field the validator checks', () => {
+    for (const key of ['sphere', 'cylinder', 'axis', 'add', 'pupillaryDistance'] as const) {
+      expect(OPTICAL_RANGES[key]).toHaveLength(2)
+    }
+  })
+
+  it('is the same bound the validator rejects on', () => {
+    const [min, max] = OPTICAL_RANGES.sphere
+
+    expect(validateOpticalValues({ rightSphere: min }).valid).toBe(true)
+    expect(validateOpticalValues({ rightSphere: max }).valid).toBe(true)
+    expect(validateOpticalValues({ rightSphere: min - 0.25 }).valid).toBe(false)
+    expect(validateOpticalValues({ rightSphere: max + 0.25 }).valid).toBe(false)
+  })
+
+  it('agrees with the validator on every other field too', () => {
+    const cases: Array<[keyof typeof OPTICAL_RANGES, (v: number) => Parameters<typeof validateOpticalValues>[0]]> = [
+      ['cylinder', (v) => ({ rightCylinder: v })],
+      ['axis', (v) => ({ rightAxis: v })],
+      ['add', (v) => ({ rightAdd: v })],
+      ['pupillaryDistance', (v) => ({ pupillaryDistance: v })],
+    ]
+
+    for (const [key, build] of cases) {
+      const [min, max] = OPTICAL_RANGES[key]
+      expect(validateOpticalValues(build(min)).valid).toBe(true)
+      expect(validateOpticalValues(build(max)).valid).toBe(true)
+      expect(validateOpticalValues(build(max + 1)).valid).toBe(false)
+    }
   })
 })
