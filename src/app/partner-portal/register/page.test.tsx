@@ -93,3 +93,45 @@ describe('partner registration form — pre-hydration submit safety', () => {
     expect(form).toHaveAttribute('method', 'post')
   })
 })
+
+// The mockup's onboarding carried a partner-agreement e-sign, bank account
+// number and IFSC, and a council registration number. None has a column:
+// optometrist_partners holds clinic_name, kyc_status, kyc_document_key and
+// referral_code, and nothing else.
+describe('PartnerOnboardingPage — ships no unbacked onboarding steps', () => {
+  it('asks for no bank account or IFSC', () => {
+    const { container } = render(<PartnerOnboardingPage />)
+    const text = container.textContent ?? ''
+
+    expect(text).not.toMatch(/bank account|ifsc|account number/i)
+    expect(screen.queryByLabelText(/bank|ifsc/i)).not.toBeInTheDocument()
+  })
+
+  it('asks for no e-signature or partner agreement acceptance', () => {
+    const { container } = render(<PartnerOnboardingPage />)
+
+    expect(container.textContent ?? '').not.toMatch(/e-sign|partner agreement|i have read and agree/i)
+    expect(screen.queryByRole('checkbox', { name: /agree|agreement/i })).not.toBeInTheDocument()
+  })
+
+  it('asks for no council registration or licence number', () => {
+    const { container } = render(<PartnerOnboardingPage />)
+
+    expect(container.textContent ?? '').not.toMatch(/council reg|licence no|license no|registration no/i)
+  })
+
+  // The commission rate has no rule behind it — C4's ledger documents the same
+  // gap from the other side — so onboarding must not promise a number.
+  it('promises no commission rate', () => {
+    const { container } = render(<PartnerOnboardingPage />)
+
+    expect(container.textContent ?? '').not.toMatch(/\d+%\s*(commission|of referred)/i)
+  })
+
+  it('still asks for the things that do have columns', () => {
+    render(<PartnerOnboardingPage />)
+
+    expect(screen.getByLabelText(/clinic name/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/kyc|document|upload/i)).toBeInTheDocument()
+  })
+})

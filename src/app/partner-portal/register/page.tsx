@@ -52,6 +52,16 @@ export default function PartnerOnboardingPage() {
             until React hydrates, and a native submit before then would serialise
             the password into the query string — landing it in browser history,
             the next navigation's Referer header, and proxy/server access logs. */}
+        {/* TODO (C1): the mockup's onboarding also collected a partner
+            agreement to e-sign, a bank account number and IFSC for payouts,
+            and a council registration number. None ships.
+            optometrist_partners holds clinic_name, kyc_status,
+            kyc_document_key and referral_code — nothing else — so each would
+            be a field that collects real, sensitive data and drops it.
+            Bank details are the sharpest case: asking a clinic for an account
+            number and then storing it nowhere is worse than not asking.
+            Commission rate is omitted for the same reason C4's ledger has no
+            totals rule: there is no rate anywhere to promise. */}
         <form method="post" onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
 
           {allMessages.length > 0 && (

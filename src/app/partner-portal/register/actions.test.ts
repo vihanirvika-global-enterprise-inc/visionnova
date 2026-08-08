@@ -115,3 +115,62 @@ describe('partnerOnboardingAction', () => {
     expect(OptometristPartners.createOptometristPartner).not.toHaveBeenCalled()
   })
 })
+
+// KYC_ENCRYPTION_KEY is on the env-var P0 list and is unset. requiredSecret
+// falls back outside production, so this only bites on a real deploy — where
+// saveKycDocument throws at first upload, not at boot.
+//
+// The order mattered: registerUser ran first, so a storage failure left a
+// customer row with role=partner_optometrist and no optometrist_partners row.
+// That account could then log in, be bounced from /partner-portal back to
+// /register, and fail re-registration on the duplicate email — stuck, with no
+// way out that the UI offers.
+describe('partnerOnboardingAction — KYC storage failure', () => {
+  it('creates no account when the document cannot be stored', async () => {
+    vi.mocked(KycStorage.saveKycDocument).mockRejectedValue(
+      new Error('KYC_ENCRYPTION_KEY is not set')
+    )
+
+    const result = await partnerOnboardingAction(makeFormData())
+
+    expect(Auth.registerUser).not.toHaveBeenCalled()
+    expect(OptometristPartners.createOptometristPartner).not.toHaveBeenCalled()
+    expect(result?.formError).toMatch(/could not.*(upload|store)|try again/i)
+  })
+
+  it('does not leak the underlying secret name to the applicant', async () => {
+    vi.mocked(KycStorage.saveKycDocument).mockRejectedValue(
+      new Error('KYC_ENCRYPTION_KEY is not set')
+    )
+
+    const result = await partnerOnboardingAction(makeFormData())
+
+    expect(result?.formError ?? '').not.toMatch(/KYC_ENCRYPTION_KEY|env/i)
+  })
+
+  it('stores the document before creating the account', async () => {
+    const order: string[] = []
+    vi.mocked(KycStorage.saveKycDocument).mockImplementation(async () => {
+      order.push('kyc'); return 'generated-key.pdf'
+    })
+    vi.mocked(Auth.registerUser).mockImplementation(async () => {
+      order.push('account'); return { id: 'cust-1', role: 'partner_optometrist' } as never
+    })
+
+    await partnerOnboardingAction(makeFormData()).catch(() => {})
+
+    expect(order).toEqual(['kyc', 'account'])
+  })
+
+  // A duplicate email now leaves an unreferenced encrypted file rather than an
+  // unusable account. That is the better failure of the two: a stray file is
+  // cleanable, a half-created partner locks a real clinic out permanently.
+  it('still reports a duplicate email as a field error', async () => {
+    vi.mocked(Auth.registerUser).mockRejectedValue(new Auth.DuplicateEmailError())
+
+    const result = await partnerOnboardingAction(makeFormData())
+
+    expect(result?.fieldErrors?.email?.[0]).toMatch(/already registered/i)
+    expect(OptometristPartners.createOptometristPartner).not.toHaveBeenCalled()
+  })
+})
