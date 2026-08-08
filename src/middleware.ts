@@ -3,6 +3,9 @@ import { isUuid } from '@/lib/uuid'
 import { requiredSecret } from './lib/requiredSecret'
 
 const SECRET = requiredSecret('SESSION_SECRET')
+// Exact paths, not prefixes — see the comment at the use site.
+const AUTH_PAGES = ['/login', '/register']
+
 const PROTECTED = ['/account', '/checkout', '/prescription-upload', '/order', '/eye-test']
 const ADMIN_ROLES = ['optometrist', 'admin']
 
@@ -106,6 +109,23 @@ export async function middleware(request: NextRequest) {
     if (!session || !PARTNER_ROLES.includes(session.role)) {
       return NextResponse.redirect(new URL('/unauthorized', request.url))
     }
+    return NextResponse.next()
+  }
+
+  // A signed-in customer following a stale /login bookmark saw the sign-in
+  // form again with no sign they were already authenticated. Handled here
+  // rather than in each page: this is the one place that already decodes the
+  // session, so the redirect costs no render.
+  //
+  // Exact matches only. /login/verify-otp is mid-flow — the pending-login
+  // cookie is set but no session exists yet — and startsWith('/login') would
+  // bounce someone out of the OTP step they are in the middle of.
+  if (AUTH_PAGES.includes(pathname)) {
+    if (sessionCookie && (await decodeSessionCookie(sessionCookie.value))) {
+      return NextResponse.redirect(new URL('/account', request.url))
+    }
+    // A tampered or stale cookie is not a session: leave them on the form
+    // rather than trapping them on a page they cannot use.
     return NextResponse.next()
   }
 

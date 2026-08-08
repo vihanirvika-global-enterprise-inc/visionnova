@@ -1,10 +1,11 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import VerifyOtpPage from './page'
 
 vi.mock('./actions', () => ({
   verifyOtpAction: vi.fn(),
+  resendOtpAction: vi.fn(),
 }))
 
 import { verifyOtpAction } from './actions'
@@ -82,5 +83,81 @@ describe('OTP verification form — pre-hydration submit safety', () => {
     const form = container.querySelector('form')
     expect(form).not.toBeNull()
     expect(form).toHaveAttribute('method', 'post')
+  })
+})
+
+// Without this, a code that never arrives strands someone here with no way
+// forward but starting the login over.
+describe('VerifyOtpPage — resend', () => {
+  it('offers a resend once the cooldown has elapsed', async () => {
+    vi.useFakeTimers()
+    try {
+      render(<VerifyOtpPage />)
+      await act(async () => { vi.advanceTimersByTime(31_000) })
+
+      expect(screen.getByRole('button', { name: /resend/i })).toBeEnabled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // The cooldown starts immediately: the code was just sent by loginAction,
+  // so an instant resend is always a wasted send.
+  it('starts on cooldown, counting down', () => {
+    vi.useFakeTimers()
+    try {
+      render(<VerifyOtpPage />)
+
+      expect(screen.getByRole('button', { name: /resend/i })).toBeDisabled()
+      expect(screen.getByTestId('resend-cooldown')).toHaveTextContent(/\d+\s*s/)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('sends a new code and confirms it, then goes back on cooldown', async () => {
+    vi.useFakeTimers()
+    try {
+      const { resendOtpAction } = await import('./actions')
+      vi.mocked(resendOtpAction).mockResolvedValue({ sent: true })
+
+      render(<VerifyOtpPage />)
+      await act(async () => { vi.advanceTimersByTime(31_000) })
+      await act(async () => { screen.getByRole('button', { name: /resend/i }).click() })
+
+      expect(resendOtpAction).toHaveBeenCalled()
+      expect(screen.getByRole('status')).toHaveTextContent(/new code/i)
+      expect(screen.getByRole('button', { name: /resend/i })).toBeDisabled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('surfaces the reason when a resend is refused', async () => {
+    vi.useFakeTimers()
+    try {
+      const { resendOtpAction } = await import('./actions')
+      vi.mocked(resendOtpAction).mockResolvedValue({ sent: false, message: 'Too many requests.' })
+
+      render(<VerifyOtpPage />)
+      await act(async () => { vi.advanceTimersByTime(31_000) })
+      await act(async () => { screen.getByRole('button', { name: /resend/i }).click() })
+
+      expect(screen.getByRole('status')).toHaveTextContent(/too many requests/i)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+// The mockup used six single-character boxes. One field keeps
+// autocomplete="one-time-code", which is what actually autofills the code
+// from the email or SMS on iOS and Android — six boxes usually break it.
+describe('VerifyOtpPage — single code field', () => {
+  it('uses one field, not six boxes', () => {
+    const { container } = render(<VerifyOtpPage />)
+
+    expect(container.querySelectorAll('input[maxlength="1"]')).toHaveLength(0)
+    expect(screen.getByLabelText(/verification code/i)).toHaveAttribute('autocomplete', 'one-time-code')
   })
 })

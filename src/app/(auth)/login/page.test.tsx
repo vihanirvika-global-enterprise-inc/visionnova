@@ -177,3 +177,34 @@ describe('login form — pre-hydration submit safety', () => {
     expect(form).toHaveAttribute('method', 'post')
   })
 })
+
+describe('LoginPage — no unbacked affordances', () => {
+  it('offers no "keep me signed in": session length is fixed at 7 days', () => {
+    render(<LoginPage />)
+
+    expect(screen.queryByRole('checkbox', { name: /keep me signed in|remember me/i }))
+      .not.toBeInTheDocument()
+  })
+
+  it('promises no free eye test, which nothing in this app prices', () => {
+    const { container } = render(<LoginPage />)
+
+    expect(container.textContent ?? '').not.toMatch(/free .{0,20}eye test|₹0/i)
+  })
+
+  it('links to no Terms or Privacy document that does not exist', () => {
+    const { container } = render(<LoginPage />)
+
+    expect(container.querySelector('a[href^="/terms"], a[href^="/privacy"]')).toBeNull()
+  })
+
+  // Mobile OTP is deferred: there is no SMS provider anywhere in the repo and
+  // registration never captures a phone number, so an option to receive a code
+  // by SMS would fail for every existing customer.
+  it('offers no mobile-OTP option, which has no delivery channel', () => {
+    render(<LoginPage />)
+
+    expect(screen.queryByRole('button', { name: /mobile otp|continue with mobile|sms/i }))
+      .not.toBeInTheDocument()
+  })
+})
