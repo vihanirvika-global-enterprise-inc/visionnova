@@ -11,6 +11,17 @@ export interface FaqSection {
 // ST-020 (B5. Help Center & Support — "FAQ search returns relevant
 // results"). Extracted from the previously hardcoded /help JSX so
 // FaqSearch has something to filter over — the copy itself is unchanged.
+// Topic tiles on /help jump to a section further down the same page. Deriving
+// the anchor here means the tile and the heading cannot disagree — computing
+// it in both places would drift the first time a section title changes.
+export function faqSectionAnchorId(title: string): string {
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return `faq-${slug}`
+}
+
 export function searchFaq(sections: FaqSection[], query: string): FaqSection[] {
   const trimmed = query.trim().toLowerCase()
   if (!trimmed) return sections

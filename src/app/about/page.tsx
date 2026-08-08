@@ -77,7 +77,10 @@ export default function AboutPage() {
 
       {/* Section 3 — Contact form */}
       <div className="card mx-auto mt-16 max-w-2xl p-8">
-        <h2 className="mb-2 text-center">Get In Touch</h2>
+        {/* Anchor target for /help, which links here rather than duplicating a
+            contact form — this is the only one with a server action, rate
+            limiting and persistence behind it. */}
+        <h2 id="contact" className="mb-2 text-center">Get In Touch</h2>
         <p className="mb-8 text-center text-muted">
           We respond to all enquiries within 24 hours.
         </p>

@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { describe, it, expect } from 'vitest'
 import HelpPage from './page'
+import { FAQ_SECTIONS, faqSectionAnchorId } from '@/lib/faq'
 
 // Returns the answer text for a question, so assertions target the specific
 // Q&A rather than matching stray text elsewhere on the page.
@@ -161,5 +162,99 @@ describe('HelpPage currency', () => {
   it('shows no dollar amounts on an India-first storefront', () => {
     const { container } = render(<HelpPage />)
     expect(container.textContent).not.toMatch(/\$\d/)
+  })
+})
+
+describe('HelpPage — topic tiles', () => {
+  it('offers a tile for every real FAQ section', () => {
+    render(<HelpPage />)
+
+    const nav = screen.getByRole('navigation', { name: /help topics/i })
+    expect(within(nav).getAllByRole('link')).toHaveLength(FAQ_SECTIONS.length)
+  })
+
+  it('lands each tile on a section that exists on this page', () => {
+    const { container } = render(<HelpPage />)
+
+    const nav = screen.getByRole('navigation', { name: /help topics/i })
+    for (const link of within(nav).getAllByRole('link')) {
+      const href = link.getAttribute('href') ?? ''
+      expect(href.startsWith('#')).toBe(true)
+      expect(container.querySelector(href)).not.toBeNull()
+    }
+  })
+
+  it('counts questions from the real sections', () => {
+    render(<HelpPage />)
+
+    const nav = screen.getByRole('navigation', { name: /help topics/i })
+    const first = FAQ_SECTIONS[0]
+    const expected = `${first.items.length} ${first.items.length === 1 ? 'question' : 'questions'}`
+    expect(within(nav).getByText(expected)).toBeInTheDocument()
+  })
+})
+
+describe('HelpPage — contact', () => {
+  it('offers the support mailbox', () => {
+    render(<HelpPage />)
+
+    expect(screen.getByRole('link', { name: /email support/i }))
+      .toHaveAttribute('href', 'mailto:support@visionnova.com')
+  })
+
+  // /about carries the only contact form with a server action, rate limiting
+  // and persistence behind it. A second form here would need its own backend.
+  it('points at the contact form that actually exists rather than duplicating it', () => {
+    render(<HelpPage />)
+
+    expect(screen.getByRole('link', { name: /send us a message/i }))
+      .toHaveAttribute('href', '/about#contact')
+  })
+})
+
+// The mockup's contact rail carried a phone number, a WhatsApp link, staffed
+// hours and a "12-hour response SLA". None of them has a source: there is no
+// phone number anywhere in this repo's config, no WhatsApp integration, and
+// the only "12 hours" in faq.ts is prescription verification — not a support
+// response time. Publishing a number nobody answers is worse than none.
+describe('HelpPage — ships no unbacked contact channels', () => {
+  it('publishes no phone number', () => {
+    const { container } = render(<HelpPage />)
+    const text = container.textContent ?? ''
+
+    expect(text).not.toMatch(/\+91[\s\d-]{8,}/)
+    expect(container.querySelector('a[href^="tel:"]')).toBeNull()
+  })
+
+  it('offers no WhatsApp channel', () => {
+    const { container } = render(<HelpPage />)
+
+    expect(container.textContent ?? '').not.toMatch(/whatsapp/i)
+    expect(container.querySelector('a[href*="wa.me"], a[href*="whatsapp"]')).toBeNull()
+  })
+
+  it('claims no support response time or staffed hours', () => {
+    const { container } = render(<HelpPage />)
+    const text = container.textContent ?? ''
+
+    expect(text).not.toMatch(/\d+\s*-?\s*hour (response|sla|reply)/i)
+    expect(text).not.toMatch(/mon\s*[–-]\s*sat|10:00\s*[–-]\s*18:00/i)
+  })
+
+  it('counts no articles, which nothing in this app stores', () => {
+    const { container } = render(<HelpPage />)
+
+    expect(container.textContent ?? '').not.toMatch(/\d+\s+articles?\b/i)
+  })
+})
+
+describe('HelpPage — section anchors', () => {
+  it('renders every real section heading with the anchor its tile links to', () => {
+    render(<HelpPage />)
+
+    for (const section of FAQ_SECTIONS) {
+      expect(screen.getByRole('heading', { name: section.title }))
+        .toHaveAttribute('id', faqSectionAnchorId(section.title))
+    }
   })
 })

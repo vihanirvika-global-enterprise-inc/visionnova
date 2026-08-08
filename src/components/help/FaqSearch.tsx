@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { searchFaq, type FaqSection } from '@/lib/faq'
+import { searchFaq, faqSectionAnchorId, type FaqSection } from '@/lib/faq'
 
 interface FaqSearchProps {
   sections: FaqSection[]
@@ -38,7 +38,16 @@ export function FaqSearch({ sections }: FaqSearchProps) {
         <div className="space-y-8">
           {results.map((section) => (
             <section key={section.title}>
-              <h2 className="mb-2 text-base font-semibold text-dark">{section.title}</h2>
+              {/* The id is the jump target for the topic tiles above, derived
+                  in faq.ts so tile and heading cannot disagree. On the heading
+                  rather than the wrapper so the section title is what comes
+                  into view, and what a screen reader announces on arrival. */}
+              <h2
+                id={faqSectionAnchorId(section.title)}
+                className="mb-2 scroll-mt-24 text-base font-semibold text-dark"
+              >
+                {section.title}
+              </h2>
               <div className="divide-y divide-slate-100 border-t border-slate-100">
                 {section.items.map((item) => (
                   <details key={item.question} className="border-b border-slate-100 py-4">
