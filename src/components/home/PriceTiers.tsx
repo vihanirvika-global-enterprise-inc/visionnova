@@ -5,9 +5,12 @@ import { formatPrice } from '@/lib/formatters'
 // formatPrice so the ₹ grouping matches every other price on the site — never
 // hand-typed as "₹2,499".
 //
-// BLOCKED on A2: these link to an unfiltered /shop. getCatalogProducts accepts
-// only { q, sort, page, pageSize }, so there is no price filter to target yet.
-// Once one exists, add ?minPrice=/&maxPrice= here and assert it in page.test.tsx.
+// Settled at A2: these link to an unfiltered /shop, and that is the final
+// answer for now rather than a placeholder. A price filter would sort the
+// catalogue into these three bands, but every seeded product is ₹35–₹150
+// against a ₹999 floor, so the Budget tile would hold all eight and the other
+// two would be empty — a filter that makes the data's problem look like a
+// product's. Revisit with the catalogue reprice, not before.
 const TIERS = [
   {
     name: 'Budget',

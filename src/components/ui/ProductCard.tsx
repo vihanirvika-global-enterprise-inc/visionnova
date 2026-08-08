@@ -3,6 +3,7 @@ import Link from 'next/link'
 import type { Product } from '@/types'
 import { AddToCartButton } from './AddToCartButton'
 import { WishlistButton } from './WishlistButton'
+import { QuickView } from '@/components/shop/QuickView'
 import { formatPrice } from '@/lib/formatters'
 
 interface ProductCardProps {
@@ -81,11 +82,10 @@ export function ProductCard({ product }: ProductCardProps) {
           )}
         </div>
 
-        {product.stockQuantity > 0 && (
-          <div className="mt-auto pt-2">
-            <AddToCartButton product={product} />
-          </div>
-        )}
+        <div className="mt-auto flex flex-col gap-2 pt-2">
+          <QuickView product={product} />
+          {product.stockQuantity > 0 && <AddToCartButton product={product} />}
+        </div>
       </div>
 
     </div>
