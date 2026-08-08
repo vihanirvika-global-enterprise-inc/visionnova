@@ -4,20 +4,37 @@ import { getOrderById } from '@/lib/orders'
 import { getOrderItems } from '@/lib/orderItems'
 import { getProductById } from '@/lib/products'
 import { getSession } from '@/lib/session'
+import { isUuid } from '@/lib/uuid'
 import { formatPrice } from '@/lib/formatters'
 import OrderStatusTimeline from '@/components/order/OrderStatusTimeline'
 
 export const dynamic = 'force-dynamic'
 
-export default async function OrderDetailPage({ params }: { params: { id: string } }) {
+// Mirrors findProductOr404 on the PDP. Every rejection is notFound() rather
+// than a 403 or a 400: confirming that someone else's order exists, or that an
+// id is merely the wrong shape, is itself a disclosure.
+//
+// Session first, then shape, then ownership — an anonymous caller learns
+// nothing about id formats, and a signed-in one learns nothing about orders
+// that are not theirs. The shape check runs before the query because orders.id
+// is a uuid column: a raw string reached Postgres, threw `invalid input syntax
+// for type uuid`, and surfaced as a 500.
+async function findOrderOr404(id: string) {
   const session = getSession()
-  const order = session ? await getOrderById(params.id) : null
-
-  // notFound rather than a 403 for every failure: confirming that someone
-  // else's order exists is itself a disclosure.
-  if (!session || !order || order.customerId !== session.customerId) {
+  if (!session || !isUuid(id)) {
     notFound()
   }
+
+  const order = await getOrderById(id)
+  if (!order || order.customerId !== session.customerId) {
+    notFound()
+  }
+
+  return order
+}
+
+export default async function OrderDetailPage({ params }: { params: { id: string } }) {
+  const order = await findOrderOr404(params.id)
 
   const items = await getOrderItems(order.id)
   const products = await Promise.all(items.map((item) => getProductById(item.productId)))
@@ -111,6 +128,13 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           </dl>
         ) : null}
 
+        {/* TODO (A12): the mockup offered an "Open carrier tracking" deep link.
+            Not built — orders.carrier holds a free-text name ("BlueDart"),
+            and there is no carrier registry mapping a name to a URL template,
+            so any link would be a guessed URL pattern for a third party.
+            Bundled with the schema backlog: model carriers properly (code +
+            tracking URL template), then link. The tracking number is shown so
+            a customer can paste it into the carrier's own site meanwhile. */}
         {order.shippedAt ? (
           <p data-testid="shipped-date" className="mt-4 text-sm text-muted">
             Dispatched on {order.shippedAt.toLocaleDateString('en-IN')}
