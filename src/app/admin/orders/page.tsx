@@ -1,4 +1,6 @@
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
+import { getSession } from '@/lib/session'
+import { OPS_CONSOLE_ROLES } from '@/lib/roles'
 import { getOrdersAwaitingDispatch } from '@/lib/orders'
 import { formatPrice } from '@/lib/formatters'
 import { markOrderShipped } from './actions'
@@ -25,6 +27,15 @@ export default async function AdminOrdersPage({
 }: {
   searchParams?: { error?: string }
 }) {
+  // Middleware gates the ops console, but this page lists every awaiting
+  // customer's name and delivery address. Compliance and support already
+  // re-check; this one relied on the matcher alone, so a route move or a
+  // matcher edit would have exposed all of it with no second line of defence.
+  const session = getSession()
+  if (!session || !OPS_CONSOLE_ROLES.includes(session.role)) {
+    notFound()
+  }
+
   const orders = await getOrdersAwaitingDispatch()
   const error = searchParams?.error
 
@@ -103,6 +114,15 @@ export default async function AdminOrdersPage({
                   <button type="submit" className="btn-primary">
                     Mark shipped
                   </button>
+
+                  {/* TODO (E1): the mockup put "Assign to lab" beside this.
+                      Not built — there is no labs table and no orders.lab_id,
+                      so the control would collect a choice and write it
+                      nowhere, on a queue whose entire purpose is knowing where
+                      an order physically is. Worse than absent: an operator
+                      would believe the assignment had been recorded. Needs a
+                      lab model (code, name, and which order is with which)
+                      before it can exist. */}
                 </form>
               </li>
             )

@@ -2,10 +2,15 @@
 
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
+import { OPS_CONSOLE_ROLES } from '@/lib/roles'
 import { updateOrderStatus, bulkUpdateOrderStatus } from '@/lib/orders'
 import type { Order } from '@/types'
 
-const FULFILMENT_ROLES = ['admin', 'optometrist']
+// Was a local ['admin', 'optometrist'] — a third definition of who staffs
+// this console, alongside the middleware gate and the page. When the ops
+// console moved to `ops`, that list did not, so an ops operator could open the
+// dispatch queue and be refused by every button on it. One shared constant, so
+// the page and the action cannot disagree about who may act.
 
 export async function markOrderShipped(
   formData: FormData
@@ -13,7 +18,7 @@ export async function markOrderShipped(
   // Middleware gates /admin, but the action is independently reachable, so the
   // role check belongs here too.
   const session = getSession()
-  if (!session || !FULFILMENT_ROLES.includes(session.role)) {
+  if (!session || !OPS_CONSOLE_ROLES.includes(session.role)) {
     return { error: 'You do not have permission to dispatch orders' }
   }
 
@@ -39,7 +44,7 @@ export async function bulkUpdateOrders(
   formData: FormData
 ): Promise<{ error: string } | never> {
   const session = getSession()
-  if (!session || !FULFILMENT_ROLES.includes(session.role)) {
+  if (!session || !OPS_CONSOLE_ROLES.includes(session.role)) {
     return { error: 'You do not have permission to update orders' }
   }
 
