@@ -5,6 +5,9 @@ import { getPrescriptionsByCustomer } from '@/lib/prescriptions'
 import { getCustomerById } from '@/lib/customers'
 import { getAppointmentsByCustomer, getOptometrists } from '@/lib/eyeTestAppointments'
 import { getSession } from '@/lib/session'
+import { isUuid } from '@/lib/uuid'
+import { describeExpiry, isExpiringSoon } from '@/lib/prescriptionExpiry'
+import { logoutAction } from '@/app/actions/logout'
 import { formatPrice } from '@/lib/formatters'
 import { orderStatusLabel, ORDER_TABS, filterOrdersByTab, type OrderTab } from '@/lib/orderStatus'
 
@@ -27,10 +30,9 @@ function statusColors(status: string): string {
 
 // expires_at is nullable — say so rather than rendering a blank cell or an
 // Invalid Date, which reads as a bug to the customer.
-function expiryLabel(expiresAt: Date | null): string {
-  if (!expiresAt) return 'No expiry on file'
-  return `Expires ${expiresAt.toLocaleDateString('en-IN')}`
-}
+// Expiry wording lives in @/lib/prescriptionExpiry so the "in N weeks"
+// arithmetic is unit-tested against fixed dates rather than asserted through a
+// rendered page.
 
 function formatRx(value: number | null): string {
   return value === null ? '—' : value.toFixed(2)
@@ -61,6 +63,15 @@ export default async function AccountPage({ searchParams = {} }: AccountPageProp
     redirect('/login')
   }
 
+  // A signed cookie can still be stale — an id from a deleted account, or
+  // from before ids were uuids. customer_id is a uuid column, so a bad value
+  // reaches Postgres and 500s the dashboard rather than failing closed. The
+  // existing comment above notes the old `?? ''` fallback only failed closed
+  // by accident of that column type; this makes it deliberate.
+  if (!isUuid(session.customerId)) {
+    redirect('/login')
+  }
+
   const customerId = session.customerId
 
   const [orders, prescriptions, customer, appointments, optometrists] = await Promise.all([
@@ -80,6 +91,22 @@ export default async function AccountPage({ searchParams = {} }: AccountPageProp
   // The session can outlive the customer row (deleted account, stale cookie),
   // so the greeting degrades instead of assuming a record exists.
   const greeting = customer ? `Welcome back, ${customer.firstName}` : 'My Account'
+
+  // There is no addresses table and no saved-address book. What exists is the
+  // shipping_address JSONB on real orders, so this shows where orders have
+  // actually been delivered — read-only, deduplicated, and labelled as coming
+  // from past orders rather than implying something editable.
+  const deliveryAddresses = Array.from(
+    new Map(
+      orders.map((order) => {
+        const a = order.shippingAddress
+        const key = [a.line1, a.line2 ?? '', a.city, a.state, a.postalCode, a.country]
+          .join('|')
+          .toLowerCase()
+        return [key, a] as const
+      })
+    ).values()
+  )
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
@@ -145,8 +172,18 @@ export default async function AccountPage({ searchParams = {} }: AccountPageProp
                         data-testid={`rx-expiry-${rx.id}`}
                         className="block text-xs text-muted"
                       >
-                        {expiryLabel(rx.expiresAt)}
+                        {describeExpiry(rx.expiresAt)}
                       </span>
+                      {/* Emphasis, not a new fact — the same real expires_at,
+                          surfaced where it is actionable. */}
+                      {isExpiringSoon(rx.expiresAt) && (
+                        <Link
+                          href="/eye-test"
+                          className="mt-1 inline-block text-xs font-medium text-primary hover:text-teal"
+                        >
+                          Book an eye test to renew it
+                        </Link>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -221,6 +258,38 @@ export default async function AccountPage({ searchParams = {} }: AccountPageProp
             </div>
           )}
         </div>
+
+        {/* ── Delivery addresses ───────────────────────────── */}
+        {/* Read-only by design. There is no addresses table, so an "Add
+            address" control would be a false affordance — a saved address book
+            needs its own model and belongs with A10 checkout, where saved
+            addresses would actually be used. */}
+        <section aria-labelledby="addresses-heading" className="card p-6">
+          <p id="addresses-heading" className="text-lg font-semibold text-dark">
+            Delivery addresses
+          </p>
+          <p className="mt-1 text-sm text-muted">From your past orders</p>
+
+          {deliveryAddresses.length === 0 ? (
+            <p className="mt-4 text-muted">No delivery addresses yet</p>
+          ) : (
+            <ul className="mt-4 flex flex-col gap-4">
+              {deliveryAddresses.map((a) => (
+                <li key={`${a.line1}-${a.postalCode}`}>
+                  <address className="text-sm not-italic text-dark">
+                    {a.fullName ? <>{a.fullName}<br /></> : null}
+                    {a.line1}
+                    {a.line2 ? <><br />{a.line2}</> : null}
+                    <br />
+                    {a.city}, {a.state} {a.postalCode}
+                    <br />
+                    {a.country}
+                  </address>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         {/* ── Order History ─────────────────────────────────── */}
         <div className="card p-6">
@@ -354,6 +423,36 @@ export default async function AccountPage({ searchParams = {} }: AccountPageProp
             </div>
           )}
         </div>
+
+        {/* ── Account ──────────────────────────────────────── */}
+        <section aria-labelledby="account-controls-heading" className="card p-6">
+          <p id="account-controls-heading" className="text-lg font-semibold text-dark">
+            Account
+          </p>
+          {customer ? (
+            <p className="mt-1 text-sm text-muted">{customer.email}</p>
+          ) : null}
+
+          {/* TODO (B1): the mockup also carried a membership tier ("Silver",
+              "₹4,200 to Gold") and a "3 try-on looks saved" tile. Neither
+              ships: there is no membership, points or tier model anywhere in
+              the schema, and no table storing try-on results — static-photo
+              try-on renders in the browser and keeps nothing. Inventing a tier
+              would be a fabricated loyalty balance, which is a commercial
+              promise, not decoration. Both belong with a real loyalty model on
+              the schema backlog, and a guard in page.test.tsx asserts neither
+              creeps back in.
+
+              Prescription download is TODO for the same reason as the invoice
+              on A11 — no generator exists, and a partial clinical document is
+              worse than none. */}
+
+          <form action={logoutAction} className="mt-4">
+            <button type="submit" className="btn-secondary text-sm">
+              Sign Out
+            </button>
+          </form>
+        </section>
 
       </div>
 
