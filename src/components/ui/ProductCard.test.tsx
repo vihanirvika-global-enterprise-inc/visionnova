@@ -141,3 +141,27 @@ describe('ProductCard link to the product detail page', () => {
     }
   })
 })
+
+describe('ProductCard quick view', () => {
+  it('offers a quick view for its product', () => {
+    renderWithProviders(<ProductCard product={mockProduct} />)
+
+    expect(screen.getByRole('button', { name: `Quick view: ${mockProduct.name}` }))
+      .toBeInTheDocument()
+  })
+
+  it('does not open the dialog until asked', () => {
+    renderWithProviders(<ProductCard product={mockProduct} />)
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  // The quick view must not swallow the card's own link — the funnel fixed in
+  // the previous commit is the primary path, quick view is the shortcut.
+  it('still links through to the PDP alongside the quick view', () => {
+    renderWithProviders(<ProductCard product={mockProduct} />)
+
+    expect(screen.getByRole('link', { name: mockProduct.name }))
+      .toHaveAttribute('href', `/shop/${mockProduct.id}`)
+  })
+})

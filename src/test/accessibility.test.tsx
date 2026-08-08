@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render } from '@testing-library/react'
 import { axe } from 'jest-axe'
+import { AXE_OPTIONS } from './axeOptions'
 import { CartProvider } from '@/components/cart/CartContext'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
@@ -18,10 +19,9 @@ import LoginPage from '@/app/(auth)/login/page'
 // ticket also calls for. jsdom cannot compute real layout, so the
 // color-contrast rule is off here — Lighthouse CI covers it against the
 // really-rendered page (BUG-011).
-const AXE_OPTIONS = {
-  runOnly: { type: 'tag' as const, values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] },
-  rules: { 'color-contrast': { enabled: false } },
-}
+// The option set moved to ./axeOptions so the catalogue guards run the same
+// rulesets — two definitions of "accessible" in one suite is worse than none.
+
 
 describe('WCAG 2.1 AA automated checks', () => {
   it('Navbar has no violations', async () => {

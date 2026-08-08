@@ -6,13 +6,29 @@ import { CatalogControls } from '@/components/shop/CatalogControls'
 
 export const metadata: Metadata = {
   title: 'Eyeglasses',
-  description: 'Shop premium prescription eyewear from ₹799. Verified by licensed optometrists with free delivery across India.',
+  // ₹999 matches the homepage hero and the Budget tier floor. This read ₹799,
+  // which put a third entry price into approved copy — and this string is what
+  // search engines show. Separate from the catalogue reprice, which is about
+  // the seeded data being wrong, not the copy.
+  description: 'Shop premium prescription eyewear from ₹999. Verified by licensed optometrists with free delivery across India.',
 }
 
-// ST-002 (A2. Eyeglasses Catalog): search, sort, and pagination are wired to
-// getCatalogProducts and verified working. Attribute filtering (frame shape,
-// lens type, color) is not implemented — the ticket's "all filters combine
-// correctly and persist" AC is only partially met.
+// ST-002 (A2. Eyeglasses Catalog): search, sort, pagination, the wishlist
+// heart and quick view are wired to getCatalogProducts and verified working.
+//
+// Deliberately NOT built, and not a backlog oversight — the mockup's filter
+// rail (frame shape, material, gender; polarised/UV400/lens colour on A3)
+// filters on attributes that do not exist as columns on `products`. Adding the
+// columns would mean inventing values for all eight seeded rows, which is
+// fabricated product data on a medical-device storefront, not a stub. The
+// mockup's "Popularity" and "Discount %" sorts are the same problem: neither
+// has a source column, and discount implies an MRP we deliberately do not
+// hold. The three sorts offered here — newest, price ascending, price
+// descending — are the ones that map to real columns.
+//
+// This is bundled with the catalogue reprice as one task: land real product
+// data (attributes + correct INR prices), then design a product-attributes
+// schema, then build the rail against it. Tier badges wait on the same task.
 const PAGE_SIZE = 12
 const VALID_SORTS: ProductSort[] = ['price_asc', 'price_desc', 'newest']
 

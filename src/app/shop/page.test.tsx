@@ -345,3 +345,22 @@ describe('CatalogPage — URL round-trip', () => {
     )
   })
 })
+
+// The metadata description is what search engines show for the catalogue, and
+// it said "from ₹799" while the homepage hero and the Budget tier floor both
+// say ₹999 — a third price, in approved copy, disagreeing with itself. This is
+// copy consistency, not the catalogue reprice: the seeded prices are a
+// separate, known data problem.
+describe('CatalogPage metadata', () => {
+  it('quotes the same entry price as the homepage hero', async () => {
+    const { metadata } = await import('./page')
+
+    expect(metadata.description).toContain('₹999')
+  })
+
+  it('quotes no other entry price', async () => {
+    const { metadata } = await import('./page')
+
+    expect(metadata.description).not.toMatch(/₹799|₹899|₹1,?099/)
+  })
+})
