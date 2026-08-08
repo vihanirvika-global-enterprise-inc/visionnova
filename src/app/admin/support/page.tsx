@@ -5,6 +5,8 @@ import { OPS_CONSOLE_ROLES } from '@/lib/roles'
 import { getCustomerByEmail } from '@/lib/customers'
 import { getOrdersByCustomer } from '@/lib/orders'
 import { getPrescriptionsByCustomer } from '@/lib/prescriptions'
+import { getAccessLogsByCustomer } from '@/lib/prescriptionAccessLogs'
+import { REVIEWER_ROLES } from '@/lib/prescriptionAccess'
 import { formatPrice } from '@/lib/formatters'
 
 export const dynamic = 'force-dynamic'
@@ -28,12 +30,19 @@ export default async function SupportConsolePage({
   const email = searchParams.email?.trim().toLowerCase()
   const customer = email ? await getCustomerByEmail(email) : null
 
-  const [orders, prescriptions] = customer
+  const [orders, prescriptions, accessLogs] = customer
     ? await Promise.all([
         getOrdersByCustomer(customer.id),
         getPrescriptionsByCustomer(customer.id),
+        getAccessLogsByCustomer(customer.id),
       ])
-    : [[], []]
+    : [[], [], []]
+
+  // /admin/prescriptions/[id] is optometrist and admin only. An ops agent
+  // following a link to it lands on /unauthorized, so the link is only
+  // rendered for a role that can actually open it — a dead link on a console
+  // used mid-call is worse than plain text.
+  const canOpenPrescription = REVIEWER_ROLES.includes(session.role)
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
@@ -113,12 +122,18 @@ export default async function SupportConsolePage({
                 {prescriptions.map((prescription) => (
                   <li key={prescription.id} className="card flex items-center justify-between p-4">
                     <div>
-                      <Link
-                        href={`/admin/prescriptions/${prescription.id}`}
-                        className="font-medium text-primary hover:underline"
-                      >
-                        Prescription #{prescription.id}
-                      </Link>
+                      {canOpenPrescription ? (
+                        <Link
+                          href={`/admin/prescriptions/${prescription.id}`}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          Prescription #{prescription.id}
+                        </Link>
+                      ) : (
+                        <span className="font-medium text-dark">
+                          Prescription #{prescription.id}
+                        </span>
+                      )}
                       <p className="mt-1 text-xs text-muted">
                         Submitted {prescription.createdAt.toLocaleDateString('en-IN')}
                       </p>
@@ -129,6 +144,40 @@ export default async function SupportConsolePage({
               </ul>
             )}
           </section>
+          {/* The same trail /account/privacy shows the customer. A support
+              agent fielding "who has seen my prescription?" needs the answer
+              in front of them, and it is the same rows either way. */}
+          <section aria-labelledby="access-log-heading">
+            <h2 id="access-log-heading" className="text-lg font-semibold text-dark">
+              Access log
+            </h2>
+            {accessLogs.length === 0 ? (
+              <p className="card mt-3 p-6 text-muted">No recorded access to this customer&apos;s records.</p>
+            ) : (
+              <ul className="mt-3 flex flex-col gap-3">
+                {accessLogs.map((log) => (
+                  <li key={log.id} className="card p-4 text-sm">
+                    <span className="font-medium text-dark">{log.accessorName}</span>
+                    <span className="ml-2 text-muted">
+                      {log.accessorRole} · viewed{' '}
+                      {log.accessType === 'file' ? 'the prescription file' : 'prescription details'}
+                      {' · '}
+                      {log.accessedAt.toLocaleDateString('en-IN')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* RULING (E2): this stays a lookup console. The mockup's ticket
+              queue, SLA countdowns, threaded conversation, canned replies and
+              refund/replace/escalate actions do not ship — none has a table,
+              and ticketing is a subsystem with its own lifecycle, assignment
+              and retention rules, not a screen. A refund button that refunds
+              nothing is the worst possible false affordance on a console an
+              agent uses while a customer is on the phone. On the schema
+              backlog; guards in page.test.tsx assert none of it creeps in. */}
         </div>
       ) : null}
     </main>

@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/customers', () => ({ getCustomerByEmail: vi.fn() }))
 vi.mock('@/lib/orders', () => ({ getOrdersByCustomer: vi.fn() }))
 vi.mock('@/lib/prescriptions', () => ({ getPrescriptionsByCustomer: vi.fn() }))
+vi.mock('@/lib/prescriptionAccessLogs', () => ({ getAccessLogsByCustomer: vi.fn() }))
 vi.mock('next/navigation', () => ({
   notFound: vi.fn(() => { throw new Error('NEXT_NOT_FOUND') }),
 }))
@@ -13,7 +14,11 @@ import { getSession } from '@/lib/session'
 import { getCustomerByEmail } from '@/lib/customers'
 import { getOrdersByCustomer } from '@/lib/orders'
 import { getPrescriptionsByCustomer } from '@/lib/prescriptions'
+import { getAccessLogsByCustomer } from '@/lib/prescriptionAccessLogs'
 import SupportConsolePage from './page'
+
+const CUSTOMER_ID = 'cust-001'
+const PRESCRIPTION_ID = 'rx-001'
 
 const customer = {
   id: 'cust-001',
@@ -60,10 +65,11 @@ beforeEach(() => {
   vi.mocked(getCustomerByEmail).mockResolvedValue(customer as never)
   vi.mocked(getOrdersByCustomer).mockResolvedValue([order] as never)
   vi.mocked(getPrescriptionsByCustomer).mockResolvedValue([prescription] as never)
+  vi.mocked(getAccessLogsByCustomer).mockResolvedValue([] as never)
 })
 
 async function renderPage(searchParams: { email?: string } = {}) {
-  render(await SupportConsolePage({ searchParams }))
+  return render(await SupportConsolePage({ searchParams }))
 }
 
 describe('SupportConsolePage — gating', () => {
@@ -157,5 +163,116 @@ describe('SupportConsolePage — customer found', () => {
     await renderPage({ email: 'sam@example.com' })
 
     expect(screen.getByText(/no prescriptions/i)).toBeInTheDocument()
+  })
+})
+
+// A support agent fielding "who has seen my prescription?" needs the same
+// trail the customer sees on /account/privacy. Same accessor, same rows.
+describe('SupportConsolePage — access log', () => {
+  it('shows who has read this customer’s prescriptions', async () => {
+    vi.mocked(getAccessLogsByCustomer).mockResolvedValue([
+      {
+        id: 'log-1', prescriptionId: 'rx-1', accessorId: 'staff-9',
+        accessorName: 'Dr Meera Nair', accessorRole: 'optometrist',
+        accessType: 'file', accessedAt: new Date('2026-08-01T10:00:00Z'),
+      },
+    ] as never)
+
+    await renderPage({ email: 'asha@example.com' })
+
+    const section = screen.getByRole('region', { name: /access log/i })
+    expect(within(section).getByText(/Dr Meera Nair/)).toBeInTheDocument()
+  })
+
+  it('says so plainly when nobody has accessed anything', async () => {
+    vi.mocked(getAccessLogsByCustomer).mockResolvedValue([] as never)
+
+    await renderPage({ email: 'asha@example.com' })
+
+    const section = screen.getByRole('region', { name: /access log/i })
+    expect(within(section).getByText(/no recorded access/i)).toBeInTheDocument()
+  })
+
+  it('scopes the trail to the looked-up customer', async () => {
+    await renderPage({ email: 'asha@example.com' })
+
+    expect(getAccessLogsByCustomer).toHaveBeenCalledWith(CUSTOMER_ID)
+  })
+
+  it('queries nothing before a search', async () => {
+    await renderPage({})
+
+    expect(getAccessLogsByCustomer).not.toHaveBeenCalled()
+  })
+})
+
+// After the ops/clinical gate split, /admin/prescriptions/[id] is optometrist
+// and admin only — so an ops agent following this link lands on
+// /unauthorized. A link the current user cannot open is worse than none.
+describe('SupportConsolePage — prescription link', () => {
+  it('links to the review screen for a role that can open it', async () => {
+    vi.mocked(getSession).mockReturnValue({ customerId: 'staff-1', role: 'admin' })
+
+    await renderPage({ email: 'asha@example.com' })
+
+    expect(screen.getByRole('link', { name: /prescription #/i }))
+      .toHaveAttribute('href', `/admin/prescriptions/${PRESCRIPTION_ID}`)
+  })
+
+  it('does not link for an ops agent, who would land on /unauthorized', async () => {
+    vi.mocked(getSession).mockReturnValue({ customerId: 'staff-1', role: 'ops' })
+
+    await renderPage({ email: 'asha@example.com' })
+
+    expect(screen.queryByRole('link', { name: /prescription #/i })).not.toBeInTheDocument()
+  })
+
+  it('still shows the prescription and its status to an ops agent', async () => {
+    vi.mocked(getSession).mockReturnValue({ customerId: 'staff-1', role: 'ops' })
+
+    await renderPage({ email: 'asha@example.com' })
+
+    expect(screen.getByText(new RegExp(`Prescription #${PRESCRIPTION_ID}`))).toBeInTheDocument()
+  })
+})
+
+// RULING: this stays a lookup console. Ticketing is a subsystem on the schema
+// backlog — no queue, SLA, thread, canned replies or case actions has a table.
+describe('SupportConsolePage — ships no ticket system', () => {
+  it('offers no ticket queue or SLA timer', async () => {
+    const { container } = await renderPage({ email: 'asha@example.com' })
+    const text = container.textContent ?? ''
+
+    expect(text).not.toMatch(/ticket|sla|open cases|overdue|hrs left/i)
+  })
+
+  it('offers no threaded conversation or reply box', async () => {
+    await renderPage({ email: 'asha@example.com' })
+
+    expect(screen.queryByRole('textbox', { name: /reply|message/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /send|reply/i })).not.toBeInTheDocument()
+  })
+
+  it('offers no canned replies', async () => {
+    const { container } = await renderPage({ email: 'asha@example.com' })
+
+    expect(container.textContent ?? '').not.toMatch(/canned|delivery eta|apology \+ credit/i)
+  })
+
+  // These would each need an action that writes somewhere. None exists, and a
+  // refund button that refunds nothing is the worst possible false affordance
+  // on a console an agent uses while a customer is on the phone.
+  it('offers no refund, replace or escalate action', async () => {
+    await renderPage({ email: 'asha@example.com' })
+
+    for (const label of [/refund/i, /replace/i, /escalate/i]) {
+      expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument()
+    }
+  })
+
+  it('states no lifetime-value or ticket-count metric it cannot compute', async () => {
+    const { container } = await renderPage({ email: 'asha@example.com' })
+
+    expect(container.textContent ?? '').not.toMatch(/lifetime|ltv|tickets? open/i)
   })
 })
