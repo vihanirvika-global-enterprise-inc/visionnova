@@ -14,21 +14,35 @@ interface ProductPageProps {
   params: { id: string }
 }
 
+// products.id is a uuid column, so a malformed segment reached Postgres as a
+// raw string and threw `invalid input syntax for type uuid` — an unhandled DB
+// error served through global-error.tsx as a 200, before notFound() was ever
+// reached. Checking the shape first means a junk id never touches the query.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+async function findProductOr404(id: string) {
+  if (!UUID_PATTERN.test(id)) {
+    notFound()
+  }
+
+  const product = await getProductById(id)
+  if (!product) {
+    notFound()
+  }
+
+  // notFound() throws, so nothing below runs for a missing product. It is
+  // called outside any try/catch on purpose: NEXT_NOT_FOUND travels as a
+  // thrown error, and a catch anywhere on this path would swallow it and let
+  // the page fall through to a 200.
+  return product
+}
+
 // Every product page previously inherited the root <title>, on the most-linked
 // page type in the site. Both fields come straight from the row: a generated
 // description would be marketing copy nobody approved, on a listing for a
 // medical device. A product with no description gets none.
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
-  const product = await getProductById(params.id)
-
-  // notFound() here, not a fallback title. Returning metadata lets Next
-  // resolve the head and start the response, so the notFound() in the page
-  // body below lands after the status is committed — the 404 silently becomes
-  // a 200 serving not-found-looking content. Confirmed against a production
-  // build: with a fallback title, /shop/<bad-id> returned 200.
-  if (!product) {
-    notFound()
-  }
+  const product = await findProductOr404(params.id)
 
   return {
     title: product.name,
@@ -51,14 +65,7 @@ function CheckIcon() {
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
-  const product = await getProductById(params.id)
-
-  // Previously a 200 response whose body read "Product not found", so every
-  // stale or mistyped id indexed as a live page. notFound() is what actually
-  // returns a 404, and it is the convention the admin routes already follow.
-  if (!product) {
-    notFound()
-  }
+  const product = await findProductOr404(params.id)
 
   const images = await getProductImages(product.id)
 

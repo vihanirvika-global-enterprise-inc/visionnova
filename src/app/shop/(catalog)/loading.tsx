@@ -1,3 +1,16 @@
+// Deliberately inside the (catalog) route group, not at src/app/shop/.
+//
+// loading.tsx creates a Suspense boundary for its segment AND every child, so
+// at src/app/shop/ this covered /shop/[id] too. Under streaming SSR the shell
+// — and with it the 200 status — is committed before the PDP body runs, so a
+// notFound() for a missing product could never produce a 404: the not-found UI
+// was swapped into an already-committed 200 response.
+//
+// Proven by bisection: a bare dynamic route calling notFound() returned 404,
+// and returned 200 the moment a sibling loading.tsx was added. The route group
+// keeps this skeleton on the listing, where it belongs, and off the PDP, which
+// never rendered it anyway.
+
 export default function CatalogLoading() {
   return (
     <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
