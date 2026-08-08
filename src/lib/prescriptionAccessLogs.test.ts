@@ -157,3 +157,54 @@ describe('getRecentAccessLogs', () => {
     expect(log.patientName).toBe('Unknown patient')
   })
 })
+
+// DPDP gives a data principal the right to know who has processed their
+// personal data. The per-prescription trail already existed for the review
+// screen, and the global one for the ops console — neither answers "who has
+// read *my* records", which is the question the rights centre has to answer.
+describe('getAccessLogsByCustomer', () => {
+  it('returns every access across all of that customer’s prescriptions', async () => {
+    const { sql } = await import('./db')
+    mockSql(sql).mockResolvedValueOnce([
+      { ...logRow, first_name: 'Meera', accessor_name: 'Meera Nair' },
+    ])
+    const { getAccessLogsByCustomer } = await import('./prescriptionAccessLogs')
+
+    const logs = await getAccessLogsByCustomer('cust-owner')
+
+    expect(logs).toHaveLength(1)
+    expect(logs[0].accessorName).toBe('Meera Nair')
+    expect(logs[0].accessType).toBe('file')
+  })
+
+  it('scopes the query to the requesting customer', async () => {
+    const { sql } = await import('./db')
+    const spy = mockSql(sql).mockResolvedValueOnce([])
+    const { getAccessLogsByCustomer } = await import('./prescriptionAccessLogs')
+
+    await getAccessLogsByCustomer('cust-owner')
+
+    // The id must be a bound parameter, never interpolated into the text.
+    expect(spy.mock.calls[0].slice(1)).toContain('cust-owner')
+  })
+
+  it('returns an empty list rather than throwing when nothing has been accessed', async () => {
+    const { sql } = await import('./db')
+    mockSql(sql).mockResolvedValueOnce([])
+    const { getAccessLogsByCustomer } = await import('./prescriptionAccessLogs')
+
+    await expect(getAccessLogsByCustomer('cust-owner')).resolves.toEqual([])
+  })
+
+  // Same reasoning as the per-prescription trail: deleting a staff account
+  // must not erase the evidence that they read something.
+  it('still names an access whose accessor account is gone', async () => {
+    const { sql } = await import('./db')
+    mockSql(sql).mockResolvedValueOnce([{ ...logRow, accessor_name: null }])
+    const { getAccessLogsByCustomer } = await import('./prescriptionAccessLogs')
+
+    const logs = await getAccessLogsByCustomer('cust-owner')
+
+    expect(logs[0].accessorName).toBeTruthy()
+  })
+})

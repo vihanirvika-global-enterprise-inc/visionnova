@@ -73,6 +73,29 @@ export async function getAccessLogsByPrescription(
   return rows.map(mapAccessLog)
 }
 
+// B4. DPDP gives a data principal the right to know who has processed their
+// personal data. getAccessLogsByPrescription answers it for one record and
+// getRecentAccessLogs for the whole estate; neither answers "who has read *my*
+// records", which is the question the rights centre exists to answer.
+//
+// Inner JOIN on prescriptions, because the filter is ownership — a log row
+// whose prescription is gone cannot be attributed to a customer. The LEFT JOIN
+// on the accessor stays, for the same reason as above: deleting a staff
+// account must not erase the evidence that they read something.
+export async function getAccessLogsByCustomer(
+  customerId: string
+): Promise<PrescriptionAccessLog[]> {
+  const rows = await sql`
+    SELECT l.*, c.first_name || ' ' || c.last_name AS accessor_name
+    FROM prescription_access_logs l
+    JOIN prescriptions p ON p.id = l.prescription_id
+    LEFT JOIN customers c ON c.id = l.accessor_id
+    WHERE p.customer_id = ${customerId}
+    ORDER BY l.accessed_at DESC
+  `
+  return rows.map(mapAccessLog)
+}
+
 export interface GlobalAccessLogEntry extends PrescriptionAccessLog {
   // Who the prescription belongs to — the per-prescription trail doesn't need
   // this (the page it's shown on already names the patient), but a console
