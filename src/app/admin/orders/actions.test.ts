@@ -155,3 +155,62 @@ describe('bulkUpdateOrders — success', () => {
     expect(NextNavigation.redirect).not.toHaveBeenCalled()
   })
 })
+
+// The ops console admits ops, but this action carried its own role list
+// (['admin', 'optometrist']) — so after the gate moved, an ops operator could
+// open the dispatch queue and be refused by every button on it. A console you
+// can look at but not act in is worse than one you cannot open.
+describe('order actions — ops console roles', () => {
+  it('lets an ops operator mark an order shipped', async () => {
+    vi.mocked(Session.getSession).mockReturnValue({ customerId: 'staff-1', role: 'ops' })
+    vi.mocked(Orders.updateOrderStatus).mockResolvedValue(undefined as never)
+
+    const result = await markOrderShipped(formData({ orderId: 'order-1', carrier: 'Delhivery', trackingNumber: 'DL1' }))
+
+    expect(result?.error).toBeUndefined()
+    expect(Orders.updateOrderStatus).toHaveBeenCalled()
+  })
+
+  it('lets an ops operator run a bulk update', async () => {
+    vi.mocked(Session.getSession).mockReturnValue({ customerId: 'staff-1', role: 'ops' })
+    vi.mocked(Orders.bulkUpdateOrderStatus).mockResolvedValue(undefined as never)
+
+    const result = await bulkUpdateOrders(formData({ orderIds: 'order-1,order-2', status: 'shipped' }))
+
+    expect(result?.error).toBeUndefined()
+  })
+
+  it.each(['optometrist', 'customer', 'partner_optometrist'])(
+    'refuses dispatch to a %s', async (role) => {
+      vi.mocked(Session.getSession).mockReturnValue({ customerId: 'staff-1', role })
+
+      const result = await markOrderShipped(formData({ orderId: 'order-1', carrier: 'Delhivery', trackingNumber: 'DL1' }))
+
+      expect(result?.error).toMatch(/permission/i)
+      expect(Orders.updateOrderStatus).not.toHaveBeenCalled()
+    }
+  )
+
+  it('refuses a bulk update to an optometrist', async () => {
+    vi.mocked(Session.getSession).mockReturnValue({ customerId: 'staff-1', role: 'optometrist' })
+
+    const result = await bulkUpdateOrders(formData({ orderIds: 'order-1,order-2', status: 'shipped' }))
+
+    expect(result?.error).toMatch(/permission/i)
+    expect(Orders.bulkUpdateOrderStatus).not.toHaveBeenCalled()
+  })
+
+  // The page and the action must agree — a page that renders a button the
+  // action refuses is the failure this whole change is about.
+  it('uses the same role set the page gates on', async () => {
+    const { OPS_CONSOLE_ROLES } = await import('@/lib/roles')
+
+    for (const role of OPS_CONSOLE_ROLES) {
+      vi.clearAllMocks()
+      vi.mocked(Session.getSession).mockReturnValue({ customerId: 'staff-1', role })
+      vi.mocked(Orders.updateOrderStatus).mockResolvedValue(undefined as never)
+
+      expect((await markOrderShipped(formData({ orderId: 'order-1', carrier: 'Delhivery', trackingNumber: 'DL1' })))?.error).toBeUndefined()
+    }
+  })
+})
