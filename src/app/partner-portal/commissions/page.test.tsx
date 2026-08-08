@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
@@ -39,7 +39,7 @@ async function setup({
   vi.mocked(getCommissionLedger).mockResolvedValue(ledger as never)
 
   const CommissionsPage = (await import('./page')).default
-  render(await CommissionsPage())
+  return render(await CommissionsPage())
 }
 
 beforeEach(() => {
@@ -98,5 +98,79 @@ describe('CommissionsPage — ledger', () => {
     await setup({ ledger: [makeLedgerEntry({ amount: 150 })] })
 
     expect(screen.queryByText(/not yet calculated/i)).not.toBeInTheDocument()
+  })
+})
+
+// Counted from the ledger already loaded. amount is nullable because no
+// commission-rate rule exists, so a row can be recorded before anyone can say
+// what it is worth — the summary says how many, rather than totalling a null
+// as zero.
+describe('CommissionsPage — ledger summary', () => {
+  it('splits pending from reconciled', async () => {
+    await setup({
+      ledger: [
+        makeLedgerEntry({ id: 'c-1', amount: 100, status: 'pending' }),
+        makeLedgerEntry({ id: 'c-2', amount: 250, status: 'reconciled' }),
+      ],
+    })
+
+    const summary = screen.getByRole('region', { name: /summary/i })
+    expect(within(summary).getByTestId('summary-pending')).toHaveTextContent('1')
+    expect(within(summary).getByTestId('summary-reconciled')).toHaveTextContent('1')
+  })
+
+  it('totals only the amounts actually recorded', async () => {
+    await setup({
+      ledger: [
+        makeLedgerEntry({ id: 'c-1', amount: 100, status: 'pending' }),
+        makeLedgerEntry({ id: 'c-2', amount: 250, status: 'reconciled' }),
+      ],
+    })
+
+    const summary = screen.getByRole('region', { name: /summary/i })
+    expect(within(summary).getByTestId('summary-total')).toHaveTextContent('350')
+  })
+
+  it('says how many rows have no amount yet rather than counting them as zero', async () => {
+    await setup({
+      ledger: [
+        makeLedgerEntry({ id: 'c-1', amount: null, status: 'pending' }),
+        makeLedgerEntry({ id: 'c-2', amount: 100, status: 'pending' }),
+      ],
+    })
+
+    const summary = screen.getByRole('region', { name: /summary/i })
+    expect(within(summary).getByText(/1 .*no amount recorded/i)).toBeInTheDocument()
+  })
+
+  it('shows no summary at all for an empty ledger, leaving the honest empty state', async () => {
+    await setup({ ledger: [] })
+
+    expect(screen.queryByRole('region', { name: /summary/i })).not.toBeInTheDocument()
+    expect(screen.getByText(/no referral activity recorded yet/i)).toBeInTheDocument()
+  })
+})
+
+describe('CommissionsPage — no unbacked payout affordances', () => {
+  it('offers no statement download it cannot generate', async () => {
+    const { container } = await setup({ ledger: [makeLedgerEntry()] })
+
+    expect(screen.queryByRole('button', { name: /download|statement|export/i })).not.toBeInTheDocument()
+    expect(container.querySelector('a[download]')).toBeNull()
+  })
+
+  // The mockup showed visionnova.in/r/DRMEERA with a copy button. The referral
+  // code is real; that route is not, so the link would 404.
+  it('shows the referral code but no referral URL that has no route', async () => {
+    const { container } = await setup({ ledger: [] })
+
+    expect(container.textContent ?? '').not.toMatch(/visionnova\.in\/r\/|\/r\//)
+    expect(container.querySelector('a[href^="/r/"]')).toBeNull()
+  })
+
+  it('promises no payout date or schedule', async () => {
+    const { container } = await setup({ ledger: [makeLedgerEntry()] })
+
+    expect(container.textContent ?? '').not.toMatch(/paid monthly|payout on|next payout/i)
   })
 })
