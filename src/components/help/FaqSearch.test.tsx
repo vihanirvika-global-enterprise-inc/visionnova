@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect } from 'vitest'
 import { FaqSearch } from './FaqSearch'
+import { FAQ_SECTIONS, faqSectionAnchorId } from '@/lib/faq'
 import type { FaqSection } from '@/lib/faq'
 
 const SECTIONS: FaqSection[] = [
@@ -52,5 +53,25 @@ describe('FaqSearch', () => {
 
     expect(screen.getByText('Do I need a prescription?')).toBeInTheDocument()
     expect(screen.getByText('What payment methods?')).toBeInTheDocument()
+  })
+})
+
+// The topic tiles above link to these anchors. Without them every tile is a
+// dead jump — the page scrolls nowhere and nothing tells you it failed.
+describe('FaqSearch section anchors', () => {
+  it('gives every section the anchor its topic tile links to', () => {
+    const { container } = render(<FaqSearch sections={FAQ_SECTIONS} />)
+
+    for (const section of FAQ_SECTIONS) {
+      expect(container.querySelector(`#${faqSectionAnchorId(section.title)}`)).not.toBeNull()
+    }
+  })
+
+  it('puts the anchor on the heading, so the section title is what comes into view', () => {
+    render(<FaqSearch sections={FAQ_SECTIONS} />)
+
+    const first = FAQ_SECTIONS[0]
+    const heading = screen.getByRole('heading', { name: first.title })
+    expect(heading).toHaveAttribute('id', faqSectionAnchorId(first.title))
   })
 })
